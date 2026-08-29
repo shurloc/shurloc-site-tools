@@ -1,0 +1,13 @@
+{
+    "[php]": {
+        "editor.defaultFormatter": "valeryanm.vscode-phpsab",
+        "editor.formatOnSave": true
+    },
+    "phpsab.standard": "./phpcs.xml.dist",
+    "files.eol": "\n",
+    "intelephense.files.maxSize": 10000000,
+    "intelephense.environment.includePaths": [
+        "../shurloc-tools/includes/interfaces",
+        "./vendor/php-stubs/woocommerce-stubs"
+    ]
+}

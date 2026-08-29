@@ -1,0 +1,46 @@
+<?xml version="1.0"?>
+<ruleset name="Shur-loc Site Tools">
+
+	<description>
+		WordPress Coding Standards for the Shur-loc Site Tools plugin.
+	</description>
+
+	<!-- Analyze code as PHP 8.4 -->
+	<config name="php_version" value="80400"/>
+	<config name="testVersion" value="8.4-"/>
+
+	<!-- Files to scan -->
+	<file>includes</file>
+	<file>tests</file>
+	<file>shurloc-site-tools.php</file>
+
+	<!-- Ignore Composer dependencies -->
+	<exclude-pattern>vendor/*</exclude-pattern>
+
+	<!-- WordPress Coding Standards -->
+	<rule ref="WordPress-Core"/>
+	<rule ref="WordPress-Docs"/>
+	<rule ref="WordPress-Extra"/>
+
+	<!-- PHPUnit uses PSR-style names for test files/classes. -->
+	<rule ref="WordPress.Files.FileName.NotHyphenatedLowercase">
+		<exclude-pattern>tests/*</exclude-pattern>
+	</rule>
+
+	<rule ref="WordPress.Files.FileName.InvalidClassFileName">
+		<exclude-pattern>tests/*</exclude-pattern>
+	</rule>
+
+	<!-- PHP compatibility -->
+	<rule ref="PHPCompatibilityWP"/>
+
+	<!--
+		The Squiz @throws sniff does not recognize exceptions thrown by
+		internal PHP functions (e.g. json_decode() with JSON_THROW_ON_ERROR).
+		Disable it for the test suite.
+	-->
+	<rule ref="Squiz.Commenting.FunctionCommentThrowTag.WrongNumber">
+		<exclude-pattern>tests/*</exclude-pattern>
+	</rule>
+
+</ruleset>

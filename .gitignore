@@ -1,0 +1,17 @@
+/vendor/
+/build/
+
+.DS_Store
+Thumbs.db
+
+.idea/
+
+*.log
+
+# PHPCS reports
+phpcs-report.txt
+phpcs.xml
+
+# PHPUnit
+.phpunit.cache/
+.phpunit.result.cache
