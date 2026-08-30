@@ -45,3 +45,23 @@ if ( ! function_exists( 'wc_price' ) ) {
 		);
 	}
 }
+
+if ( ! function_exists( 'wc_get_order_statuses' ) ) {
+	/**
+	 * Get WooCommerce order statuses.
+	 *
+	 * @return array<string,string>
+	 */
+	function wc_get_order_statuses(): array {
+
+		return array(
+			'wc-pending'    => 'Pending payment',
+			'wc-processing' => 'Processing',
+			'wc-on-hold'    => 'On hold',
+			'wc-completed'  => 'Completed',
+			'wc-cancelled'  => 'Cancelled',
+			'wc-refunded'   => 'Refunded',
+			'wc-failed'     => 'Failed',
+		);
+	}
+}
