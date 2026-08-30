@@ -802,3 +802,22 @@ if ( ! function_exists( 'delete_user_meta' ) ) {
 		return true;
 	}
 }
+
+if ( ! function_exists( 'esc_url' ) ) {
+	/**
+	 * Escape a URL.
+	 *
+	 * @param string $url URL to escape.
+	 * @return string
+	 */
+	function esc_url(
+		string $url
+	): string {
+
+		return htmlspecialchars(
+			$url,
+			ENT_QUOTES,
+			'UTF-8'
+		);
+	}
+}
