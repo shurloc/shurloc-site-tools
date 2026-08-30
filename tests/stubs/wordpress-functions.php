@@ -398,3 +398,18 @@ if ( ! function_exists( 'plugin_dir_url' ) ) {
 		return 'https://example.com/wp-content/plugins/shurloc-site-tools/';
 	}
 }
+
+if ( ! function_exists( 'wp_strip_all_tags' ) ) {
+	/**
+	 * Strip all HTML tags from a string.
+	 *
+	 * @param string $text Text containing HTML.
+	 * @return string
+	 */
+	function wp_strip_all_tags(
+		string $text
+	): string {
+		// phpcs:ignore WordPress.WP.AlternativeFunctions.strip_tags_strip_tags -- Test stub implements wp_strip_all_tags().
+		return strip_tags( $text );
+	}
+}
