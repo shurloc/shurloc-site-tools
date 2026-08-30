@@ -821,3 +821,62 @@ if ( ! function_exists( 'esc_url' ) ) {
 		);
 	}
 }
+
+if ( ! function_exists( 'submit_button' ) ) {
+	/**
+	 * Render a test submit button.
+	 *
+	 * @param string               $text             Button text.
+	 * @param string               $type             Button type.
+	 * @param string               $name             Button name.
+	 * @param bool                 $wrap             Whether to wrap the button in a paragraph.
+	 * @param array<string,scalar> $other_attributes Additional button attributes.
+	 * @return void
+	 */
+	function submit_button(
+		string $text = 'Save Changes',
+		string $type = 'primary large',
+		string $name = 'submit',
+		bool $wrap = true,
+		array $other_attributes = array()
+	): void {
+
+		unset( $type, $other_attributes );
+
+		$button = sprintf(
+			'<input type="submit" name="%1$s" value="%2$s" />',
+			esc_attr( $name ),
+			esc_attr( $text )
+		);
+
+		if ( $wrap ) {
+			echo '<p class="submit">' . $button . '</p>'; // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- Test stub output is escaped above.
+			return;
+		}
+
+			echo $button; // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- Test stub output is escaped above.
+	}
+}
+
+if ( ! function_exists( 'do_action' ) ) {
+	/**
+	 * Execute callbacks registered for an action.
+	 *
+	 * @param string $hook_name Action hook name.
+	 * @param mixed  ...$args   Arguments passed to registered callbacks.
+	 * @return void
+	 */
+	function do_action(
+		string $hook_name,
+		mixed ...$args
+	): void {
+
+		if ( ! isset( $GLOBALS['shurloc_test_actions'][ $hook_name ] ) ) {
+			return;
+		}
+
+		foreach ( $GLOBALS['shurloc_test_actions'][ $hook_name ] as $callback ) {
+			$callback( ...$args );
+		}
+	}
+}
