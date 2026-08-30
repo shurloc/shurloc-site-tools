@@ -63,6 +63,11 @@ $GLOBALS['shurloc_test_post'] = null;
  */
 $GLOBALS['shurloc_test_filtered_content'] = null;
 
+/**
+ * Current test timestamp.
+ */
+$GLOBALS['shurloc_test_time'] = 0;
+
 
 if ( ! function_exists( 'get_post_meta' ) ) {
 	/**
@@ -537,5 +542,72 @@ if ( ! function_exists( 'wp_kses' ) ) {
 		unset( $allowed_html );
 
 		return $content;
+	}
+}
+
+if ( ! function_exists( 'wp_date' ) ) {
+	/**
+	 * Format a test timestamp.
+	 *
+	 * @param string   $format    Date format.
+	 * @param int|null $timestamp Timestamp.
+	 * @return string
+	 */
+	function wp_date(
+		string $format,
+		?int $timestamp = null
+	): string {
+		if ( null === $timestamp ) {
+			$timestamp = $GLOBALS['shurloc_test_time'];
+		}
+
+		return gmdate(
+			$format,
+			$timestamp
+		);
+	}
+}
+
+if ( ! function_exists( '_n' ) ) {
+	/**
+	 * Return the singular or plural test translation.
+	 *
+	 * @param string $single Singular text.
+	 * @param string $plural Plural text.
+	 * @param int    $number Number.
+	 * @param string $domain Text domain.
+	 * @return string
+	 */
+	function _n(
+		string $single,
+		string $plural,
+		int $number,
+		string $domain = 'default'
+	): string {
+		unset( $domain );
+
+		return 1 === $number
+			? $single
+			: $plural;
+	}
+}
+
+if ( ! function_exists( 'get_option' ) ) {
+	/**
+	 * Retrieve a test option value.
+	 *
+	 * @param string $option         Option name.
+	 * @param mixed  $default_value Default value.
+	 * @return mixed
+	 */
+	function get_option(
+		string $option,
+		$default_value = false
+	) {
+		if ( 'date_format' === $option ) {
+			return 'F j, Y';
+		}
+
+		return $default_value;
 	}
 }
