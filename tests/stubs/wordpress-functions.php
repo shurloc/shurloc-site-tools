@@ -68,6 +68,21 @@ $GLOBALS['shurloc_test_filtered_content'] = null;
  */
 $GLOBALS['shurloc_test_time'] = 0;
 
+/**
+ * Current test user ID.
+ */
+$GLOBALS['shurloc_test_current_user_id'] = 0;
+
+/**
+ * Whether the current test user is logged in.
+ */
+$GLOBALS['shurloc_test_is_user_logged_in'] = false;
+
+/**
+ * Test user meta values.
+ */
+$GLOBALS['shurloc_test_user_meta'] = array();
+
 
 if ( ! function_exists( 'get_post_meta' ) ) {
 	/**
@@ -609,5 +624,79 @@ if ( ! function_exists( 'get_option' ) ) {
 		}
 
 		return $default_value;
+	}
+}
+
+if ( ! function_exists( 'get_current_user_id' ) ) {
+	/**
+	 * Get the current test user ID.
+	 *
+	 * @return int
+	 */
+	function get_current_user_id(): int {
+		return $GLOBALS['shurloc_test_current_user_id'];
+	}
+}
+
+if ( ! function_exists( 'is_user_logged_in' ) ) {
+	/**
+	 * Determine whether the current test user is logged in.
+	 *
+	 * @return bool
+	 */
+	function is_user_logged_in(): bool {
+		return $GLOBALS['shurloc_test_is_user_logged_in'];
+	}
+}
+
+if ( ! function_exists( 'get_user_meta' ) ) {
+	/**
+	 * Retrieve test user meta.
+	 *
+	 * @param int    $user_id User ID.
+	 * @param string $key     Meta key.
+	 * @param bool   $single  Whether to return a single value.
+	 * @return mixed
+	 */
+	function get_user_meta(
+		int $user_id,
+		string $key = '',
+		bool $single = false
+	) {
+		if ( '' === $key ) {
+			return $GLOBALS['shurloc_test_user_meta'][ $user_id ] ?? array();
+		}
+
+		$value = $GLOBALS['shurloc_test_user_meta'][ $user_id ][ $key ] ?? '';
+
+		if ( $single ) {
+			return $value;
+		}
+
+		if ( '' === $value ) {
+			return array();
+		}
+
+		return array( $value );
+	}
+}
+
+if ( ! function_exists( 'update_user_meta' ) ) {
+	/**
+	 * Update test user meta.
+	 *
+	 * @param int    $user_id User ID.
+	 * @param string $key     Meta key.
+	 * @param mixed  $value   Meta value.
+	 * @return bool
+	 */
+	function update_user_meta(
+		int $user_id,
+		string $key,
+		$value
+	): bool {
+		$GLOBALS['shurloc_test_user_meta'][ $user_id ][ $key ] = $value;
+
+		return true;
 	}
 }

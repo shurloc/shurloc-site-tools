@@ -33,10 +33,12 @@ $shurloc_autoloader->register();
  * Load stubs and test doubles.
  */
 require_once __DIR__ . '/stubs/wordpress-functions.php';
-require_once __DIR__ . '/stubs/namespaced-functions.php';
+require_once __DIR__ . '/stubs/customer-formatters-functions.php';
+require_once __DIR__ . '/stubs/customer-services-functions.php';
 
 require_once dirname( __DIR__ ) . '/includes/constants.php';
 require_once dirname( __DIR__ ) . '/includes/bootstrap.php';
 
 require_once __DIR__ . '/doubles/class-wp-query.php';
 require_once __DIR__ . '/doubles/class-wp-post.php';
+require_once __DIR__ . '/doubles/class-wp-user.php';
