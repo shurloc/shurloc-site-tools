@@ -35,6 +35,7 @@ $shurloc_autoloader->register();
 require_once __DIR__ . '/stubs/wordpress-functions.php';
 require_once __DIR__ . '/stubs/customer-formatters-functions.php';
 require_once __DIR__ . '/stubs/customer-services-functions.php';
+require_once __DIR__ . '/stubs/customer-admin-functions.php';
 
 require_once dirname( __DIR__ ) . '/includes/constants.php';
 require_once dirname( __DIR__ ) . '/includes/bootstrap.php';
@@ -48,3 +49,4 @@ require_once __DIR__ . '/doubles/class-wc-product.php';
 require_once __DIR__ . '/doubles/class-wc-cart.php';
 require_once __DIR__ . '/doubles/class-wc-cart-double.php';
 require_once __DIR__ . '/doubles/class-woocommerce.php';
+require_once __DIR__ . '/doubles/class-wp-user-query.php';
