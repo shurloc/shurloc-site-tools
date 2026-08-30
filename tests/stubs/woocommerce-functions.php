@@ -65,3 +65,28 @@ if ( ! function_exists( 'wc_get_order_statuses' ) ) {
 		);
 	}
 }
+
+if ( ! function_exists( 'wc_attribute_label' ) ) {
+	/**
+	 * Get a display label for a WooCommerce attribute.
+	 *
+	 * @param string $name Attribute name.
+	 * @return string
+	 */
+	function wc_attribute_label(
+		string $name
+	): string {
+
+		if ( str_starts_with( $name, 'pa_' ) ) {
+			$name = substr( $name, 3 );
+		}
+
+		$name = str_replace(
+			array( '-', '_' ),
+			' ',
+			$name
+		);
+
+		return ucwords( $name );
+	}
+}

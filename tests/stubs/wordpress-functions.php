@@ -931,3 +931,64 @@ if ( ! function_exists( 'admin_url' ) ) {
 		);
 	}
 }
+
+if ( ! function_exists( 'wp_kses_post' ) ) {
+	/**
+	 * Sanitize content using the allowed post HTML rules.
+	 *
+	 * Test stub returns the supplied content unchanged.
+	 *
+	 * @param string $data Content to sanitize.
+	 * @return string
+	 */
+	function wp_kses_post(
+		string $data
+	): string {
+
+		return $data;
+	}
+}
+
+if ( ! function_exists( 'get_permalink' ) ) {
+	/**
+	 * Get a test permalink.
+	 *
+	 * @param int $post_id Post ID.
+	 * @return string|false
+	 */
+	function get_permalink(
+		int $post_id
+	): string|false {
+
+		return $GLOBALS['shurloc_test_permalinks'][ $post_id ] ?? false;
+	}
+}
+
+if ( ! function_exists( 'wp_enqueue_script' ) ) {
+	/**
+	 * Enqueue a test script.
+	 *
+	 * @param string            $handle    Script handle.
+	 * @param string            $src       Script source URL.
+	 * @param array<int,string> $deps      Script dependencies.
+	 * @param string|bool|null  $ver       Script version.
+	 * @param bool              $in_footer Whether to enqueue in the footer.
+	 * @return void
+	 */
+	function wp_enqueue_script(
+		string $handle,
+		string $src = '',
+		array $deps = array(),
+		string|bool|null $ver = false,
+		bool $in_footer = false
+	): void {
+
+		$GLOBALS['shurloc_test_enqueued_scripts'][] = array(
+			'handle'    => $handle,
+			'src'       => $src,
+			'deps'      => $deps,
+			'ver'       => $ver,
+			'in_footer' => $in_footer,
+		);
+	}
+}
