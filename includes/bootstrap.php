@@ -10,6 +10,7 @@ declare( strict_types=1 );
 namespace Shurloc\SiteTools;
 
 use Shurloc\SiteTools\Media\Bootstrap as Media_Bootstrap;
+use Shurloc\SiteTools\SEO\Bootstrap as SEO_Bootstrap;
 
 if ( ! defined( 'ABSPATH' ) ) {
 	exit;
@@ -41,6 +42,14 @@ function shurloc_site_tools_bootstrap(): void {
 	$media_bootstrap = new Media_Bootstrap();
 
 	$media_bootstrap->register();
+
+	/**
+	 * SEO domain.
+	 */
+
+	$seo_bootstrap = new SEO_Bootstrap();
+
+	$seo_bootstrap->register();
 }
 
 add_action(

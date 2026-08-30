@@ -43,11 +43,11 @@ final class BootstrapTest extends TestCase {
 	}
 
 	/**
-	 * Verify the plugin bootstrap registers the Media domain.
+	 * Verify the plugin bootstrap registers its domains.
 	 *
 	 * @return void
 	 */
-	public function test_bootstrap_registers_media_domain(): void {
+	public function test_bootstrap_registers_domains(): void {
 
 		shurloc_site_tools_bootstrap();
 
@@ -58,6 +58,11 @@ final class BootstrapTest extends TestCase {
 
 		self::assertArrayHasKey(
 			'admin_enqueue_scripts',
+			$GLOBALS['shurloc_test_actions']
+		);
+
+		self::assertArrayHasKey(
+			'wp_head',
 			$GLOBALS['shurloc_test_actions']
 		);
 	}
