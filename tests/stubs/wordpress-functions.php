@@ -83,6 +83,16 @@ $GLOBALS['shurloc_test_is_user_logged_in'] = false;
  */
 $GLOBALS['shurloc_test_user_meta'] = array();
 
+/**
+ * WooCommerce instance used by tests.
+ */
+$GLOBALS['shurloc_test_woocommerce'] = null;
+
+/**
+ * WooCommerce orders indexed by order ID.
+ */
+$GLOBALS['shurloc_test_orders'] = array();
+
 
 if ( ! function_exists( 'get_post_meta' ) ) {
 	/**
@@ -696,6 +706,98 @@ if ( ! function_exists( 'update_user_meta' ) ) {
 		$value
 	): bool {
 		$GLOBALS['shurloc_test_user_meta'][ $user_id ][ $key ] = $value;
+
+		return true;
+	}
+}
+
+if ( ! function_exists( 'WC' ) ) {
+	/**
+	 * Get the WooCommerce test instance.
+	 *
+	 * @return WooCommerce
+	 */
+	function WC(): WooCommerce { // phpcs:ignore WordPress.NamingConventions.ValidFunctionName.FunctionNameInvalid -- Matches WooCommerce WC() API.
+
+		if (
+			! $GLOBALS['shurloc_test_woocommerce'] instanceof WooCommerce
+		) {
+			$GLOBALS['shurloc_test_woocommerce'] = new WooCommerce();
+		}
+
+		return $GLOBALS['shurloc_test_woocommerce'];
+	}
+}
+
+if ( ! function_exists( 'wc_get_order' ) ) {
+	/**
+	 * Get a WooCommerce test order.
+	 *
+	 * @param int $order_id Order ID.
+	 * @return WC_Order|false
+	 */
+	function wc_get_order(
+		int $order_id
+	): WC_Order|false {
+
+		if (
+			! isset( $GLOBALS['shurloc_test_orders'][ $order_id ] )
+		) {
+			return false;
+		}
+
+		$order = $GLOBALS['shurloc_test_orders'][ $order_id ];
+
+		if ( ! $order instanceof WC_Order ) {
+			return false;
+		}
+
+		return $order;
+	}
+}
+
+if ( ! function_exists( 'delete_user_meta' ) ) {
+	/**
+	 * Delete test user metadata.
+	 *
+	 * @param int    $user_id  User ID.
+	 * @param string $meta_key Metadata key.
+	 * @return bool
+	 */
+	function delete_user_meta(
+		int $user_id,
+		string $meta_key
+	): bool {
+
+		if (
+			! isset( $GLOBALS['shurloc_test_user_meta'][ $user_id ] ) ||
+			! is_array( $GLOBALS['shurloc_test_user_meta'][ $user_id ] )
+		) {
+			return false;
+		}
+
+		if (
+			! array_key_exists(
+				$meta_key,
+				$GLOBALS['shurloc_test_user_meta'][ $user_id ]
+			)
+		) {
+			return false;
+		}
+
+		unset(
+			$GLOBALS['shurloc_test_user_meta'][ $user_id ][ $meta_key ]
+		);
+
+		if (
+			empty(
+				$GLOBALS['shurloc_test_user_meta'][ $user_id ]
+			)
+		) {
+			unset(
+				$GLOBALS['shurloc_test_user_meta'][ $user_id ]
+			);
+		}
 
 		return true;
 	}

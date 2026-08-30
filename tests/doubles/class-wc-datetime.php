@@ -7,8 +7,6 @@
 
 declare( strict_types=1 );
 
-use DateTimeImmutable;
-
 /**
  * WooCommerce date/time test double.
  */

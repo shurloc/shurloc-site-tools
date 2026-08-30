@@ -7,8 +7,6 @@
 
 declare( strict_types=1 );
 
-use WC_DateTime;
-
 /**
  * WooCommerce order test double.
  */
@@ -87,6 +85,15 @@ class WC_Order {
 	 * @return int
 	 */
 	public function get_customer_id(): int {
+		return $this->customer_id;
+	}
+
+	/**
+	 * Get the customer user ID.
+	 *
+	 * @return int
+	 */
+	public function get_user_id(): int {
 		return $this->customer_id;
 	}
 
