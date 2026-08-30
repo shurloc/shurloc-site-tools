@@ -38,3 +38,4 @@ require_once dirname( __DIR__ ) . '/includes/constants.php';
 require_once dirname( __DIR__ ) . '/includes/bootstrap.php';
 
 require_once __DIR__ . '/doubles/class-wp-query.php';
+require_once __DIR__ . '/doubles/class-wp-post.php';

@@ -48,6 +48,21 @@ $GLOBALS['shurloc_test_styles'] = array();
  */
 $GLOBALS['shurloc_test_is_main_query'] = true;
 
+/**
+ * Current test page ID.
+ */
+$GLOBALS['shurloc_test_page_id'] = 0;
+
+/**
+ * Current test post.
+ */
+$GLOBALS['shurloc_test_post'] = null;
+
+/**
+ * Filtered test content.
+ */
+$GLOBALS['shurloc_test_filtered_content'] = null;
+
 
 if ( ! function_exists( 'get_post_meta' ) ) {
 	/**
@@ -411,5 +426,116 @@ if ( ! function_exists( 'wp_strip_all_tags' ) ) {
 	): string {
 		// phpcs:ignore WordPress.WP.AlternativeFunctions.strip_tags_strip_tags -- Test stub implements wp_strip_all_tags().
 		return strip_tags( $text );
+	}
+}
+
+if ( ! function_exists( 'is_page' ) ) {
+	/**
+	 * Determine whether the current test page matches the requested page.
+	 *
+	 * @param int|string|array<int|string> $page Page identifier.
+	 * @return bool
+	 */
+	function is_page(
+		$page = ''
+	): bool {
+		if ( '' === $page ) {
+			return 0 < $GLOBALS['shurloc_test_page_id'];
+		}
+
+		if ( is_array( $page ) ) {
+			return in_array(
+				$GLOBALS['shurloc_test_page_id'],
+				$page,
+				true
+			);
+		}
+
+		return $GLOBALS['shurloc_test_page_id'] === (int) $page;
+	}
+}
+
+if ( ! function_exists( 'get_post' ) ) {
+	/**
+	 * Get the current test post.
+	 *
+	 * @return WP_Post|null
+	 */
+	function get_post(): ?WP_Post {
+		$post = $GLOBALS['shurloc_test_post'];
+
+		if ( ! $post instanceof WP_Post ) {
+			return null;
+		}
+
+		return $post;
+	}
+}
+
+if ( ! function_exists( 'apply_filters' ) ) {
+	/**
+	 * Apply a test filter.
+	 *
+	 * @param string $hook_name Hook name.
+	 * @param mixed  $value     Filtered value.
+	 * @param mixed  ...$args   Additional arguments.
+	 * @return mixed
+	 */
+	function apply_filters(
+		string $hook_name,
+		$value,
+		...$args
+	) {
+		unset( $args );
+
+		if (
+			'the_content' === $hook_name &&
+			null !== $GLOBALS['shurloc_test_filtered_content']
+		) {
+			return $GLOBALS['shurloc_test_filtered_content'];
+		}
+
+		return $value;
+	}
+}
+
+if ( ! function_exists( 'wp_json_encode' ) ) {
+	/**
+	 * Encode test data as JSON.
+	 *
+	 * @param mixed        $value Value to encode.
+	 * @param int          $flags JSON encoding flags.
+	 * @param positive-int $depth Maximum depth.
+	 * @return string|false
+	 */
+	function wp_json_encode(
+		$value,
+		int $flags = 0,
+		int $depth = 512
+	) {
+		// phpcs:ignore WordPress.WP.AlternativeFunctions.json_encode_json_encode -- Test stub implements wp_json_encode().
+		return json_encode(
+			$value,
+			$flags,
+			$depth
+		);
+	}
+}
+
+if ( ! function_exists( 'wp_kses' ) ) {
+	/**
+	 * Return test HTML after KSES filtering.
+	 *
+	 * @param string                            $content         Content.
+	 * @param array<string,array<string,mixed>> $allowed_html Allowed HTML.
+	 * @return string
+	 */
+	function wp_kses(
+		string $content,
+		array $allowed_html
+	): string {
+		unset( $allowed_html );
+
+		return $content;
 	}
 }
