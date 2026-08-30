@@ -1,0 +1,47 @@
+<?php
+/**
+ * WooCommerce function test doubles.
+ *
+ * @package ShurlocSiteTools
+ */
+
+declare( strict_types=1 );
+
+if ( ! function_exists( 'wc_get_order_status_name' ) ) {
+	/**
+	 * Get the display name for an order status.
+	 *
+	 * @param string $status Order status.
+	 * @return string
+	 */
+	function wc_get_order_status_name(
+		string $status
+	): string {
+
+		$status = str_replace(
+			'-',
+			' ',
+			$status
+		);
+
+		return ucwords( $status );
+	}
+}
+
+if ( ! function_exists( 'wc_price' ) ) {
+	/**
+	 * Format a price for display.
+	 *
+	 * @param float $price Price to format.
+	 * @return string
+	 */
+	function wc_price(
+		float $price
+	): string {
+
+		return sprintf(
+			'$%0.2f',
+			$price
+		);
+	}
+}

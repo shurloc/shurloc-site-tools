@@ -880,3 +880,54 @@ if ( ! function_exists( 'do_action' ) ) {
 		}
 	}
 }
+
+if ( ! function_exists( 'add_query_arg' ) ) {
+	/**
+	 * Add query arguments to a URL.
+	 *
+	 * @param array<string,int|string> $args Query arguments.
+	 * @param string                   $url  Base URL.
+	 * @return string
+	 */
+	function add_query_arg(
+		array $args,
+		string $url
+	): string {
+
+		$query = http_build_query( $args );
+
+		if ( '' === $query ) {
+			return $url;
+		}
+
+		$separator = str_contains( $url, '?' )
+			? '&'
+			: '?';
+
+		return $url . $separator . $query;
+	}
+}
+
+if ( ! function_exists( 'admin_url' ) ) {
+	/**
+	 * Get a test WordPress admin URL.
+	 *
+	 * @param string $path Path relative to the admin directory.
+	 * @return string
+	 */
+	function admin_url(
+		string $path = ''
+	): string {
+
+		$admin_url = 'https://example.com/wp-admin/';
+
+		if ( '' === $path ) {
+			return $admin_url;
+		}
+
+		return $admin_url . ltrim(
+			$path,
+			'/'
+		);
+	}
+}
