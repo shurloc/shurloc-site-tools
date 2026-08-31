@@ -104,9 +104,34 @@ $GLOBALS['shurloc_test_users'] = array();
 $GLOBALS['shurloc_test_options'] = array();
 
 /**
- * Test WordPress users.
+ * Nonce fields generated during tests.
  */
-$GLOBALS['shurloc_test_users'] = array();
+$GLOBALS['shurloc_test_nonce_fields'] = array();
+
+/**
+ * Whether nonce verification should succeed.
+ */
+$GLOBALS['shurloc_test_nonce_valid'] = true;
+
+/**
+ * Test user capabilities.
+ */
+$GLOBALS['shurloc_test_user_capabilities'] = array();
+
+/**
+ * Admin referer checks performed during tests.
+ */
+$GLOBALS['shurloc_test_admin_referer_checks'] = array();
+
+/**
+ * Redirect URLs recorded during tests.
+ */
+$GLOBALS['shurloc_test_redirects'] = array();
+
+/**
+ * Messages passed to wp_die() during tests.
+ */
+$GLOBALS['shurloc_test_wp_die_messages'] = array();
 
 
 if ( ! function_exists( 'get_post_meta' ) ) {
@@ -1189,5 +1214,182 @@ if ( ! function_exists( 'maybe_unserialize' ) ) {
 		}
 
 		return $result;
+	}
+}
+
+if ( ! function_exists( 'wp_nonce_field' ) ) {
+	/**
+	 * Output a test nonce field.
+	 *
+	 * @param string $action  Nonce action.
+	 * @param string $name    Nonce field name.
+	 * @param bool   $referer Whether to output a referer field.
+	 * @param bool   $display Whether to display the field.
+	 * @return string
+	 */
+	function wp_nonce_field(
+		string $action = '-1',
+		string $name = '_wpnonce',
+		bool $referer = true,
+		bool $display = true
+	): string {
+
+		unset( $referer );
+
+		$GLOBALS['shurloc_test_nonce_fields'][] = array(
+			'action' => $action,
+			'name'   => $name,
+		);
+
+		$field = sprintf(
+			'<input type="hidden" name="%s" value="%s" />',
+			esc_attr( $name ),
+			esc_attr( 'test-nonce-' . $action )
+		);
+
+		if ( $display ) {
+			echo $field; // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- Test-only generated HTML.
+		}
+
+		return $field;
+	}
+}
+
+if ( ! function_exists( 'wp_create_nonce' ) ) {
+	/**
+	 * Create a test nonce.
+	 *
+	 * @param string|int $action Nonce action.
+	 * @return string
+	 */
+	function wp_create_nonce(
+		string|int $action = -1
+	): string {
+
+		return 'test-nonce-' . (string) $action;
+	}
+}
+
+if ( ! function_exists( 'wp_verify_nonce' ) ) {
+	/**
+	 * Verify a test nonce.
+	 *
+	 * @param string     $nonce  Nonce value.
+	 * @param string|int $action Nonce action.
+	 * @return int|false
+	 */
+	function wp_verify_nonce(
+		string $nonce,
+		string|int $action = -1
+	): int|false {
+
+		if ( ! $GLOBALS['shurloc_test_nonce_valid'] ) {
+			return false;
+		}
+
+		return 'test-nonce-' . (string) $action === $nonce
+			? 1
+			: false;
+	}
+}
+
+if ( ! function_exists( 'current_user_can' ) ) {
+	/**
+	 * Determine whether the current test user has a capability.
+	 *
+	 * @param string $capability Capability name.
+	 * @param mixed  ...$args    Additional capability arguments.
+	 * @return bool
+	 */
+	function current_user_can(
+		string $capability,
+		mixed ...$args
+	): bool {
+
+		unset( $args );
+
+		return $GLOBALS['shurloc_test_user_capabilities']
+			[ $capability ] ?? true;
+	}
+}
+
+if ( ! function_exists( 'check_admin_referer' ) ) {
+	/**
+	 * Record an admin referer check.
+	 *
+	 * @param string $action     Nonce action.
+	 * @param string $query_arg  Nonce request argument.
+	 * @return int|false
+	 */
+	function check_admin_referer(
+		string $action = '-1',
+		string $query_arg = '_wpnonce'
+	): int|false {
+
+		unset( $query_arg );
+
+		$GLOBALS['shurloc_test_admin_referer_checks'][] =
+			$action;
+
+		return $GLOBALS['shurloc_test_nonce_valid']
+			? 1
+			: false;
+	}
+}
+
+if ( ! function_exists( 'sanitize_text_field' ) ) {
+	/**
+	 * Sanitize a test text field.
+	 *
+	 * @param string $value Value to sanitize.
+	 * @return string
+	 */
+	function sanitize_text_field(
+		string $value
+	): string {
+
+		return trim(
+			// phpcs:ignore WordPress.WP.AlternativeFunctions.strip_tags_strip_tags -- Test stub intentionally mirrors basic sanitization behavior.
+			strip_tags( $value )
+		);
+	}
+}
+
+if ( ! function_exists( 'wp_die' ) ) {
+	/**
+	 * Stop test execution with a WordPress error.
+	 *
+	 * @param string $message Error message.
+	 * @return never
+	 *
+	 * @throws RuntimeException When called during a test.
+	 */
+	function wp_die(
+		string $message
+	): never {
+
+		$GLOBALS['shurloc_test_wp_die_messages'][] =
+			$message;
+
+		throw new RuntimeException(
+			esc_html( $message )
+		);
+	}
+}
+
+if ( ! function_exists( 'absint' ) ) {
+	/**
+	 * Convert a value to a non-negative integer.
+	 *
+	 * @param mixed $value Value to convert.
+	 * @return int
+	 */
+	function absint(
+		mixed $value
+	): int {
+
+		return abs(
+			(int) $value
+		);
 	}
 }
