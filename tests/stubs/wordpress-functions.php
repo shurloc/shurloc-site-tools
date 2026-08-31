@@ -93,6 +93,16 @@ $GLOBALS['shurloc_test_woocommerce'] = null;
  */
 $GLOBALS['shurloc_test_orders'] = array();
 
+/**
+ * WordPress user IDs returned by get_users() during tests.
+ */
+$GLOBALS['shurloc_test_users'] = array();
+
+/**
+ * WordPress options stored during tests.
+ */
+$GLOBALS['shurloc_test_options'] = array();
+
 
 if ( ! function_exists( 'get_post_meta' ) ) {
 	/**
@@ -619,21 +629,31 @@ if ( ! function_exists( '_n' ) ) {
 
 if ( ! function_exists( 'get_option' ) ) {
 	/**
-	 * Retrieve a test option value.
+	 * Get a test WordPress option.
 	 *
-	 * @param string $option         Option name.
-	 * @param mixed  $default_value Default value.
+	 * @param string $option_name    Option name.
+	 * @param mixed  $default_return Value returned when the option is unavailable.
 	 * @return mixed
 	 */
 	function get_option(
-		string $option,
-		$default_value = false
-	) {
-		if ( 'date_format' === $option ) {
+		string $option_name,
+		mixed $default_return = false
+	): mixed {
+
+		if (
+			array_key_exists(
+				$option_name,
+				$GLOBALS['shurloc_test_options']
+			)
+		) {
+			return $GLOBALS['shurloc_test_options'][ $option_name ];
+		}
+
+		if ( 'date_format' === $option_name ) {
 			return 'F j, Y';
 		}
 
-		return $default_value;
+		return $default_return;
 	}
 }
 
@@ -990,5 +1010,103 @@ if ( ! function_exists( 'wp_enqueue_script' ) ) {
 			'ver'       => $ver,
 			'in_footer' => $in_footer,
 		);
+	}
+}
+
+if ( ! function_exists( 'get_users' ) ) {
+	/**
+	 * Get test WordPress users.
+	 *
+	 * @param array<string,mixed> $args User query arguments.
+	 * @return int[]
+	 */
+	function get_users(
+		array $args = array()
+	): array {
+
+		unset( $args );
+
+		return $GLOBALS['shurloc_test_users'];
+	}
+}
+
+if ( ! function_exists( 'update_option' ) ) {
+	/**
+	 * Update a test WordPress option.
+	 *
+	 * @param string $option_name Option name.
+	 * @param mixed  $value       Option value.
+	 * @return bool
+	 */
+	function update_option(
+		string $option_name,
+		mixed $value
+	): bool {
+
+		$GLOBALS['shurloc_test_options'][ $option_name ] = $value;
+
+		return true;
+	}
+}
+
+if ( ! function_exists( 'add_option' ) ) {
+	/**
+	 * Add a test WordPress option.
+	 *
+	 * @param string $option_name Option name.
+	 * @param mixed  $value       Option value.
+	 * @param string $deprecated  Deprecated argument.
+	 * @param bool   $autoload    Whether the option should autoload.
+	 * @return bool
+	 */
+	function add_option(
+		string $option_name,
+		mixed $value = '',
+		string $deprecated = '',
+		bool $autoload = true
+	): bool {
+
+		unset( $deprecated, $autoload );
+
+		if (
+			array_key_exists(
+				$option_name,
+				$GLOBALS['shurloc_test_options']
+			)
+		) {
+			return false;
+		}
+
+		$GLOBALS['shurloc_test_options'][ $option_name ] = $value;
+
+		return true;
+	}
+}
+
+if ( ! function_exists( 'delete_option' ) ) {
+	/**
+	 * Delete a test WordPress option.
+	 *
+	 * @param string $option_name Option name.
+	 * @return bool
+	 */
+	function delete_option(
+		string $option_name
+	): bool {
+
+		if (
+			! array_key_exists(
+				$option_name,
+				$GLOBALS['shurloc_test_options']
+			)
+		) {
+			return false;
+		}
+
+		unset(
+			$GLOBALS['shurloc_test_options'][ $option_name ]
+		);
+
+		return true;
 	}
 }

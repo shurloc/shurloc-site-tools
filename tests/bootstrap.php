@@ -40,6 +40,7 @@ require_once dirname( __DIR__ ) . '/includes/bootstrap.php';
 require_once __DIR__ . '/stubs/customer-formatters-functions.php';
 require_once __DIR__ . '/stubs/customer-services-functions.php';
 require_once __DIR__ . '/stubs/customer-admin-functions.php';
+require_once __DIR__ . '/stubs/customer-migrations-functions.php';
 
 require_once __DIR__ . '/stubs/woocommerce-functions.php';
 
