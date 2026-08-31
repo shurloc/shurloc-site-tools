@@ -103,6 +103,11 @@ $GLOBALS['shurloc_test_users'] = array();
  */
 $GLOBALS['shurloc_test_options'] = array();
 
+/**
+ * Test WordPress users.
+ */
+$GLOBALS['shurloc_test_users'] = array();
+
 
 if ( ! function_exists( 'get_post_meta' ) ) {
 	/**
@@ -1108,5 +1113,69 @@ if ( ! function_exists( 'delete_option' ) ) {
 		);
 
 		return true;
+	}
+}
+
+if ( ! function_exists( 'get_userdata' ) ) {
+	/**
+	 * Get test user data.
+	 *
+	 * @param int $user_id User ID.
+	 * @return WP_User|false
+	 */
+	function get_userdata(
+		int $user_id
+	): WP_User|false {
+
+		if (
+			isset( $GLOBALS['shurloc_test_users'][ $user_id ] ) &&
+			true === $GLOBALS['shurloc_test_users'][ $user_id ]
+		) {
+			return new WP_User( $user_id );
+		}
+
+		if (
+			in_array(
+				$user_id,
+				$GLOBALS['shurloc_test_users'],
+				true
+			)
+		) {
+			return new WP_User( $user_id );
+		}
+
+		return false;
+	}
+}
+
+if ( ! function_exists( 'maybe_unserialize' ) ) {
+	/**
+	 * Unserialize data when appropriate.
+	 *
+	 * @param mixed $data Data to potentially unserialize.
+	 * @return mixed
+	 */
+	function maybe_unserialize(
+		mixed $data
+	): mixed {
+
+		if ( ! is_string( $data ) ) {
+			return $data;
+		}
+
+		$trimmed_data = trim( $data );
+
+		if ( '' === $trimmed_data ) {
+			return $data;
+		}
+
+		// phpcs:ignore WordPress.PHP.DiscouragedPHPFunctions.serialize_unserialize -- Test stub mirrors WordPress behavior.
+		$result = @unserialize( $trimmed_data );
+
+		if ( false === $result && 'b:0;' !== $trimmed_data ) {
+			return $data;
+		}
+
+		return $result;
 	}
 }

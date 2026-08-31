@@ -54,3 +54,4 @@ require_once __DIR__ . '/doubles/class-wc-cart.php';
 require_once __DIR__ . '/doubles/class-wc-cart-double.php';
 require_once __DIR__ . '/doubles/class-woocommerce.php';
 require_once __DIR__ . '/doubles/class-wp-user-query.php';
+require_once __DIR__ . '/doubles/class-shurloc-test-wpdb.php';

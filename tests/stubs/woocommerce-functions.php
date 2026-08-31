@@ -13,6 +13,11 @@ declare( strict_types=1 );
  */
 $GLOBALS['shurloc_test_wc_get_orders_args'] = array();
 
+/**
+ * WooCommerce products available during tests.
+ */
+$GLOBALS['shurloc_test_products'] = array();
+
 
 if ( ! function_exists( 'wc_get_order_status_name' ) ) {
 	/**
@@ -190,5 +195,35 @@ if ( ! function_exists( 'wc_get_orders' ) ) {
 		}
 
 		return array_values( $orders );
+	}
+}
+
+if ( ! function_exists( 'wc_get_product' ) ) {
+	/**
+	 * Get a test WooCommerce product.
+	 *
+	 * @param int $product_id Product ID.
+	 * @return WC_Product|false
+	 */
+	function wc_get_product(
+		int $product_id
+	): WC_Product|false {
+
+		if (
+			! isset(
+				$GLOBALS['shurloc_test_products'][ $product_id ]
+			)
+		) {
+			return false;
+		}
+
+		$product =
+			$GLOBALS['shurloc_test_products'][ $product_id ];
+
+		if ( ! $product instanceof WC_Product ) {
+			return false;
+		}
+
+		return $product;
 	}
 }
