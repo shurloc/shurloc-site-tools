@@ -1169,10 +1169,22 @@ if ( ! function_exists( 'maybe_unserialize' ) ) {
 			return $data;
 		}
 
-		// phpcs:ignore WordPress.PHP.DiscouragedPHPFunctions.serialize_unserialize -- Test stub mirrors WordPress behavior.
-		$result = @unserialize( $trimmed_data );
+		if (
+		! preg_match(
+			'/^(?:a|O|s|i|d|b):|^N;/',
+			$trimmed_data
+		)
+		) {
+			return $data;
+		}
 
-		if ( false === $result && 'b:0;' !== $trimmed_data ) {
+		// phpcs:ignore WordPress.PHP.DiscouragedPHPFunctions.serialize_unserialize -- Test stub mirrors WordPress behavior.
+		$result = unserialize( $trimmed_data );
+
+		if (
+			false === $result &&
+			'b:0;' !== $trimmed_data
+		) {
 			return $data;
 		}
 
