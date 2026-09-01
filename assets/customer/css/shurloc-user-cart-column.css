@@ -1,0 +1,107 @@
+/**
+ * User cart column.
+ *
+ * Styles for the cart details displayed on the Users screen.
+ *
+ * @package ShurlocSiteTools
+ */
+
+.shurloc-cart-wrap {
+	position: relative;
+}
+
+.shurloc-cart-toggle {
+	color: #2271b1;
+	cursor: pointer;
+	text-decoration: none;
+}
+
+.shurloc-cart-panel {
+	display: none;
+	position: absolute;
+	top: 100%;
+	left: 0;
+	z-index: 9999;
+
+	width: 380px;
+	margin-top: 6px;
+	padding: 10px 12px;
+
+	color: #1d2327;
+	background: #ffffff;
+
+	border: 1px solid #ccd0d4;
+	border-radius: 4px;
+	box-shadow: 0 4px 14px rgba( 0, 0, 0, 0.12 );
+
+	font-size: 12px;
+	line-height: 1.5;
+}
+
+.shurloc-cart-panel.open {
+	display: block;
+}
+
+.shurloc-cart-panel-header {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+
+	margin-bottom: 8px;
+	padding-bottom: 6px;
+
+	border-bottom: 1px solid #e5e5e5;
+}
+
+.shurloc-cart-panel-header strong {
+	color: #1d2327;
+}
+
+.shurloc-cart-close {
+	color: #646970;
+	font-size: 16px;
+	line-height: 1;
+	text-decoration: none;
+}
+
+.shurloc-cart-close:hover {
+	color: #d63638;
+}
+
+.shurloc-cart-row + .shurloc-cart-row {
+	margin-top: 8px;
+	padding-top: 8px;
+
+	border-top: 1px solid #f0f0f1;
+}
+
+.shurloc-cart-panel a {
+	color: #2271b1;
+	text-decoration: none;
+}
+
+.shurloc-cart-panel a:hover {
+	text-decoration: underline;
+}
+
+.shurloc-cart-sku {
+	margin-left: 4px;
+	color: #646970;
+}
+
+.shurloc-cart-attrs {
+	margin-top: 4px;
+
+	color: #50575e;
+	font-style: italic;
+}
+
+.shurloc-cart-row:hover {
+	margin-right: -6px;
+	margin-left: -6px;
+	padding-right: 6px;
+	padding-left: 6px;
+
+	background: #f6f7f7;
+	border-radius: 2px;
+}
