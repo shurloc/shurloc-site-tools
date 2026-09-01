@@ -49,6 +49,7 @@ require_once __DIR__ . '/stubs/woocommerce-functions.php';
 require_once __DIR__ . '/doubles/class-wp-query.php';
 require_once __DIR__ . '/doubles/class-wp-post.php';
 require_once __DIR__ . '/doubles/class-wp-user.php';
+require_once __DIR__ . '/doubles/class-product-catalog-service.php';
 require_once __DIR__ . '/doubles/class-wc-datetime.php';
 require_once __DIR__ . '/doubles/class-wc-order.php';
 require_once __DIR__ . '/doubles/class-wc-product.php';
