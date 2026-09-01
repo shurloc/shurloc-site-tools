@@ -138,6 +138,91 @@ $GLOBALS['shurloc_test_wp_die_messages'] = array();
  */
 $GLOBALS['shurloc_test_submenu_pages'] = array();
 
+/**
+ * WordPress product IDs returned during tests.
+ */
+$GLOBALS['shurloc_test_product_ids'] = array();
+
+/**
+ * Stored taxonomy terms.
+ */
+$GLOBALS['shurloc_test_terms'] = array();
+
+/**
+ * Stored product comments.
+ */
+$GLOBALS['shurloc_test_comments'] = array();
+
+/**
+ * Stored shortcode registrations.
+ */
+$GLOBALS['wp_shortcodes'] = array();
+
+/**
+ * Enqueued styles.
+ */
+$GLOBALS['shurloc_test_enqueued_styles'] = array();
+
+/**
+ * Enqueued scripts.
+ */
+$GLOBALS['shurloc_test_enqueued_scripts'] = array();
+
+/**
+ * Registered styles.
+ */
+$GLOBALS['shurloc_test_registered_styles'] = array();
+
+/**
+ * Registered scripts.
+ */
+$GLOBALS['shurloc_test_registered_scripts'] = array();
+
+/**
+ * Stored transient values.
+ */
+$GLOBALS['shurloc_test_transients'] = array();
+
+/**
+ * Product post types keyed by object ID.
+ */
+$GLOBALS['shurloc_test_post_types'] = array();
+
+/**
+ * Test autosave IDs.
+ */
+$GLOBALS['shurloc_test_autosaves'] = array();
+
+/**
+ * Test revision IDs.
+ */
+$GLOBALS['shurloc_test_revisions'] = array();
+
+/**
+ * Registered top-level administration menu pages.
+ */
+$GLOBALS['shurloc_test_menu_pages'] = array();
+
+/**
+ * Removed administration submenu pages.
+ */
+$GLOBALS['shurloc_test_removed_submenus'] = array();
+
+/**
+ * Taxonomy term assignments indexed by object ID.
+ */
+$GLOBALS['shurloc_test_post_terms'] = array();
+
+/**
+ * Current WordPress screen used during tests.
+ */
+$GLOBALS['shurloc_test_current_screen'] = null;
+
+/**
+ * Nonce verification checks recorded during tests.
+ */
+$GLOBALS['shurloc_test_nonce_checks'] = array();
+
 
 if ( ! function_exists( 'get_post_meta' ) ) {
 	/**
@@ -1433,5 +1518,934 @@ if ( ! function_exists( 'add_submenu_page' ) ) {
 		);
 
 		return 'shurloc-test-submenu-hook';
+	}
+}
+if ( ! function_exists( 'get_the_ID' ) ) {
+
+	/**
+	 * Get current post ID.
+	 *
+	 * @return int
+	 */
+	// phpcs:ignore WordPress.NamingConventions.ValidFunctionName.FunctionNameInvalid, Squiz.Commenting.FunctionComment.Missing
+	function get_the_ID(): int {
+
+		return 123;
+	}
+}
+
+
+if ( ! function_exists( 'has_filter' ) ) {
+
+	/**
+	 * Check whether a filter is registered.
+	 *
+	 * @param string        $hook     Hook name.
+	 * @param callable|null $callback Optional callback.
+	 * @return int|bool Priority if found, true if callbacks exist and no callback
+	 *                   was specified, otherwise false.
+	 */
+	function has_filter(
+		string $hook,
+		$callback = null
+	) {
+
+		if ( empty( $GLOBALS['shurloc_test_filters'][ $hook ] ) ) {
+			return false;
+		}
+
+		if ( null === $callback ) {
+			return true;
+		}
+
+		foreach (
+			$GLOBALS['shurloc_test_filters'][ $hook ]
+			as $registered
+		) {
+
+			if ( $registered === $callback ) {
+				return 10;
+			}
+		}
+
+		return false;
+	}
+}
+
+
+if ( ! function_exists( 'has_action' ) ) {
+
+	/**
+	 * Check whether an action is registered.
+	 *
+	 * @param string   $hook Hook name.
+	 * @param callable $callback Optional callback.
+	 * @return int|bool Priority or bool.
+	 */
+	function has_action(
+		string $hook,
+		$callback = null
+	) {
+
+		if (
+			empty(
+				$GLOBALS['shurloc_test_actions'][ $hook ]
+			)
+		) {
+			return false;
+		}
+
+		if ( null === $callback ) {
+			return true;
+		}
+
+		foreach (
+			$GLOBALS['shurloc_test_actions'][ $hook ]
+			as $registered
+		) {
+
+			if ( $registered === $callback ) {
+
+				return 10;
+			}
+		}
+
+		return false;
+	}
+}
+
+
+if ( ! function_exists( 'get_edit_post_link' ) ) {
+
+	/**
+	 * Get edit post link.
+	 *
+	 * @param int    $post_id Post ID.
+	 * @param string $context Context.
+	 * @return string
+	 */
+    // phpcs:ignore Generic.CodeAnalysis.UnusedFunctionParameter.FoundAfterLastUsed, Squiz.Commenting.FunctionComment.Missing
+	function get_edit_post_link(
+		int $post_id,
+		string $context = ''
+	): string {
+
+		return 'https://example.com/wp-admin/post.php?post=' . $post_id;
+	}
+}
+
+
+if ( ! function_exists( 'wp_set_object_terms' ) ) {
+
+	/**
+	 * Set object terms.
+	 *
+	 * @param int                      $object_id Object ID.
+	 * @param string|array<string|int> $terms Terms.
+	 * @param string                   $taxonomy Taxonomy.
+	 * @return bool
+	 */
+	function wp_set_object_terms(
+		int $object_id,
+		$terms,
+		string $taxonomy
+	): bool {
+
+		if ( ! isset( $GLOBALS['shurloc_test_terms'][ $object_id ] ) ) {
+			$GLOBALS['shurloc_test_terms'][ $object_id ] = array();
+		}
+
+		$GLOBALS['shurloc_test_terms'][ $object_id ][ $taxonomy ] = (array) $terms;
+
+		return true;
+	}
+}
+
+
+if ( ! function_exists( 'get_the_terms' ) ) {
+
+	/**
+	 * Get object terms.
+	 *
+	 * @param int    $object_id Object ID.
+	 * @param string $taxonomy Taxonomy.
+	 * @return array<int,string>
+	 */
+	function get_the_terms(
+		int $object_id,
+		string $taxonomy
+	): array {
+
+		return $GLOBALS['shurloc_test_terms'][ $object_id ][ $taxonomy ] ?? array();
+	}
+}
+
+
+if ( ! function_exists( 'wp_get_post_terms' ) ) {
+
+	/**
+	 * Get post terms.
+	 *
+	 * @param int                  $post_id Post ID.
+	 * @param string               $taxonomy Taxonomy.
+	 * @param array<string,mixed>  $args Arguments.
+	 * @return array<int,string>
+	 */
+    // phpcs:ignore Generic.CodeAnalysis.UnusedFunctionParameter.FoundAfterLastUsed, Squiz.Commenting.FunctionComment.Missing
+	function wp_get_post_terms(
+		int $post_id,
+		string $taxonomy,
+		array $args = array()
+	): array {
+
+		return $GLOBALS['shurloc_test_terms'][ $post_id ][ $taxonomy ] ?? array();
+	}
+}
+
+
+if ( ! function_exists( 'wp_get_attachment_image_url' ) ) {
+
+	/**
+	 * Get attachment image URL.
+	 *
+	 * @param int    $attachment_id Attachment ID.
+	 * @param string $size Image size.
+	 * @return false
+	 */
+    // phpcs:ignore Generic.CodeAnalysis.UnusedFunctionParameter.FoundAfterLastUsed, Squiz.Commenting.FunctionComment.Missing
+	function wp_get_attachment_image_url(
+		int $attachment_id,
+		string $size = 'full'
+	) {
+
+		return false;
+	}
+}
+
+
+if ( ! function_exists( 'is_wp_error' ) ) {
+
+	/**
+	 * Determine whether a value is a WP_Error object.
+	 *
+	 * @param mixed $thing Value to check.
+	 * @return bool
+	 */
+	// phpcs:ignore Generic.CodeAnalysis.UnusedFunctionParameter.Found, Squiz.Commenting.FunctionComment.Missing
+	function is_wp_error(
+		$thing
+	): bool {
+
+		return false;
+	}
+}
+
+
+if ( ! function_exists( 'get_comments' ) ) {
+
+	/**
+	 * Get test comments.
+	 *
+	 * @param array<string,mixed> $args Comment query arguments.
+	 * @return array<int,object>
+	 */
+	function get_comments(
+		array $args = array()
+	): array {
+
+		$post_id = $args['post_id'] ?? 0;
+
+		return $GLOBALS['shurloc_test_comments'][ $post_id ] ?? array();
+	}
+}
+
+
+if ( ! function_exists( 'stripslashes_deep' ) ) {
+
+	/**
+	 * Remove slashes recursively.
+	 *
+	 * @param mixed $value Value.
+	 * @return mixed
+	 */
+	function stripslashes_deep( $value ) {
+
+		if ( is_array( $value ) ) {
+
+			return array_map(
+				'stripslashes_deep',
+				$value
+			);
+		}
+
+		return stripslashes( $value );
+	}
+}
+
+
+if ( ! function_exists( 'add_shortcode' ) ) {
+	/**
+	 * Register a shortcode callback.
+	 *
+	 * @param string   $tag      Shortcode tag.
+	 * @param callable $callback Shortcode callback.
+	 * @return bool True when the shortcode is registered.
+	 */
+	function add_shortcode(
+		string $tag,
+		callable $callback
+	): bool {
+
+		if ( ! isset( $GLOBALS['wp_shortcodes'] ) ) {
+			$GLOBALS['wp_shortcodes'] = array();
+		}
+
+		$GLOBALS['wp_shortcodes'][ $tag ] = $callback;
+
+		return true;
+	}
+}
+
+
+if ( ! function_exists( 'is_singular' ) ) {
+
+	/**
+	 * Determine whether current request is singular.
+	 *
+	 * @return bool
+	 */
+	function is_singular(): bool {
+
+		return true;
+	}
+}
+
+
+if ( ! function_exists( 'has_shortcode' ) ) {
+
+	/**
+	 * Determine whether content contains a shortcode.
+	 *
+	 * @param string $content Content to search.
+	 * @param string $tag     Shortcode tag.
+	 * @return bool
+	 */
+	function has_shortcode(
+		string $content,
+		string $tag
+	): bool {
+
+		return str_contains(
+			$content,
+			'[' . $tag
+		);
+	}
+}
+
+
+if ( ! function_exists( 'wp_style_is' ) ) {
+
+	/**
+	 * Determine whether a test stylesheet has been enqueued.
+	 *
+	 * @param string $handle Stylesheet handle.
+	 * @param string $status Status query.
+	 * @return bool
+	 */
+	function wp_style_is(
+		string $handle,
+		string $status = 'enqueued'
+	): bool {
+
+		switch ( $status ) {
+
+			case 'registered':
+				return isset(
+					$GLOBALS['shurloc_test_registered_styles'][ $handle ]
+				);
+
+			case 'enqueued':
+				return isset(
+					$GLOBALS['shurloc_test_enqueued_styles'][ $handle ]
+				);
+
+			default:
+				return false;
+		}
+	}
+}
+
+
+if ( ! function_exists( 'wp_register_style' ) ) {
+
+	/**
+	 * Register a stylesheet.
+	 *
+	 * @param string            $handle Stylesheet handle.
+	 * @param string|false      $src    Stylesheet source.
+	 * @param array<int,string> $deps   Dependencies.
+	 * @param string|false      $ver    Version.
+	 * @param string            $media  Media type.
+	 * @return void
+	 */
+	function wp_register_style(
+		string $handle,
+		$src = false,
+		array $deps = array(),
+		$ver = false,
+		string $media = 'all'
+	): void {
+
+		$GLOBALS['shurloc_test_registered_styles'][ $handle ] = array(
+			'src'   => $src,
+			'deps'  => $deps,
+			'ver'   => $ver,
+			'media' => $media,
+		);
+	}
+}
+
+
+if ( ! function_exists( '_e' ) ) {
+
+	/**
+	 * Echo translated text.
+	 *
+	 * @param string $text   Text to translate.
+	 * @param string $domain Text domain.
+	 * @return void
+	 */
+	// phpcs:ignore Generic.CodeAnalysis.UnusedFunctionParameter.FoundAfterLastUsed, Squiz.Commenting.FunctionComment.Missing
+	function _e(
+		string $text,
+		string $domain = 'default'
+	): void {
+
+		echo esc_html( $text );
+	}
+}
+
+
+if ( ! function_exists( 'esc_html_e' ) ) {
+
+	/**
+	 * Translate, escape, and echo text.
+	 *
+	 * @param string $text   Text to translate.
+	 * @param string $domain Text domain.
+	 * @return void
+	 */
+	// phpcs:ignore Generic.CodeAnalysis.UnusedFunctionParameter.FoundAfterLastUsed, Squiz.Commenting.FunctionComment.Missing
+	function esc_html_e(
+		string $text,
+		string $domain = 'default'
+	): void {
+
+		echo esc_html( $text );
+	}
+}
+
+
+if ( ! function_exists( 'wp_register_script' ) ) {
+
+	/**
+	 * Register a script for tests.
+	 *
+	 * @param string           $handle    Handle.
+	 * @param string           $src       Source URL.
+	 * @param string[]         $deps      Dependencies.
+	 * @param string|bool|null $ver       Version.
+	 * @param bool             $in_footer Whether to load in the footer.
+	 * @return void
+	 */
+	function wp_register_script(
+		string $handle,
+		string $src,
+		array $deps = array(),
+		$ver = false,
+		bool $in_footer = false
+	): void {
+
+		$GLOBALS['shurloc_test_registered_scripts'][ $handle ] = array(
+			'src'       => $src,
+			'deps'      => $deps,
+			'ver'       => $ver,
+			'in_footer' => $in_footer,
+		);
+	}
+}
+
+
+if ( ! function_exists( 'wp_script_is' ) ) {
+
+	/**
+	 * Check whether a script is registered.
+	 *
+	 * @param string $handle Script handle.
+	 * @param string $status Status to check.
+	 * @return bool
+	 */
+	function wp_script_is(
+		string $handle,
+		string $status
+	): bool {
+
+		if ( 'registered' !== $status ) {
+			return false;
+		}
+
+		return isset(
+			$GLOBALS['shurloc_test_registered_scripts'][ $handle ]
+		);
+	}
+}
+
+
+if ( ! function_exists( 'get_posts' ) ) {
+
+	/**
+	 * Test replacement for get_posts().
+	 *
+	 * @param array<string, mixed> $args Query arguments.
+	 * @return int[]
+	 */
+	function get_posts(
+		array $args = array()
+	): array {
+
+		$product_ids = $GLOBALS['shurloc_test_product_ids'];
+
+		if (
+			isset( $args['post__not_in'] ) &&
+			is_array( $args['post__not_in'] )
+		) {
+			$product_ids = array_values(
+				array_diff(
+					$product_ids,
+					array_map(
+						'intval',
+						$args['post__not_in']
+					)
+				)
+			);
+		}
+
+		if (
+			isset( $args['posts_per_page'] ) &&
+			is_int( $args['posts_per_page'] ) &&
+			0 < $args['posts_per_page']
+		) {
+			$product_ids = array_slice(
+				$product_ids,
+				0,
+				$args['posts_per_page']
+			);
+		}
+
+		return array_map(
+			'intval',
+			$product_ids
+		);
+	}
+}
+
+
+if ( ! function_exists( 'get_transient' ) ) {
+
+	/**
+	 * Retrieve a test transient.
+	 *
+	 * @param string $key Transient key.
+	 *
+	 * @return mixed
+	 */
+	function get_transient(
+		string $key
+	) {
+
+		return $GLOBALS['shurloc_test_transients'][ $key ]
+			?? false;
+	}
+}
+
+
+if ( ! function_exists( 'set_transient' ) ) {
+
+	/**
+	 * Store a test transient.
+	 *
+	 * @param string $key        Transient key.
+	 * @param mixed  $value      Transient value.
+	 * @param int    $expiration Expiration in seconds.
+	 *
+	 * @return bool
+	 */
+	function set_transient(
+		string $key,
+		$value,
+		int $expiration = 0
+	): bool {
+
+		unset( $expiration );
+
+		$GLOBALS['shurloc_test_transients'][ $key ] = $value;
+
+		return true;
+	}
+}
+
+
+if ( ! function_exists( 'wp_is_post_autosave' ) ) {
+
+	/**
+	 * Determine whether a post is an autosave.
+	 *
+	 * @param int $post_id Post ID.
+	 *
+	 * @return int|false
+	 */
+	function wp_is_post_autosave(
+		int $post_id
+	) {
+
+		return in_array(
+			$post_id,
+			$GLOBALS['shurloc_test_autosaves'],
+			true
+		)
+			? $post_id
+			: false;
+	}
+}
+
+
+if ( ! function_exists( 'wp_is_post_revision' ) ) {
+
+	/**
+	 * Determine whether a post is a revision.
+	 *
+	 * @param int $post_id Post ID.
+	 *
+	 * @return int|false
+	 */
+	function wp_is_post_revision(
+		int $post_id
+	) {
+
+		return in_array(
+			$post_id,
+			$GLOBALS['shurloc_test_revisions'],
+			true
+		)
+			? $post_id
+			: false;
+	}
+}
+
+
+if ( ! function_exists( 'get_post_type' ) ) {
+
+	/**
+	 * Retrieve a test post type.
+	 *
+	 * @param int $post_id Post ID.
+	 *
+	 * @return string|false
+	 */
+	function get_post_type(
+		int $post_id
+	) {
+
+		return $GLOBALS['shurloc_test_post_types'][ $post_id ]
+			?? false;
+	}
+}
+
+
+if ( ! function_exists( 'add_menu_page' ) ) {
+
+	/**
+	 * Test replacement for add_menu_page().
+	 *
+	 * @param string         $page_title Page title.
+	 * @param string         $menu_title Menu title.
+	 * @param string         $capability Required capability.
+	 * @param string         $menu_slug  Menu slug.
+	 * @param callable|null  $callback   Page callback.
+	 * @param string         $icon_url   Menu icon.
+	 * @param int|float|null $position  Menu position.
+	 *
+	 * @return string
+	 */
+	function add_menu_page(
+		string $page_title,
+		string $menu_title,
+		string $capability,
+		string $menu_slug,
+		?callable $callback = null,
+		string $icon_url = '',
+		$position = null
+	): string {
+
+		$GLOBALS['shurloc_test_menu_pages'][] = array(
+			'page_title' => $page_title,
+			'menu_title' => $menu_title,
+			'capability' => $capability,
+			'menu_slug'  => $menu_slug,
+			'callback'   => $callback,
+			'icon_url'   => $icon_url,
+			'position'   => $position,
+		);
+
+		return 'toplevel_page_' . $menu_slug;
+	}
+}
+
+
+if ( ! function_exists( 'remove_submenu_page' ) ) {
+
+	/**
+	 * Test replacement for remove_submenu_page().
+	 *
+	 * @param string $menu_slug    Parent menu slug.
+	 * @param string $submenu_slug Submenu slug.
+	 *
+	 * @return false
+	 */
+	function remove_submenu_page(
+		string $menu_slug,
+		string $submenu_slug
+	) {
+
+		$GLOBALS['shurloc_test_removed_submenus'][] = array(
+			'parent_slug' => $menu_slug,
+			'menu_slug'   => $submenu_slug,
+		);
+
+		return false;
+	}
+}
+
+
+if ( ! function_exists( 'get_term' ) ) {
+
+	/**
+	 * Retrieve a test taxonomy term.
+	 *
+	 * Test replacement for get_term().
+	 *
+	 * @param int    $term_id  Term ID.
+	 * @param string $taxonomy Taxonomy name.
+	 * @return object|null
+	 */
+	function get_term(
+		int $term_id,
+		string $taxonomy = ''
+	): object|null {
+
+		if (
+			'' === $taxonomy ||
+			! isset(
+				$GLOBALS['shurloc_test_terms'][ $taxonomy ][ $term_id ]
+			)
+		) {
+			return null;
+		}
+
+		$term =
+			$GLOBALS['shurloc_test_terms'][ $taxonomy ][ $term_id ];
+
+		return is_object( $term )
+			? $term
+			: null;
+	}
+}
+
+
+if ( ! function_exists( 'has_term' ) ) {
+
+	/**
+	 * Determine whether a post has a test taxonomy term.
+	 *
+	 * Test replacement for has_term().
+	 *
+	 * @param int|string $term     Term ID or slug.
+	 * @param string     $taxonomy Taxonomy name.
+	 * @param int        $post_id  Post ID.
+	 * @return bool
+	 */
+	function has_term(
+		int|string $term,
+		string $taxonomy,
+		int $post_id
+	): bool {
+
+		unset( $taxonomy );
+
+		$term_id = (int) $term;
+
+		return in_array(
+			$term_id,
+			$GLOBALS['shurloc_test_post_terms'][ $post_id ]
+				?? array(),
+			true
+		);
+	}
+}
+
+
+if ( ! function_exists( 'update_post_meta' ) ) {
+
+	/**
+	 * Update test post metadata.
+	 *
+	 * Test replacement for update_post_meta().
+	 *
+	 * @param int    $post_id Post ID.
+	 * @param string $key     Metadata key.
+	 * @param mixed  $value   Metadata value.
+	 * @return bool
+	 */
+	function update_post_meta(
+		int $post_id,
+		string $key,
+		$value
+	): bool {
+
+		$GLOBALS['shurloc_test_post_meta'][ $post_id ][ $key ] =
+		$value;
+
+		return true;
+	}
+}
+
+
+if ( ! function_exists( 'delete_post_meta' ) ) {
+
+	/**
+	 * Delete test post metadata.
+	 *
+	 * Test replacement for delete_post_meta().
+	 *
+	 * @param int    $post_id Post ID.
+	 * @param string $key     Metadata key.
+	 * @return bool
+	 */
+	function delete_post_meta(
+		int $post_id,
+		string $key
+	): bool {
+
+		if (
+			! array_key_exists(
+				$key,
+				$GLOBALS['shurloc_test_post_meta'][ $post_id ]
+					?? array()
+			)
+		) {
+			return false;
+		}
+
+		unset(
+			$GLOBALS['shurloc_test_post_meta'][ $post_id ][ $key ]
+		);
+
+		if (
+			empty(
+				$GLOBALS['shurloc_test_post_meta'][ $post_id ]
+			)
+		) {
+			unset(
+				$GLOBALS['shurloc_test_post_meta'][ $post_id ]
+			);
+		}
+
+		return true;
+	}
+}
+
+
+if ( ! function_exists( 'get_current_screen' ) ) {
+
+	/**
+	 * Get the current test admin screen.
+	 *
+	 * Test replacement for get_current_screen().
+	 *
+	 * @return WP_Screen|null
+	 */
+	function get_current_screen(): ?WP_Screen {
+
+		$screen = $GLOBALS['shurloc_test_current_screen']
+			?? null;
+
+		return $screen instanceof WP_Screen
+			? $screen
+			: null;
+	}
+}
+
+
+if ( ! function_exists( 'get_terms' ) ) {
+
+	/**
+	 * Retrieve test taxonomy terms.
+	 *
+	 * Test replacement for get_terms().
+	 *
+	 * @param array<string,mixed> $args Term query arguments.
+	 * @return array<int,object>
+	 */
+	function get_terms(
+		array $args = array()
+	): array {
+
+		$taxonomy = isset( $args['taxonomy'] )
+			? (string) $args['taxonomy']
+			: '';
+
+		if (
+			'' === $taxonomy ||
+			! isset(
+				$GLOBALS['shurloc_test_terms'][ $taxonomy ]
+			)
+		) {
+			return array();
+		}
+
+		return array_values(
+			$GLOBALS['shurloc_test_terms'][ $taxonomy ]
+		);
+	}
+}
+
+
+if ( ! function_exists( 'metadata_exists' ) ) {
+
+	/**
+	 * Determine whether test metadata exists.
+	 *
+	 * Test replacement for metadata_exists().
+	 *
+	 * @param string $meta_type Metadata type.
+	 * @param int    $object_id Object ID.
+	 * @param string $meta_key  Metadata key.
+	 * @return bool
+	 */
+	function metadata_exists(
+		string $meta_type,
+		int $object_id,
+		string $meta_key
+	): bool {
+
+		if ( 'post' !== $meta_type ) {
+			return false;
+		}
+
+		return array_key_exists(
+			$meta_key,
+			$GLOBALS['shurloc_test_post_meta'][ $object_id ]
+				?? array()
+		);
 	}
 }
