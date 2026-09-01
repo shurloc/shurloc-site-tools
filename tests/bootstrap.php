@@ -29,6 +29,8 @@ $shurloc_autoloader = new Autoloader(
 
 $shurloc_autoloader->register();
 
+require_once __DIR__ . '/product/parsers/MeshParserDataProvider.php';
+
 /**
  * Load stubs and test doubles.
  */
