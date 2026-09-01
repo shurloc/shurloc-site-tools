@@ -9,6 +9,7 @@ declare( strict_types=1 );
 
 namespace Shurloc\SiteTools;
 
+use Shurloc\SiteTools\Customer\Bootstrap as Customer_Bootstrap;
 use Shurloc\SiteTools\Media\Bootstrap as Media_Bootstrap;
 use Shurloc\SiteTools\SEO\Bootstrap as SEO_Bootstrap;
 
@@ -34,6 +35,14 @@ function shurloc_site_tools_bootstrap(): void {
 	);
 
 	$autoloader->register();
+
+	/**
+	 * Customer domain.
+	 */
+
+	$customer_bootstrap = new Customer_Bootstrap();
+
+	$customer_bootstrap->register();
 
 	/**
 	 * Media domain.

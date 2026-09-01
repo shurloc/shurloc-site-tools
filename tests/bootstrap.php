@@ -37,5 +37,21 @@ require_once __DIR__ . '/stubs/wordpress-functions.php';
 require_once dirname( __DIR__ ) . '/includes/constants.php';
 require_once dirname( __DIR__ ) . '/includes/bootstrap.php';
 
+require_once __DIR__ . '/stubs/customer-formatters-functions.php';
+require_once __DIR__ . '/stubs/customer-services-functions.php';
+require_once __DIR__ . '/stubs/customer-admin-functions.php';
+require_once __DIR__ . '/stubs/customer-migrations-functions.php';
+
+require_once __DIR__ . '/stubs/woocommerce-functions.php';
+
 require_once __DIR__ . '/doubles/class-wp-query.php';
 require_once __DIR__ . '/doubles/class-wp-post.php';
+require_once __DIR__ . '/doubles/class-wp-user.php';
+require_once __DIR__ . '/doubles/class-wc-datetime.php';
+require_once __DIR__ . '/doubles/class-wc-order.php';
+require_once __DIR__ . '/doubles/class-wc-product.php';
+require_once __DIR__ . '/doubles/class-wc-cart.php';
+require_once __DIR__ . '/doubles/class-wc-cart-double.php';
+require_once __DIR__ . '/doubles/class-woocommerce.php';
+require_once __DIR__ . '/doubles/class-wp-user-query.php';
+require_once __DIR__ . '/doubles/class-shurloc-test-wpdb.php';

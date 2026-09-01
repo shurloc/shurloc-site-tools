@@ -63,6 +63,81 @@ $GLOBALS['shurloc_test_post'] = null;
  */
 $GLOBALS['shurloc_test_filtered_content'] = null;
 
+/**
+ * Current test timestamp.
+ */
+$GLOBALS['shurloc_test_time'] = 0;
+
+/**
+ * Current test user ID.
+ */
+$GLOBALS['shurloc_test_current_user_id'] = 0;
+
+/**
+ * Whether the current test user is logged in.
+ */
+$GLOBALS['shurloc_test_is_user_logged_in'] = false;
+
+/**
+ * Test user meta values.
+ */
+$GLOBALS['shurloc_test_user_meta'] = array();
+
+/**
+ * WooCommerce instance used by tests.
+ */
+$GLOBALS['shurloc_test_woocommerce'] = null;
+
+/**
+ * WooCommerce orders indexed by order ID.
+ */
+$GLOBALS['shurloc_test_orders'] = array();
+
+/**
+ * WordPress user IDs returned by get_users() during tests.
+ */
+$GLOBALS['shurloc_test_users'] = array();
+
+/**
+ * WordPress options stored during tests.
+ */
+$GLOBALS['shurloc_test_options'] = array();
+
+/**
+ * Nonce fields generated during tests.
+ */
+$GLOBALS['shurloc_test_nonce_fields'] = array();
+
+/**
+ * Whether nonce verification should succeed.
+ */
+$GLOBALS['shurloc_test_nonce_valid'] = true;
+
+/**
+ * Test user capabilities.
+ */
+$GLOBALS['shurloc_test_user_capabilities'] = array();
+
+/**
+ * Admin referer checks performed during tests.
+ */
+$GLOBALS['shurloc_test_admin_referer_checks'] = array();
+
+/**
+ * Redirect URLs recorded during tests.
+ */
+$GLOBALS['shurloc_test_redirects'] = array();
+
+/**
+ * Messages passed to wp_die() during tests.
+ */
+$GLOBALS['shurloc_test_wp_die_messages'] = array();
+
+/**
+ * Registered submenu pages.
+ */
+$GLOBALS['shurloc_test_submenu_pages'] = array();
+
 
 if ( ! function_exists( 'get_post_meta' ) ) {
 	/**
@@ -537,5 +612,826 @@ if ( ! function_exists( 'wp_kses' ) ) {
 		unset( $allowed_html );
 
 		return $content;
+	}
+}
+
+if ( ! function_exists( 'wp_date' ) ) {
+	/**
+	 * Format a test timestamp.
+	 *
+	 * @param string   $format    Date format.
+	 * @param int|null $timestamp Timestamp.
+	 * @return string
+	 */
+	function wp_date(
+		string $format,
+		?int $timestamp = null
+	): string {
+		if ( null === $timestamp ) {
+			$timestamp = $GLOBALS['shurloc_test_time'];
+		}
+
+		return gmdate(
+			$format,
+			$timestamp
+		);
+	}
+}
+
+if ( ! function_exists( '_n' ) ) {
+	/**
+	 * Return the singular or plural test translation.
+	 *
+	 * @param string $single Singular text.
+	 * @param string $plural Plural text.
+	 * @param int    $number Number.
+	 * @param string $domain Text domain.
+	 * @return string
+	 */
+	function _n(
+		string $single,
+		string $plural,
+		int $number,
+		string $domain = 'default'
+	): string {
+		unset( $domain );
+
+		return 1 === $number
+			? $single
+			: $plural;
+	}
+}
+
+if ( ! function_exists( 'get_option' ) ) {
+	/**
+	 * Get a test WordPress option.
+	 *
+	 * @param string $option_name    Option name.
+	 * @param mixed  $default_return Value returned when the option is unavailable.
+	 * @return mixed
+	 */
+	function get_option(
+		string $option_name,
+		mixed $default_return = false
+	): mixed {
+
+		if (
+			array_key_exists(
+				$option_name,
+				$GLOBALS['shurloc_test_options']
+			)
+		) {
+			return $GLOBALS['shurloc_test_options'][ $option_name ];
+		}
+
+		if ( 'date_format' === $option_name ) {
+			return 'F j, Y';
+		}
+
+		return $default_return;
+	}
+}
+
+if ( ! function_exists( 'get_current_user_id' ) ) {
+	/**
+	 * Get the current test user ID.
+	 *
+	 * @return int
+	 */
+	function get_current_user_id(): int {
+		return $GLOBALS['shurloc_test_current_user_id'];
+	}
+}
+
+if ( ! function_exists( 'is_user_logged_in' ) ) {
+	/**
+	 * Determine whether the current test user is logged in.
+	 *
+	 * @return bool
+	 */
+	function is_user_logged_in(): bool {
+		return $GLOBALS['shurloc_test_is_user_logged_in'];
+	}
+}
+
+if ( ! function_exists( 'get_user_meta' ) ) {
+	/**
+	 * Retrieve test user meta.
+	 *
+	 * @param int    $user_id User ID.
+	 * @param string $key     Meta key.
+	 * @param bool   $single  Whether to return a single value.
+	 * @return mixed
+	 */
+	function get_user_meta(
+		int $user_id,
+		string $key = '',
+		bool $single = false
+	) {
+		if ( '' === $key ) {
+			return $GLOBALS['shurloc_test_user_meta'][ $user_id ] ?? array();
+		}
+
+		$value = $GLOBALS['shurloc_test_user_meta'][ $user_id ][ $key ] ?? '';
+
+		if ( $single ) {
+			return $value;
+		}
+
+		if ( '' === $value ) {
+			return array();
+		}
+
+		return array( $value );
+	}
+}
+
+if ( ! function_exists( 'update_user_meta' ) ) {
+	/**
+	 * Update test user meta.
+	 *
+	 * @param int    $user_id User ID.
+	 * @param string $key     Meta key.
+	 * @param mixed  $value   Meta value.
+	 * @return bool
+	 */
+	function update_user_meta(
+		int $user_id,
+		string $key,
+		$value
+	): bool {
+		$GLOBALS['shurloc_test_user_meta'][ $user_id ][ $key ] = $value;
+
+		return true;
+	}
+}
+
+if ( ! function_exists( 'WC' ) ) {
+	/**
+	 * Get the WooCommerce test instance.
+	 *
+	 * @return WooCommerce
+	 */
+	function WC(): WooCommerce { // phpcs:ignore WordPress.NamingConventions.ValidFunctionName.FunctionNameInvalid -- Matches WooCommerce WC() API.
+
+		if (
+			! $GLOBALS['shurloc_test_woocommerce'] instanceof WooCommerce
+		) {
+			$GLOBALS['shurloc_test_woocommerce'] = new WooCommerce();
+		}
+
+		return $GLOBALS['shurloc_test_woocommerce'];
+	}
+}
+
+if ( ! function_exists( 'wc_get_order' ) ) {
+	/**
+	 * Get a WooCommerce test order.
+	 *
+	 * @param int $order_id Order ID.
+	 * @return WC_Order|false
+	 */
+	function wc_get_order(
+		int $order_id
+	): WC_Order|false {
+
+		if (
+			! isset( $GLOBALS['shurloc_test_orders'][ $order_id ] )
+		) {
+			return false;
+		}
+
+		$order = $GLOBALS['shurloc_test_orders'][ $order_id ];
+
+		if ( ! $order instanceof WC_Order ) {
+			return false;
+		}
+
+		return $order;
+	}
+}
+
+if ( ! function_exists( 'delete_user_meta' ) ) {
+	/**
+	 * Delete test user metadata.
+	 *
+	 * @param int    $user_id  User ID.
+	 * @param string $meta_key Metadata key.
+	 * @return bool
+	 */
+	function delete_user_meta(
+		int $user_id,
+		string $meta_key
+	): bool {
+
+		if (
+			! isset( $GLOBALS['shurloc_test_user_meta'][ $user_id ] ) ||
+			! is_array( $GLOBALS['shurloc_test_user_meta'][ $user_id ] )
+		) {
+			return false;
+		}
+
+		if (
+			! array_key_exists(
+				$meta_key,
+				$GLOBALS['shurloc_test_user_meta'][ $user_id ]
+			)
+		) {
+			return false;
+		}
+
+		unset(
+			$GLOBALS['shurloc_test_user_meta'][ $user_id ][ $meta_key ]
+		);
+
+		if (
+			empty(
+				$GLOBALS['shurloc_test_user_meta'][ $user_id ]
+			)
+		) {
+			unset(
+				$GLOBALS['shurloc_test_user_meta'][ $user_id ]
+			);
+		}
+
+		return true;
+	}
+}
+
+if ( ! function_exists( 'esc_url' ) ) {
+	/**
+	 * Escape a URL.
+	 *
+	 * @param string $url URL to escape.
+	 * @return string
+	 */
+	function esc_url(
+		string $url
+	): string {
+
+		return htmlspecialchars(
+			$url,
+			ENT_QUOTES,
+			'UTF-8'
+		);
+	}
+}
+
+if ( ! function_exists( 'submit_button' ) ) {
+	/**
+	 * Render a test submit button.
+	 *
+	 * @param string               $text             Button text.
+	 * @param string               $type             Button type.
+	 * @param string               $name             Button name.
+	 * @param bool                 $wrap             Whether to wrap the button in a paragraph.
+	 * @param array<string,scalar> $other_attributes Additional button attributes.
+	 * @return void
+	 */
+	function submit_button(
+		string $text = 'Save Changes',
+		string $type = 'primary large',
+		string $name = 'submit',
+		bool $wrap = true,
+		array $other_attributes = array()
+	): void {
+
+		unset( $type, $other_attributes );
+
+		$button = sprintf(
+			'<input type="submit" name="%1$s" value="%2$s" />',
+			esc_attr( $name ),
+			esc_attr( $text )
+		);
+
+		if ( $wrap ) {
+			echo '<p class="submit">' . $button . '</p>'; // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- Test stub output is escaped above.
+			return;
+		}
+
+			echo $button; // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- Test stub output is escaped above.
+	}
+}
+
+if ( ! function_exists( 'do_action' ) ) {
+	/**
+	 * Execute callbacks registered for an action.
+	 *
+	 * @param string $hook_name Action hook name.
+	 * @param mixed  ...$args   Arguments passed to registered callbacks.
+	 * @return void
+	 */
+	function do_action(
+		string $hook_name,
+		mixed ...$args
+	): void {
+
+		if ( ! isset( $GLOBALS['shurloc_test_actions'][ $hook_name ] ) ) {
+			return;
+		}
+
+		foreach ( $GLOBALS['shurloc_test_actions'][ $hook_name ] as $callback ) {
+			$callback( ...$args );
+		}
+	}
+}
+
+if ( ! function_exists( 'add_query_arg' ) ) {
+	/**
+	 * Add query arguments to a URL.
+	 *
+	 * @param array<string,int|string> $args Query arguments.
+	 * @param string                   $url  Base URL.
+	 * @return string
+	 */
+	function add_query_arg(
+		array $args,
+		string $url
+	): string {
+
+		$query = http_build_query( $args );
+
+		if ( '' === $query ) {
+			return $url;
+		}
+
+		$separator = str_contains( $url, '?' )
+			? '&'
+			: '?';
+
+		return $url . $separator . $query;
+	}
+}
+
+if ( ! function_exists( 'admin_url' ) ) {
+	/**
+	 * Get a test WordPress admin URL.
+	 *
+	 * @param string $path Path relative to the admin directory.
+	 * @return string
+	 */
+	function admin_url(
+		string $path = ''
+	): string {
+
+		$admin_url = 'https://example.com/wp-admin/';
+
+		if ( '' === $path ) {
+			return $admin_url;
+		}
+
+		return $admin_url . ltrim(
+			$path,
+			'/'
+		);
+	}
+}
+
+if ( ! function_exists( 'wp_kses_post' ) ) {
+	/**
+	 * Sanitize content using the allowed post HTML rules.
+	 *
+	 * Test stub returns the supplied content unchanged.
+	 *
+	 * @param string $data Content to sanitize.
+	 * @return string
+	 */
+	function wp_kses_post(
+		string $data
+	): string {
+
+		return $data;
+	}
+}
+
+if ( ! function_exists( 'get_permalink' ) ) {
+	/**
+	 * Get a test permalink.
+	 *
+	 * @param int $post_id Post ID.
+	 * @return string|false
+	 */
+	function get_permalink(
+		int $post_id
+	): string|false {
+
+		return $GLOBALS['shurloc_test_permalinks'][ $post_id ] ?? false;
+	}
+}
+
+if ( ! function_exists( 'wp_enqueue_script' ) ) {
+	/**
+	 * Enqueue a test script.
+	 *
+	 * @param string            $handle    Script handle.
+	 * @param string            $src       Script source URL.
+	 * @param array<int,string> $deps      Script dependencies.
+	 * @param string|bool|null  $ver       Script version.
+	 * @param bool              $in_footer Whether to enqueue in the footer.
+	 * @return void
+	 */
+	function wp_enqueue_script(
+		string $handle,
+		string $src = '',
+		array $deps = array(),
+		string|bool|null $ver = false,
+		bool $in_footer = false
+	): void {
+
+		$GLOBALS['shurloc_test_enqueued_scripts'][] = array(
+			'handle'    => $handle,
+			'src'       => $src,
+			'deps'      => $deps,
+			'ver'       => $ver,
+			'in_footer' => $in_footer,
+		);
+	}
+}
+
+if ( ! function_exists( 'get_users' ) ) {
+	/**
+	 * Get test WordPress users.
+	 *
+	 * @param array<string,mixed> $args User query arguments.
+	 * @return int[]
+	 */
+	function get_users(
+		array $args = array()
+	): array {
+
+		unset( $args );
+
+		return $GLOBALS['shurloc_test_users'];
+	}
+}
+
+if ( ! function_exists( 'update_option' ) ) {
+	/**
+	 * Update a test WordPress option.
+	 *
+	 * @param string $option_name Option name.
+	 * @param mixed  $value       Option value.
+	 * @return bool
+	 */
+	function update_option(
+		string $option_name,
+		mixed $value
+	): bool {
+
+		$GLOBALS['shurloc_test_options'][ $option_name ] = $value;
+
+		return true;
+	}
+}
+
+if ( ! function_exists( 'add_option' ) ) {
+	/**
+	 * Add a test WordPress option.
+	 *
+	 * @param string $option_name Option name.
+	 * @param mixed  $value       Option value.
+	 * @param string $deprecated  Deprecated argument.
+	 * @param bool   $autoload    Whether the option should autoload.
+	 * @return bool
+	 */
+	function add_option(
+		string $option_name,
+		mixed $value = '',
+		string $deprecated = '',
+		bool $autoload = true
+	): bool {
+
+		unset( $deprecated, $autoload );
+
+		if (
+			array_key_exists(
+				$option_name,
+				$GLOBALS['shurloc_test_options']
+			)
+		) {
+			return false;
+		}
+
+		$GLOBALS['shurloc_test_options'][ $option_name ] = $value;
+
+		return true;
+	}
+}
+
+if ( ! function_exists( 'delete_option' ) ) {
+	/**
+	 * Delete a test WordPress option.
+	 *
+	 * @param string $option_name Option name.
+	 * @return bool
+	 */
+	function delete_option(
+		string $option_name
+	): bool {
+
+		if (
+			! array_key_exists(
+				$option_name,
+				$GLOBALS['shurloc_test_options']
+			)
+		) {
+			return false;
+		}
+
+		unset(
+			$GLOBALS['shurloc_test_options'][ $option_name ]
+		);
+
+		return true;
+	}
+}
+
+if ( ! function_exists( 'get_userdata' ) ) {
+	/**
+	 * Get test user data.
+	 *
+	 * @param int $user_id User ID.
+	 * @return WP_User|false
+	 */
+	function get_userdata(
+		int $user_id
+	): WP_User|false {
+
+		if (
+			isset( $GLOBALS['shurloc_test_users'][ $user_id ] ) &&
+			true === $GLOBALS['shurloc_test_users'][ $user_id ]
+		) {
+			return new WP_User( $user_id );
+		}
+
+		if (
+			in_array(
+				$user_id,
+				$GLOBALS['shurloc_test_users'],
+				true
+			)
+		) {
+			return new WP_User( $user_id );
+		}
+
+		return false;
+	}
+}
+
+if ( ! function_exists( 'maybe_unserialize' ) ) {
+	/**
+	 * Unserialize data when appropriate.
+	 *
+	 * @param mixed $data Data to potentially unserialize.
+	 * @return mixed
+	 */
+	function maybe_unserialize(
+		mixed $data
+	): mixed {
+
+		if ( ! is_string( $data ) ) {
+			return $data;
+		}
+
+		$trimmed_data = trim( $data );
+
+		if ( '' === $trimmed_data ) {
+			return $data;
+		}
+
+		if (
+		! preg_match(
+			'/^(?:a|O|s|i|d|b):|^N;/',
+			$trimmed_data
+		)
+		) {
+			return $data;
+		}
+
+		// phpcs:ignore WordPress.PHP.DiscouragedPHPFunctions.serialize_unserialize -- Test stub mirrors WordPress behavior.
+		$result = unserialize( $trimmed_data );
+
+		if (
+			false === $result &&
+			'b:0;' !== $trimmed_data
+		) {
+			return $data;
+		}
+
+		return $result;
+	}
+}
+
+if ( ! function_exists( 'wp_nonce_field' ) ) {
+	/**
+	 * Output a test nonce field.
+	 *
+	 * @param string $action  Nonce action.
+	 * @param string $name    Nonce field name.
+	 * @param bool   $referer Whether to output a referer field.
+	 * @param bool   $display Whether to display the field.
+	 * @return string
+	 */
+	function wp_nonce_field(
+		string $action = '-1',
+		string $name = '_wpnonce',
+		bool $referer = true,
+		bool $display = true
+	): string {
+
+		unset( $referer );
+
+		$GLOBALS['shurloc_test_nonce_fields'][] = array(
+			'action' => $action,
+			'name'   => $name,
+		);
+
+		$field = sprintf(
+			'<input type="hidden" name="%s" value="%s" />',
+			esc_attr( $name ),
+			esc_attr( 'test-nonce-' . $action )
+		);
+
+		if ( $display ) {
+			echo $field; // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- Test-only generated HTML.
+		}
+
+		return $field;
+	}
+}
+
+if ( ! function_exists( 'wp_create_nonce' ) ) {
+	/**
+	 * Create a test nonce.
+	 *
+	 * @param string|int $action Nonce action.
+	 * @return string
+	 */
+	function wp_create_nonce(
+		string|int $action = -1
+	): string {
+
+		return 'test-nonce-' . (string) $action;
+	}
+}
+
+if ( ! function_exists( 'wp_verify_nonce' ) ) {
+	/**
+	 * Verify a test nonce.
+	 *
+	 * @param string     $nonce  Nonce value.
+	 * @param string|int $action Nonce action.
+	 * @return int|false
+	 */
+	function wp_verify_nonce(
+		string $nonce,
+		string|int $action = -1
+	): int|false {
+
+		if ( ! $GLOBALS['shurloc_test_nonce_valid'] ) {
+			return false;
+		}
+
+		return 'test-nonce-' . (string) $action === $nonce
+			? 1
+			: false;
+	}
+}
+
+if ( ! function_exists( 'current_user_can' ) ) {
+	/**
+	 * Determine whether the current test user has a capability.
+	 *
+	 * @param string $capability Capability name.
+	 * @param mixed  ...$args    Additional capability arguments.
+	 * @return bool
+	 */
+	function current_user_can(
+		string $capability,
+		mixed ...$args
+	): bool {
+
+		unset( $args );
+
+		return $GLOBALS['shurloc_test_user_capabilities']
+			[ $capability ] ?? true;
+	}
+}
+
+if ( ! function_exists( 'check_admin_referer' ) ) {
+	/**
+	 * Record an admin referer check.
+	 *
+	 * @param string $action     Nonce action.
+	 * @param string $query_arg  Nonce request argument.
+	 * @return int|false
+	 */
+	function check_admin_referer(
+		string $action = '-1',
+		string $query_arg = '_wpnonce'
+	): int|false {
+
+		unset( $query_arg );
+
+		$GLOBALS['shurloc_test_admin_referer_checks'][] =
+			$action;
+
+		return $GLOBALS['shurloc_test_nonce_valid']
+			? 1
+			: false;
+	}
+}
+
+if ( ! function_exists( 'sanitize_text_field' ) ) {
+	/**
+	 * Sanitize a test text field.
+	 *
+	 * @param string $value Value to sanitize.
+	 * @return string
+	 */
+	function sanitize_text_field(
+		string $value
+	): string {
+
+		return trim(
+			// phpcs:ignore WordPress.WP.AlternativeFunctions.strip_tags_strip_tags -- Test stub intentionally mirrors basic sanitization behavior.
+			strip_tags( $value )
+		);
+	}
+}
+
+if ( ! function_exists( 'wp_die' ) ) {
+	/**
+	 * Stop test execution with a WordPress error.
+	 *
+	 * @param string $message Error message.
+	 * @return never
+	 *
+	 * @throws RuntimeException When called during a test.
+	 */
+	function wp_die(
+		string $message
+	): never {
+
+		$GLOBALS['shurloc_test_wp_die_messages'][] =
+			$message;
+
+		throw new RuntimeException(
+			esc_html( $message )
+		);
+	}
+}
+
+if ( ! function_exists( 'absint' ) ) {
+	/**
+	 * Convert a value to a non-negative integer.
+	 *
+	 * @param mixed $value Value to convert.
+	 * @return int
+	 */
+	function absint(
+		mixed $value
+	): int {
+
+		return abs(
+			(int) $value
+		);
+	}
+}
+
+if ( ! function_exists( 'add_submenu_page' ) ) {
+	/**
+	 * Register a test submenu page.
+	 *
+	 * @param string         $parent_slug Parent menu slug.
+	 * @param string         $page_title  Page title.
+	 * @param string         $menu_title  Menu title.
+	 * @param string         $capability  Required capability.
+	 * @param string         $menu_slug   Menu slug.
+	 * @param callable|null  $callback    Page callback.
+	 * @param int|float|null $position   Menu position.
+	 * @return string
+	 */
+	function add_submenu_page(
+		string $parent_slug,
+		string $page_title,
+		string $menu_title,
+		string $capability,
+		string $menu_slug,
+		?callable $callback = null,
+		int|float|null $position = null
+	): string {
+
+		$GLOBALS['shurloc_test_submenu_pages'][] = array(
+			'parent_slug' => $parent_slug,
+			'page_title'  => $page_title,
+			'menu_title'  => $menu_title,
+			'capability'  => $capability,
+			'menu_slug'   => $menu_slug,
+			'callback'    => $callback,
+			'position'    => $position,
+		);
+
+		return 'shurloc-test-submenu-hook';
 	}
 }
