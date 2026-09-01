@@ -133,6 +133,11 @@ $GLOBALS['shurloc_test_redirects'] = array();
  */
 $GLOBALS['shurloc_test_wp_die_messages'] = array();
 
+/**
+ * Registered submenu pages.
+ */
+$GLOBALS['shurloc_test_submenu_pages'] = array();
+
 
 if ( ! function_exists( 'get_post_meta' ) ) {
 	/**
@@ -1391,5 +1396,42 @@ if ( ! function_exists( 'absint' ) ) {
 		return abs(
 			(int) $value
 		);
+	}
+}
+
+if ( ! function_exists( 'add_submenu_page' ) ) {
+	/**
+	 * Register a test submenu page.
+	 *
+	 * @param string         $parent_slug Parent menu slug.
+	 * @param string         $page_title  Page title.
+	 * @param string         $menu_title  Menu title.
+	 * @param string         $capability  Required capability.
+	 * @param string         $menu_slug   Menu slug.
+	 * @param callable|null  $callback    Page callback.
+	 * @param int|float|null $position   Menu position.
+	 * @return string
+	 */
+	function add_submenu_page(
+		string $parent_slug,
+		string $page_title,
+		string $menu_title,
+		string $capability,
+		string $menu_slug,
+		?callable $callback = null,
+		int|float|null $position = null
+	): string {
+
+		$GLOBALS['shurloc_test_submenu_pages'][] = array(
+			'parent_slug' => $parent_slug,
+			'page_title'  => $page_title,
+			'menu_title'  => $menu_title,
+			'capability'  => $capability,
+			'menu_slug'   => $menu_slug,
+			'callback'    => $callback,
+			'position'    => $position,
+		);
+
+		return 'shurloc-test-submenu-hook';
 	}
 }
