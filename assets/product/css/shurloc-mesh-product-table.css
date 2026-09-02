@@ -1,0 +1,227 @@
+/**
+ * Shur-Loc Mesh Product Table Styles
+ *
+ * @package ShurlocSiteTools
+ */
+
+
+/*
+ * Theme variables.
+ */
+
+:root {
+	--shurloc-table-background: #ffffff;
+	--shurloc-table-border: #d9d9d9;
+	--shurloc-table-row-border: #e6e6e6;
+
+	--shurloc-table-header-background: #f4db23;
+	--shurloc-table-header-text: #000000;
+
+	--shurloc-table-caption-text: #000000;
+	--shurloc-table-zebra-background: #f8fbfd;
+	--shurloc-table-hover-background: #eef6fb;
+	--shurloc-table-selected-background: #dff3ff;
+
+	--shurloc-table-focus-outline: #0b6ab3;
+}
+
+
+/*
+ * Table wrapper.
+ */
+
+.shurloc-mesh-table-wrapper {
+	width: 100%;
+	margin: 1.5rem 0;
+	overflow-x: auto;
+	-webkit-overflow-scrolling: touch;
+}
+
+
+/*
+ * Main table.
+ */
+
+.shurloc-mesh-specification-table {
+	width: max-content;
+	min-width: 100%;
+	border-collapse: collapse;
+	border: 1px solid var(--shurloc-table-border);
+	background: var(--shurloc-table-background);
+	font-size: 0.95rem;
+}
+
+
+/*
+ * Caption.
+ */
+
+.shurloc-mesh-specification-table caption {
+	caption-side: top;
+	padding: 0 0 0.75rem;
+	color: var(--shurloc-table-caption-text);
+	font-size: 1.15rem;
+	font-weight: 700;
+	text-align: left;
+}
+
+
+/*
+ * Header row.
+ */
+
+.shurloc-mesh-specification-table thead th {
+	position: sticky;
+	top: 0;
+	z-index: 2;
+
+	padding: 0.75rem 1rem;
+
+	border-bottom: 2px solid var(--shurloc-table-header-background);
+
+	background: var(--shurloc-table-header-background);
+	color: var(--shurloc-table-header-text);
+
+	font-weight: 600;
+	text-align: left;
+	white-space: nowrap;
+}
+
+
+/*
+ * Body cells.
+ */
+
+.shurloc-mesh-specification-table tbody td {
+	padding: 0.65rem 1rem;
+	border-bottom: 1px solid var(--shurloc-table-row-border);
+	vertical-align: middle;
+}
+
+
+/*
+ * Interactive rows.
+ */
+
+.shurloc-mesh-table-row {
+	cursor: pointer;
+	transition: background-color 0.15s ease;
+}
+
+
+/*
+ * Zebra striping.
+ */
+
+.shurloc-mesh-specification-table tbody tr:nth-child(even) {
+	background: var(--shurloc-table-zebra-background);
+}
+
+
+/*
+ * Hover state.
+ */
+
+.shurloc-mesh-specification-table tbody tr:hover {
+	background: var(--shurloc-table-hover-background);
+}
+
+
+/*
+ * Selected row.
+ */
+
+.shurloc-mesh-table-row-selected,
+.shurloc-mesh-table-row[aria-selected="true"] {
+	background: var(--shurloc-table-selected-background) !important;
+	font-weight: 600;
+}
+
+
+/*
+ * Keep the selected background while hovering.
+ */
+
+.shurloc-mesh-table-row-selected:hover,
+.shurloc-mesh-table-row[aria-selected="true"]:hover {
+	background: var(--shurloc-table-selected-background) !important;
+}
+
+
+/*
+ * Keyboard focus.
+ */
+
+.shurloc-mesh-table-row:focus-visible {
+	outline: 2px solid var(--shurloc-table-focus-outline);
+	outline-offset: -2px;
+}
+
+
+/*
+ * Fallback for browsers without :focus-visible support.
+ */
+
+.shurloc-mesh-table-row:focus:not(:focus-visible) {
+	outline: none;
+}
+
+
+/*
+ * Numeric columns.
+ */
+
+.shurloc-mesh-table-mesh,
+.shurloc-mesh-table-thread {
+	width: 1%;
+	text-align: center;
+	white-space: nowrap;
+}
+
+
+/*
+ * Color column.
+ */
+
+.shurloc-mesh-table-color {
+	text-align: left;
+}
+
+
+/*
+ * Price column.
+ */
+
+.shurloc-mesh-table-price {
+	width: 1%;
+	font-weight: 600;
+	text-align: right;
+	white-space: nowrap;
+}
+
+
+/*
+ * Optional columns.
+ */
+
+.shurloc-mesh-table-modifier,
+.shurloc-mesh-table-pack-size {
+	white-space: nowrap;
+}
+
+
+/*
+ * Mobile adjustments.
+ */
+
+@media screen and (max-width: 768px) {
+
+	.shurloc-mesh-specification-table {
+		font-size: 0.9rem;
+	}
+
+	.shurloc-mesh-specification-table thead th,
+	.shurloc-mesh-specification-table tbody td {
+		padding: 0.5rem 0.6rem;
+	}
+}
