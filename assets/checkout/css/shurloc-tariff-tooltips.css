@@ -81,7 +81,7 @@ tr.fee {
 	width: 85%;
 	z-index: 9999;
 	box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
-	text-align: left;
+    text-align: left;
 }
 
 .shurloc-mobile-tariff-popup p {
