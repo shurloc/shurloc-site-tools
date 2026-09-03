@@ -1,0 +1,42 @@
+/**
+ * Product migrations admin styles.
+ *
+ * @package ShurlocSiteTools
+ */
+
+.shurloc-migration-form {
+	margin-top: 20px;
+}
+
+.shurloc-migration-overlay {
+	position: fixed;
+	z-index: 100000;
+	inset: 0;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	background: rgb(0 0 0 / 40%);
+}
+
+.shurloc-migration-overlay[hidden] {
+	display: none;
+}
+
+.shurloc-migration-dialog {
+	min-width: 320px;
+	max-width: 480px;
+	padding: 24px;
+	background: #fff;
+	box-shadow: 0 2px 10px rgb(0 0 0 / 20%);
+	text-align: center;
+}
+
+.shurloc-migration-dialog .spinner {
+	float: none;
+	margin: 0 8px 0 0;
+	vertical-align: middle;
+}
+
+.shurloc-migration-dialog p {
+	margin-bottom: 0;
+}
