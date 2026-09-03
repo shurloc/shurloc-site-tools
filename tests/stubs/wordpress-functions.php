@@ -368,7 +368,7 @@ if ( ! function_exists( 'is_admin' ) ) {
 	 */
 	function is_admin(): bool {
 
-		return $GLOBALS['shurloc_test_is_admin'];
+		return $GLOBALS['shurloc_test_is_admin'] ?? false;
 	}
 }
 
@@ -1826,7 +1826,9 @@ if ( ! function_exists( 'add_submenu_page' ) ) {
 			'position'    => $position,
 		);
 
-		return 'shurloc-test-submenu-hook';
+		return 'shurloc-checkout-tools' === $menu_slug
+			? 'shurloc-checkout-tools'
+			: 'shurloc-test-submenu-hook';
 	}
 }
 if ( ! function_exists( 'get_the_ID' ) ) {
@@ -2578,27 +2580,38 @@ if ( ! function_exists( 'has_term' ) ) {
 	 *
 	 * Test replacement for has_term().
 	 *
-	 * @param int|string $term     Term ID or slug.
-	 * @param string     $taxonomy Taxonomy name.
-	 * @param int        $post_id  Post ID.
+	 * @param int|string|array<int|string> $term     Term ID, slug, or terms.
+	 * @param string                       $taxonomy Taxonomy name.
+	 * @param int                          $post_id  Post ID.
 	 * @return bool
 	 */
 	function has_term(
-		int|string $term,
+		int|string|array $term,
 		string $taxonomy,
 		int $post_id
 	): bool {
 
-		unset( $taxonomy );
+		$requested_terms = is_array( $term )
+			? $term
+			: array( $term );
 
-		$term_id = (int) $term;
+		$post_terms = $GLOBALS['shurloc_test_post_terms'][ $post_id ]
+			?? array();
 
-		return in_array(
-			$term_id,
-			$GLOBALS['shurloc_test_post_terms'][ $post_id ]
-				?? array(),
-			true
-		);
+		foreach ( $requested_terms as $requested_term ) {
+			if ( in_array( (int) $requested_term, $post_terms, true ) ) {
+				return true;
+			}
+		}
+
+		$taxonomy_terms = $GLOBALS['shurloc_test_terms'][ $post_id ][ $taxonomy ]
+			?? array();
+
+		if ( is_array( $term ) ) {
+			return array_intersect( $term, $taxonomy_terms ) !== array();
+		}
+
+		return in_array( $term, $taxonomy_terms, true );
 	}
 }
 
