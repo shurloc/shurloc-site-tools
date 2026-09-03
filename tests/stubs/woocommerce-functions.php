@@ -30,15 +30,11 @@ $GLOBALS['shurloc_test_is_product_tag'] = false;
 
 /**
  * Whether the current request is the cart page.
- *
- * @var bool
  */
 $GLOBALS['shurloc_test_is_cart'] = false;
 
 /**
  * Whether the current request is the checkout page.
- *
- * @var bool
  */
 $GLOBALS['shurloc_test_is_checkout'] = false;
 
