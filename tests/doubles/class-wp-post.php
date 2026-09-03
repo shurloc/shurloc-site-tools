@@ -29,6 +29,13 @@ if ( ! class_exists( 'WP_Post' ) ) {
 		public string $post_content;
 
 		/**
+		 * Post type.
+		 *
+		 * @var string
+		 */
+		public string $post_type;
+
+		/**
 		 * Constructor.
 		 *
 		 * @param object $post Post data.
@@ -42,6 +49,10 @@ if ( ! class_exists( 'WP_Post' ) ) {
 
 			$this->post_content = isset( $post->post_content )
 				? (string) $post->post_content
+				: '';
+
+			$this->post_type = isset( $post->post_type )
+				? (string) $post->post_type
 				: '';
 		}
 	}

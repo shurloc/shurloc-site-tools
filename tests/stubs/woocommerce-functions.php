@@ -18,6 +18,46 @@ $GLOBALS['shurloc_test_wc_get_orders_args'] = array();
  */
 $GLOBALS['shurloc_test_products'] = array();
 
+/**
+ * Whether the current test request is a product page.
+ */
+$GLOBALS['shurloc_test_is_product'] = true;
+
+/**
+ * Whether the current test request is a product tag archive.
+ */
+$GLOBALS['shurloc_test_is_product_tag'] = false;
+
+/**
+ * Current WooCommerce product used during tests.
+ */
+$GLOBALS['product'] = null;
+
+
+if ( ! function_exists( 'is_product' ) ) {
+	/**
+	 * Determine whether the current test request is a product page.
+	 *
+	 * @return bool
+	 */
+	function is_product(): bool {
+
+		return $GLOBALS['shurloc_test_is_product'];
+	}
+}
+
+if ( ! function_exists( 'is_product_tag' ) ) {
+	/**
+	 * Determine whether the current test request is a product tag archive.
+	 *
+	 * @return bool
+	 */
+	function is_product_tag(): bool {
+
+		return $GLOBALS['shurloc_test_is_product_tag'];
+	}
+}
+
 
 if ( ! function_exists( 'wc_get_order_status_name' ) ) {
 	/**
@@ -195,6 +235,21 @@ if ( ! function_exists( 'wc_get_orders' ) ) {
 		}
 
 		return array_values( $orders );
+	}
+}
+
+if ( ! function_exists( 'shurloc_register_test_product' ) ) {
+	/**
+	 * Register a WooCommerce product for testing.
+	 *
+	 * @param WC_Product $product Product object.
+	 * @return void
+	 */
+	function shurloc_register_test_product(
+		WC_Product $product
+	): void {
+
+		$GLOBALS['shurloc_test_products'][ $product->get_id() ] = $product;
 	}
 }
 

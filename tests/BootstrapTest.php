@@ -96,5 +96,24 @@ final class BootstrapTest extends TestCase {
 			'wp_head',
 			$GLOBALS['shurloc_test_actions']
 		);
+
+		/*
+		 * Product domain.
+		 */
+
+		self::assertArrayHasKey(
+			'woocommerce_structured_data_product',
+			$GLOBALS['shurloc_test_filters']
+		);
+
+		self::assertArrayHasKey(
+			'woocommerce_related_products',
+			$GLOBALS['shurloc_test_filters']
+		);
+
+		self::assertArrayHasKey(
+			'add_meta_boxes_product',
+			$GLOBALS['shurloc_test_actions']
+		);
 	}
 }
