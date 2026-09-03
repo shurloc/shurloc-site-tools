@@ -27,6 +27,13 @@ class WC_Order {
 	private int $customer_id = 0;
 
 	/**
+	 * Billing company.
+	 *
+	 * @var string
+	 */
+	private string $billing_company = '';
+
+	/**
 	 * Order status.
 	 *
 	 * @var string
@@ -86,6 +93,27 @@ class WC_Order {
 	 */
 	public function get_customer_id(): int {
 		return $this->customer_id;
+	}
+
+	/**
+	 * Set the billing company.
+	 *
+	 * @param string $company Billing company.
+	 * @return void
+	 */
+	public function set_billing_company(
+		string $company
+	): void {
+		$this->billing_company = $company;
+	}
+
+	/**
+	 * Get the billing company.
+	 *
+	 * @return string
+	 */
+	public function get_billing_company(): string {
+		return $this->billing_company;
 	}
 
 	/**
