@@ -10,7 +10,7 @@ declare( strict_types=1 );
 /**
  * WooCommerce order test double.
  */
-class WC_Order {
+class WC_Order extends WC_Abstract_Order {
 
 	/**
 	 * Order ID.
@@ -53,6 +53,13 @@ class WC_Order {
 	 * @var string
 	 */
 	private string $total = '0';
+
+	/**
+	 * Payment method ID.
+	 *
+	 * @var string
+	 */
+	private string $payment_method = '';
 
 	/**
 	 * Constructor.
@@ -194,5 +201,26 @@ class WC_Order {
 	 */
 	public function get_total(): string {
 		return $this->total;
+	}
+
+	/**
+	 * Set the payment method ID.
+	 *
+	 * @param string $payment_method Payment method ID.
+	 * @return void
+	 */
+	public function set_payment_method(
+		string $payment_method
+	): void {
+		$this->payment_method = $payment_method;
+	}
+
+	/**
+	 * Get the payment method ID.
+	 *
+	 * @return string
+	 */
+	public function get_payment_method(): string {
+		return $this->payment_method;
 	}
 }
