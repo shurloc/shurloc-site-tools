@@ -11,6 +11,7 @@ namespace Shurloc\SiteTools;
 
 use Shurloc\SiteTools\Customer\Bootstrap as Customer_Bootstrap;
 use Shurloc\SiteTools\Media\Bootstrap as Media_Bootstrap;
+use Shurloc\SiteTools\Product\Bootstrap as Product_Bootstrap;
 use Shurloc\SiteTools\SEO\Bootstrap as SEO_Bootstrap;
 
 if ( ! defined( 'ABSPATH' ) ) {
@@ -59,6 +60,14 @@ function shurloc_site_tools_bootstrap(): void {
 	$seo_bootstrap = new SEO_Bootstrap();
 
 	$seo_bootstrap->register();
+
+	/**
+	 * Product domain.
+	 */
+
+	$product_bootstrap = new Product_Bootstrap();
+
+	$product_bootstrap->register();
 }
 
 add_action(
