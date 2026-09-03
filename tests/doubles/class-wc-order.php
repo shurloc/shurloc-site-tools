@@ -17,7 +17,7 @@ class WC_Order extends WC_Abstract_Order {
 	 *
 	 * @var int
 	 */
-	private int $id;
+	protected $id = 0;
 
 	/**
 	 * Customer user ID.
@@ -50,9 +50,9 @@ class WC_Order extends WC_Abstract_Order {
 	/**
 	 * Order total.
 	 *
-	 * @var string
+	 * @var float
 	 */
-	private string $total = '0';
+	private float $total = 0.0;
 
 	/**
 	 * Payment method ID.
@@ -126,80 +126,110 @@ class WC_Order extends WC_Abstract_Order {
 	/**
 	 * Get the customer user ID.
 	 *
+	 * @param mixed $context Access context.
 	 * @return int
 	 */
-	public function get_user_id(): int {
+	public function get_user_id(
+		mixed $context = 'view'
+	): int {
+		unset( $context );
+
 		return $this->customer_id;
 	}
 
 	/**
 	 * Set the order status.
 	 *
-	 * @param string $status Order status.
-	 * @return void
+	 * @param mixed $new_status Order status.
+	 * @return array{from: string, to: string} Status transition details.
 	 */
 	public function set_status(
-		string $status
-	): void {
-		$this->status = $status;
+		mixed $new_status
+	): array {
+		$old_status   = $this->status;
+		$this->status = (string) $new_status;
+
+		return array(
+			'from' => $old_status,
+			'to'   => $this->status,
+		);
 	}
 
 	/**
 	 * Get the order status.
 	 *
+	 * @param mixed $context Access context.
 	 * @return string
 	 */
-	public function get_status(): string {
+	public function get_status(
+		mixed $context = 'view'
+	): string {
+		unset( $context );
+
 		return $this->status;
 	}
 
 	/**
 	 * Set the order creation date.
 	 *
-	 * @param int|null $timestamp Order creation timestamp.
+	 * @param mixed $date Order creation timestamp.
 	 * @return void
 	 */
 	public function set_date_created(
-		?int $timestamp
+		mixed $date = null
 	): void {
 
-		if ( null === $timestamp ) {
+		if ( null === $date ) {
 			$this->date_created = null;
 			return;
 		}
 
 		$this->date_created = new WC_DateTime(
-			'@' . $timestamp
+			'@' . (int) $date
 		);
 	}
 
 	/**
 	 * Get the order creation date.
 	 *
+	 * @param mixed $context Access context.
 	 * @return WC_DateTime|null
 	 */
-	public function get_date_created(): ?WC_DateTime {
+	public function get_date_created(
+		mixed $context = 'view'
+	): ?WC_DateTime {
+		unset( $context );
+
 		return $this->date_created;
 	}
 
 	/**
 	 * Set the order total.
 	 *
-	 * @param string $total Order total.
+	 * @param mixed $value      Order total.
+	 * @param mixed $deprecated Deprecated argument.
 	 * @return void
 	 */
 	public function set_total(
-		string $total
+		mixed $value,
+		mixed $deprecated = ''
 	): void {
-		$this->total = $total;
+		unset( $deprecated );
+
+		$this->total = (float) $value;
 	}
 
 	/**
 	 * Get the order total.
 	 *
-	 * @return string
+	 * @param mixed $context Access context.
+	 * @return float
 	 */
-	public function get_total(): string {
+	public function get_total(
+		mixed $context = 'view'
+	): float {
+		unset( $context );
+
 		return $this->total;
 	}
 
