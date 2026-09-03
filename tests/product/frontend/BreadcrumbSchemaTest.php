@@ -10,6 +10,7 @@ declare( strict_types=1 );
 namespace Shurloc\SiteTools\Product\Frontend;
 
 use PHPUnit\Framework\TestCase;
+use WC_Breadcrumb;
 
 /**
  * Tests breadcrumb schema behavior.
@@ -148,7 +149,7 @@ final class BreadcrumbSchemaTest extends TestCase {
 	public function test_disables_woocommerce_breadcrumb_schema_on_product_pages(): void {
 
 		$schema      = new Breadcrumb_Schema();
-		$breadcrumbs = new \WC_Breadcrumb();
+		$breadcrumbs = new WC_Breadcrumb();
 		$markup      = array( '@type' => 'BreadcrumbList' );
 
 		self::assertSame(
@@ -170,7 +171,7 @@ final class BreadcrumbSchemaTest extends TestCase {
 		$GLOBALS['shurloc_test_is_product'] = false;
 
 		$schema      = new Breadcrumb_Schema();
-		$breadcrumbs = new \WC_Breadcrumb();
+		$breadcrumbs = new WC_Breadcrumb();
 		$markup      = array( '@type' => 'BreadcrumbList' );
 
 		self::assertSame(

@@ -17,6 +17,8 @@ use Shurloc\SiteTools\Product\Renderers\Mesh_Product_Table_Renderer;
 use Shurloc\SiteTools\Product\Services\Mesh_Product_Data_Service;
 use Shurloc\SiteTools\Product\Services\Product_Catalog_Service;
 use Shurloc\SiteTools\Product\Shortcodes\Mesh_Product_Table_Shortcode;
+use Test_WC_Product;
+use Test_WC_Product_Variation;
 use WC_Product;
 
 /**
@@ -123,7 +125,7 @@ final class MeshProductTableIntegrationTest extends TestCase {
 	 */
 	public function test_product_without_mesh_variations_returns_empty_output(): void {
 
-		$product = new \Test_WC_Product( 1 );
+		$product = new Test_WC_Product( 1 );
 
 		$product->set_name(
 			name: 'Empty Mesh Product'
@@ -339,7 +341,7 @@ final class MeshProductTableIntegrationTest extends TestCase {
 
 		foreach ( $variations as $variation_data ) {
 
-			$variation = new \Test_WC_Product_Variation(
+			$variation = new Test_WC_Product_Variation(
 				$variation_data['id'],
 			);
 
@@ -356,7 +358,7 @@ final class MeshProductTableIntegrationTest extends TestCase {
 			$children[] = $variation_data['id'];
 		}
 
-		$product = new \Test_WC_Product( 1 );
+		$product = new Test_WC_Product( 1 );
 
 		$product->set_name(
 			name: 'Test Mesh Product'
