@@ -61,6 +61,7 @@ require_once __DIR__ . '/doubles/class-mesh-product-table-shortcode.php';
 require_once __DIR__ . '/doubles/class-product-schema-renderer.php';
 require_once __DIR__ . '/doubles/class-product-schema-service.php';
 require_once __DIR__ . '/doubles/class-wc-datetime.php';
+require_once __DIR__ . '/doubles/class-wc-breadcrumb.php';
 require_once __DIR__ . '/doubles/class-wc-order.php';
 require_once __DIR__ . '/doubles/class-wc-product.php';
 require_once __DIR__ . '/doubles/class-wc-product-variation.php';

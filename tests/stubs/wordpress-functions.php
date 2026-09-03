@@ -60,6 +60,21 @@ $GLOBALS['shurloc_test_is_main_query'] = true;
 $GLOBALS['shurloc_test_page_id'] = 0;
 
 /**
+ * Current queried object ID.
+ */
+$GLOBALS['shurloc_test_queried_object_id'] = 0;
+
+/**
+ * Test post titles indexed by post ID.
+ */
+$GLOBALS['shurloc_test_titles'] = array();
+
+/**
+ * Test post permalinks indexed by post ID.
+ */
+$GLOBALS['shurloc_test_permalinks'] = array();
+
+/**
  * Current test post.
  */
 $GLOBALS['shurloc_test_post'] = null;
@@ -548,6 +563,19 @@ if ( ! function_exists( 'trailingslashit' ) ) {
 	}
 }
 
+if ( ! function_exists( 'untrailingslashit' ) ) {
+	/**
+	 * Remove trailing slashes from a string.
+	 *
+	 * @param string $value Value.
+	 * @return string
+	 */
+	function untrailingslashit( string $value ): string {
+
+		return rtrim( $value, '/\\' );
+	}
+}
+
 if ( ! function_exists( 'plugin_dir_path' ) ) {
 	/**
 	 * Get the filesystem directory path for a plugin file.
@@ -595,6 +623,47 @@ if ( ! function_exists( 'wp_strip_all_tags' ) ) {
 	}
 }
 
+if ( ! function_exists( 'home_url' ) ) {
+	/**
+	 * Get a test home URL.
+	 *
+	 * @param string $path URL path.
+	 * @return string
+	 */
+	function home_url( string $path = '' ): string {
+
+		return 'https://example.com' . $path;
+	}
+}
+
+if ( ! function_exists( 'get_bloginfo' ) ) {
+	/**
+	 * Get test blog information.
+	 *
+	 * @param string $show Information to retrieve.
+	 * @return string
+	 */
+	function get_bloginfo( string $show = '' ): string {
+
+		unset( $show );
+
+		return 'UTF-8';
+	}
+}
+
+if ( ! function_exists( 'esc_url_raw' ) ) {
+	/**
+	 * Sanitize a test URL.
+	 *
+	 * @param string $url URL to sanitize.
+	 * @return string
+	 */
+	function esc_url_raw( string $url ): string {
+
+		return $url;
+	}
+}
+
 if ( ! function_exists( 'is_page' ) ) {
 	/**
 	 * Determine whether the current test page matches the requested page.
@@ -618,6 +687,31 @@ if ( ! function_exists( 'is_page' ) ) {
 		}
 
 		return $GLOBALS['shurloc_test_page_id'] === (int) $page;
+	}
+}
+
+if ( ! function_exists( 'get_queried_object_id' ) ) {
+	/**
+	 * Get the current test queried object ID.
+	 *
+	 * @return int
+	 */
+	function get_queried_object_id(): int {
+
+		return $GLOBALS['shurloc_test_queried_object_id'];
+	}
+}
+
+if ( ! function_exists( 'get_the_title' ) ) {
+	/**
+	 * Get a test post title.
+	 *
+	 * @param int $post_id Post ID.
+	 * @return string
+	 */
+	function get_the_title( int $post_id ): string {
+
+		return $GLOBALS['shurloc_test_titles'][ $post_id ] ?? '';
 	}
 }
 
