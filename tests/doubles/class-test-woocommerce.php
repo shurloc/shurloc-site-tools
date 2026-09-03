@@ -10,12 +10,18 @@ declare( strict_types=1 );
 namespace Shurloc\SiteTools\Checkout;
 
 use Test_WC_Cart;
-use WooCommerce;
 
 /**
  * Test WooCommerce instance.
  */
-final class Test_WooCommerce extends WooCommerce {
+final class Test_WooCommerce {
+
+	/**
+	 * Test cart.
+	 *
+	 * @var Test_WC_Cart
+	 */
+	public Test_WC_Cart $cart;
 
 	/**
 	 * Test session.

@@ -7,6 +7,8 @@
 
 declare( strict_types=1 );
 
+use Shurloc\SiteTools\Checkout\Test_WooCommerce;
+
 /*
  * Define the WordPress cache-duration constant when WordPress is not loaded.
  */
@@ -1113,12 +1115,13 @@ if ( ! function_exists( 'WC' ) ) {
 	/**
 	 * Get the WooCommerce test instance.
 	 *
-	 * @return WooCommerce
+	 * @return WooCommerce|Test_WooCommerce
 	 */
-	function WC(): WooCommerce { // phpcs:ignore WordPress.NamingConventions.ValidFunctionName.FunctionNameInvalid -- Matches WooCommerce WC() API.
+	function WC(): WooCommerce|Test_WooCommerce { // phpcs:ignore WordPress.NamingConventions.ValidFunctionName.FunctionNameInvalid -- Matches WooCommerce WC() API.
 
 		if (
-			! $GLOBALS['shurloc_test_woocommerce'] instanceof WooCommerce
+			! $GLOBALS['shurloc_test_woocommerce'] instanceof WooCommerce &&
+			! $GLOBALS['shurloc_test_woocommerce'] instanceof Test_WooCommerce
 		) {
 			$GLOBALS['shurloc_test_woocommerce'] = new WooCommerce();
 		}
