@@ -56,6 +56,25 @@ final class BootstrapTest extends TestCase {
 		shurloc_site_tools_bootstrap();
 
 		/*
+		 * Checkout domain.
+		 */
+
+		self::assertArrayHasKey(
+			'admin_init',
+			$GLOBALS['shurloc_test_actions']
+		);
+
+		self::assertArrayHasKey(
+			'woocommerce_cart_calculate_fees',
+			$GLOBALS['shurloc_test_actions']
+		);
+
+		self::assertArrayHasKey(
+			'woocommerce_gateway_title',
+			$GLOBALS['shurloc_test_filters']
+		);
+
+		/*
 		 * Customer domain.
 		 */
 
