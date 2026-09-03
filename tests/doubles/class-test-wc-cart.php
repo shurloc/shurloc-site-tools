@@ -87,14 +87,14 @@ if ( ! class_exists( 'Test_WC_Cart' ) ) {
 		/**
 		 * Set the cart contents total.
 		 *
-		 * @param float $total Cart contents total.
+		 * @param mixed $value Cart contents total.
 		 * @return void
 		 */
 		public function set_cart_contents_total(
-			float $total
+			mixed $value
 		): void {
 
-			$this->cart_contents_total = $total;
+			$this->cart_contents_total = (float) $value;
 		}
 
 		/**
@@ -110,14 +110,14 @@ if ( ! class_exists( 'Test_WC_Cart' ) ) {
 		/**
 		 * Set the shipping total.
 		 *
-		 * @param float $total Shipping total.
+		 * @param mixed $value Shipping total.
 		 * @return void
 		 */
 		public function set_shipping_total(
-			float $total
+			mixed $value
 		): void {
 
-			$this->shipping_total = $total;
+			$this->shipping_total = (float) $value;
 		}
 
 		/**
@@ -179,21 +179,24 @@ if ( ! class_exists( 'Test_WC_Cart' ) ) {
 		/**
 		 * Add a fee.
 		 *
-		 * @param string $name    Fee name.
-		 * @param float  $amount  Fee amount.
-		 * @param bool   $taxable Whether the fee is taxable.
+		 * @param mixed $name      Fee name.
+		 * @param mixed $amount    Fee amount.
+		 * @param mixed $taxable   Whether the fee is taxable.
+		 * @param mixed $tax_class Tax class.
 		 * @return void
 		 */
 		public function add_fee(
-			string $name,
-			float $amount,
-			bool $taxable = false
+			mixed $name,
+			mixed $amount,
+			mixed $taxable = false,
+			mixed $tax_class = ''
 		): void {
+			unset( $tax_class );
 
 			$this->fees[] = array(
-				'name'    => $name,
-				'amount'  => $amount,
-				'taxable' => $taxable,
+				'name'    => (string) $name,
+				'amount'  => (float) $amount,
+				'taxable' => (bool) $taxable,
 			);
 		}
 
