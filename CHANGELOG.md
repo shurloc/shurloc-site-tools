@@ -1,5 +1,38 @@
 # Changelog
 
+## [0.4.0] - 2026-09-03
+
+### Added
+
+- Migrated the Product Tools domain into `shurloc-site-tools`.
+- Added mesh specification parsing, recognition, and catalog analysis.
+- Added catalog reports for recognized, unrecognized, and invalid mesh variations.
+- Added product catalog, mesh-product data, recommendation eligibility, and primary-category services.
+- Added product and mesh structured-data generation and WooCommerce schema integration.
+- Added mesh product table rendering, shortcode support, WooCommerce product-tab integration, and frontend assets.
+- Added product breadcrumbs, breadcrumb schema handling, breadcrumb separators, related products, and dynamic cross-sells.
+- Added primary product category management and Yoast primary-category compatibility.
+- Added product-tag archive pagination and WooCommerce order buyer-company integration.
+- Added the Product Tools admin area, catalog reporting, and migration controls.
+- Added the Yoast product metadata cleanup migration.
+- Added product-specific CSS and JavaScript assets under `assets/product/`.
+- Added Product domain bootstrap registration to the main Site Tools bootstrap.
+- Added catalog fixture data and integration coverage for catalog reporting, mesh recognition, and mesh product table rendering.
+- Added PHPUnit coverage for Product models, parsers, analyzers, reports, services, DTOs, factories, renderers, shortcodes, frontend behavior, integrations, migrations, admin components, and bootstrap wiring.
+- Added and extended WordPress and WooCommerce test stubs and doubles required by the Product domain.
+
+### Changed
+
+- Consolidated Product Tools classes under the `Shurloc\SiteTools\Product` namespace.
+- Removed the redundant `Shurloc_` prefix from migrated Product class and interface names.
+- Migrated shared admin dependencies to the Site Tools shared interfaces.
+- Updated Product Tools text-domain usage to `shurloc-site-tools`.
+- Updated Product asset names and paths to the `assets/product/` Site Tools convention.
+- Changed the Product Tools admin page slug to `shurloc-site-tools`.
+- Preserved existing persisted option names, metadata keys, hooks, shortcode names, asset handles, and other runtime identifiers where required for compatibility.
+- Integrated Product test fixtures, data providers, stubs, and doubles with the shared Site Tools test bootstrap.
+- Replaced fully qualified global test-class references with imports.
+
 ## [0.3.0] - 2026-08-31
 
 ### Added
