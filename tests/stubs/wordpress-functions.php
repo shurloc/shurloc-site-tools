@@ -655,6 +655,14 @@ if ( ! function_exists( 'apply_filters' ) ) {
 			return $GLOBALS['shurloc_test_filtered_content'];
 		}
 
+		if ( empty( $GLOBALS['shurloc_test_filters'][ $hook_name ] ) ) {
+			return $value;
+		}
+
+		foreach ( $GLOBALS['shurloc_test_filters'][ $hook_name ] as $callback ) {
+			$value = $callback( $value );
+		}
+
 		return $value;
 	}
 }
