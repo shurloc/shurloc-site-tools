@@ -1,0 +1,33 @@
+/**
+ * Primary product category admin styles.
+ *
+ * @package ShurlocSiteTools
+ */
+
+.shurloc-primary-product-category-highlight > label {
+	font-weight: 600;
+}
+
+.shurloc-primary-product-category-highlight > label::after {
+	margin-left: 6px;
+	content: "Primary";
+	font-size: 11px;
+	font-weight: 600;
+	color: #646970;
+}
+
+#shurloc_primary_product_category .select2-container {
+	width: 100% !important;
+}
+
+#shurloc_primary_product_category .select2-selection {
+	min-height: 30px;
+}
+
+#shurloc_primary_product_category .select2-selection__rendered {
+	line-height: 28px;
+}
+
+#shurloc_primary_product_category .select2-selection__arrow {
+	height: 28px;
+}
