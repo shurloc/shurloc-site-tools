@@ -125,6 +125,21 @@ $GLOBALS['shurloc_test_users'] = array();
 $GLOBALS['shurloc_test_options'] = array();
 
 /**
+ * Registered settings.
+ */
+$GLOBALS['shurloc_test_registered_settings'] = array();
+
+/**
+ * Registered settings sections.
+ */
+$GLOBALS['shurloc_test_settings_sections'] = array();
+
+/**
+ * Registered settings fields.
+ */
+$GLOBALS['shurloc_test_settings_fields'] = array();
+
+/**
  * Nonce fields generated during tests.
  */
 $GLOBALS['shurloc_test_nonce_fields'] = array();
@@ -188,6 +203,11 @@ $GLOBALS['shurloc_test_enqueued_styles'] = array();
  * Enqueued scripts.
  */
 $GLOBALS['shurloc_test_enqueued_scripts'] = array();
+
+/**
+ * Localized scripts.
+ */
+$GLOBALS['shurloc_test_localized_scripts'] = array();
 
 /**
  * Registered styles.
@@ -450,6 +470,26 @@ if ( ! function_exists( 'esc_attr' ) ) {
 	}
 }
 
+if ( ! function_exists( 'esc_textarea' ) ) {
+
+	/**
+	 * Escape text for use in a textarea.
+	 *
+	 * @param string $text Text to escape.
+	 * @return string
+	 */
+	function esc_textarea(
+		string $text
+	): string {
+
+		return htmlspecialchars(
+			$text,
+			ENT_QUOTES | ENT_SUBSTITUTE,
+			'UTF-8'
+		);
+	}
+}
+
 if ( ! function_exists( 'esc_html__' ) ) {
 
 	/**
@@ -487,6 +527,35 @@ if ( ! function_exists( 'esc_attr__' ) ) {
 		unset( $domain );
 
 		return esc_attr( $text );
+	}
+}
+
+if ( ! function_exists( 'checked' ) ) {
+
+	/**
+	 * Output or return the checked HTML attribute.
+	 *
+	 * @param mixed $checked Current value.
+	 * @param mixed $current Value to compare against.
+	 * @param bool  $display Whether to display the attribute.
+	 * @return string
+	 */
+	function checked(
+		mixed $checked,
+		mixed $current = true,
+		bool $display = true
+	): string {
+
+		$result = $checked === $current
+			? ' checked="checked"'
+			: '';
+
+		if ( $display ) {
+			// phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- Fixed test-only HTML attribute.
+			echo $result;
+		}
+
+		return $result;
 	}
 }
 
@@ -885,6 +954,87 @@ if ( ! function_exists( 'get_option' ) ) {
 	}
 }
 
+if ( ! function_exists( 'register_setting' ) ) {
+
+	/**
+	 * Register a WordPress setting.
+	 *
+	 * @param string               $option_group Settings group.
+	 * @param string               $option_name  Option name.
+	 * @param array<string, mixed> $args         Registration arguments.
+	 * @return void
+	 */
+	function register_setting(
+		string $option_group,
+		string $option_name,
+		array $args = array()
+	): void {
+
+		$GLOBALS['shurloc_test_registered_settings'][] = array(
+			'option_group' => $option_group,
+			'option_name'  => $option_name,
+			'args'         => $args,
+		);
+	}
+}
+
+if ( ! function_exists( 'add_settings_section' ) ) {
+
+	/**
+	 * Register a settings section.
+	 *
+	 * @param string   $id       Section ID.
+	 * @param string   $title    Section title.
+	 * @param callable $callback Section callback.
+	 * @param string   $page     Settings page.
+	 * @return void
+	 */
+	function add_settings_section(
+		string $id,
+		string $title,
+		callable $callback,
+		string $page
+	): void {
+
+		$GLOBALS['shurloc_test_settings_sections'][] = array(
+			'id'       => $id,
+			'title'    => $title,
+			'callback' => $callback,
+			'page'     => $page,
+		);
+	}
+}
+
+if ( ! function_exists( 'add_settings_field' ) ) {
+
+	/**
+	 * Register a settings field.
+	 *
+	 * @param string   $id       Field ID.
+	 * @param string   $title    Field title.
+	 * @param callable $callback Field callback.
+	 * @param string   $page     Settings page.
+	 * @param string   $section  Settings section.
+	 * @return void
+	 */
+	function add_settings_field(
+		string $id,
+		string $title,
+		callable $callback,
+		string $page,
+		string $section = 'default'
+	): void {
+
+		$GLOBALS['shurloc_test_settings_fields'][] = array(
+			'id'       => $id,
+			'title'    => $title,
+			'callback' => $callback,
+			'page'     => $page,
+			'section'  => $section,
+		);
+	}
+}
+
 if ( ! function_exists( 'get_current_user_id' ) ) {
 	/**
 	 * Get the current test user ID.
@@ -1241,6 +1391,32 @@ if ( ! function_exists( 'wp_enqueue_script' ) ) {
 	}
 }
 
+if ( ! function_exists( 'wp_localize_script' ) ) {
+
+	/**
+	 * Localize data for a script.
+	 *
+	 * @param string               $handle      Script handle.
+	 * @param string               $object_name JavaScript object name.
+	 * @param array<string, mixed> $data        Data.
+	 * @return bool
+	 */
+	function wp_localize_script(
+		string $handle,
+		string $object_name,
+		array $data
+	): bool {
+
+		$GLOBALS['shurloc_test_localized_scripts'][] = array(
+			'handle'      => $handle,
+			'object_name' => $object_name,
+			'data'        => $data,
+		);
+
+		return true;
+	}
+}
+
 if ( ! function_exists( 'get_users' ) ) {
 	/**
 	 * Get test WordPress users.
@@ -1550,6 +1726,31 @@ if ( ! function_exists( 'sanitize_text_field' ) ) {
 			// phpcs:ignore WordPress.WP.AlternativeFunctions.strip_tags_strip_tags -- Test stub intentionally mirrors basic sanitization behavior.
 			strip_tags( $value )
 		);
+	}
+}
+
+if ( ! function_exists( 'sanitize_textarea_field' ) ) {
+
+	/**
+	 * Sanitize a multiline text field.
+	 *
+	 * @param string $text Text to sanitize.
+	 * @return string
+	 */
+	function sanitize_textarea_field(
+		string $text
+	): string {
+
+		// phpcs:ignore WordPress.WP.AlternativeFunctions.strip_tags_strip_tags -- Reduce dependency on WordPress functions.
+		$text = strip_tags( $text );
+
+		$text = str_replace(
+			array( "\r\n", "\r" ),
+			"\n",
+			$text
+		);
+
+		return trim( $text );
 	}
 }
 
