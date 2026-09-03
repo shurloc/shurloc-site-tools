@@ -7,6 +7,12 @@
 
 declare( strict_types=1 );
 
+/*
+ * Define the WordPress cache-duration constant when WordPress is not loaded.
+ */
+if ( ! defined( 'MINUTE_IN_SECONDS' ) ) {
+	define( 'MINUTE_IN_SECONDS', 60 );
+}
 
 /**
  * Test post meta values.
