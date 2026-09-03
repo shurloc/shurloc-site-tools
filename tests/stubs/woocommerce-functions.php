@@ -73,25 +73,25 @@ if ( ! function_exists( 'is_product_tag' ) ) {
 }
 
 if ( ! function_exists( 'is_cart' ) ) {
-    /**
-     * Determines whether the current request is the cart page.
-     *
-     * @return bool
-     */
-    function is_cart(): bool {
-        return $GLOBALS['shurloc_test_is_cart'] ?? false;
-    }
+	/**
+	 * Determines whether the current request is the cart page.
+	 *
+	 * @return bool
+	 */
+	function is_cart(): bool {
+		return $GLOBALS['shurloc_test_is_cart'] ?? false;
+	}
 }
 
 if ( ! function_exists( 'is_checkout' ) ) {
-    /**
-     * Determines whether the current request is the checkout page.
-     *
-     * @return bool
-     */
-    function is_checkout(): bool {
-        return $GLOBALS['shurloc_test_is_checkout'] ?? false;
-    }
+	/**
+	 * Determines whether the current request is the checkout page.
+	 *
+	 * @return bool
+	 */
+	function is_checkout(): bool {
+		return $GLOBALS['shurloc_test_is_checkout'] ?? false;
+	}
 }
 
 
