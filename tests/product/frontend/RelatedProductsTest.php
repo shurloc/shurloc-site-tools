@@ -656,12 +656,12 @@ final class RelatedProductsTest extends TestCase {
 	 */
 	public function test_product_save_invalidates_cache(): void {
 
-		$post            = new WP_Post(
+		$post = new WP_Post(
 			(object) array(
-				'ID' => 123,
+				'ID'        => 123,
+				'post_type' => 'product',
 			)
 		);
-		$post->post_type = 'product';
 
 		$this->related_products->invalidate_cache_after_product_save(
 			100,
@@ -683,12 +683,12 @@ final class RelatedProductsTest extends TestCase {
 	 */
 	public function test_non_product_save_does_not_invalidate_cache(): void {
 
-		$post            = new WP_Post(
+		$post = new WP_Post(
 			(object) array(
-				'ID' => 123,
+				'ID'        => 123,
+				'post_type' => 'post',
 			)
 		);
-		$post->post_type = 'post';
 
 		$this->related_products->invalidate_cache_after_product_save(
 			100,
@@ -709,12 +709,12 @@ final class RelatedProductsTest extends TestCase {
 	 */
 	public function test_product_autosave_does_not_invalidate_cache(): void {
 
-		$post            = new WP_Post(
+		$post = new WP_Post(
 			(object) array(
-				'ID' => 123,
+				'ID'        => 123,
+				'post_type' => 'product',
 			)
 		);
-		$post->post_type = 'product';
 
 		$GLOBALS['shurloc_test_autosaves'][] = 100;
 
@@ -737,12 +737,12 @@ final class RelatedProductsTest extends TestCase {
 	 */
 	public function test_product_revision_does_not_invalidate_cache(): void {
 
-		$post            = new WP_Post(
+		$post = new WP_Post(
 			(object) array(
-				'ID' => 123,
+				'ID'        => 123,
+				'post_type' => 'product',
 			)
 		);
-		$post->post_type = 'product';
 
 		$GLOBALS['shurloc_test_revisions'][] = 100;
 
