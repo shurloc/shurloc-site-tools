@@ -161,7 +161,7 @@ final class AdminMenuTest extends TestCase {
 		);
 
 		self::assertSame(
-			'shurloc-site-tools',
+			'shurloc-site-tools-customers',
 			$submenu['menu_slug']
 		);
 
@@ -231,7 +231,7 @@ final class AdminMenuTest extends TestCase {
 		$output = (string) ob_get_clean();
 
 		self::assertStringContainsString(
-			'page=shurloc-site-tools',
+			'page=shurloc-site-tools-customers',
 			$output
 		);
 

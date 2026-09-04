@@ -24,7 +24,7 @@ final class Customer_Migrations_Controller {
 	 *
 	 * @var string
 	 */
-	private const PAGE_SLUG = 'shurloc-site-tools';
+	private const PAGE_SLUG = 'shurloc-site-tools-customers';
 
 	/**
 	 * Admin tab slug.

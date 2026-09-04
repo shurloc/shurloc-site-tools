@@ -36,7 +36,7 @@ final class MeshProductTableAssetsTest extends TestCase {
 	public function test_registers_register_assets_hook(): void {
 
 		$assets = new Mesh_Product_Table_Assets(
-			asset_url: 'https://example.com/plugins/shurloc-product-tools/',
+			asset_url: 'https://example.com/plugins/shurloc-site-tools/',
 			asset_version: '1.0.0',
 		);
 

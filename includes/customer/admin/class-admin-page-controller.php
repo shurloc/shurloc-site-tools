@@ -25,7 +25,7 @@ final class Admin_Page_Controller implements Admin_Page_Interface {
 	 *
 	 * @var string
 	 */
-	private const PAGE_SLUG = 'shurloc-site-tools';
+	private const PAGE_SLUG = 'shurloc-site-tools-customers';
 
 	/**
 	 * Migrations controller.

@@ -24,7 +24,7 @@ final class Admin_Menu {
 	/**
 	 * Product Tools menu slug.
 	 */
-	private const PRODUCT_MENU_SLUG = 'shurloc-product-tools';
+	private const PRODUCT_MENU_SLUG = 'shurloc-site-tools-products';
 
 	/**
 	 * Required capability.
