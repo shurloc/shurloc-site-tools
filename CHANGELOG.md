@@ -1,6 +1,13 @@
 # Changelog
 
-## [0.5.0] - 2026-09-03
+## [0.5.1] - 2026-09-04
+
+### Changed
+
+- Updated plugin dependencies.
+- Updated README.
+
+## [0.5.0] - 2026-09-04
 
 ### Added
 
