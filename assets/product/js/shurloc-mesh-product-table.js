@@ -13,6 +13,7 @@
 	const tableSelector = '.shurloc-mesh-specification-table';
 	const rowSelector = '.shurloc-mesh-table-row';
 	const selectSelector = 'select[name="attribute_select-mesh-count"]';
+	const resetSelector = '.reset_variations';
 	const selectedClass = 'shurloc-mesh-table-row-selected';
 
 	/**
@@ -152,6 +153,16 @@
 		select.addEventListener('change', function () {
 			selectMatchingRow(table, select.value);
 		});
+
+		const resetLink = select
+			.closest('.variations_form')
+			?.querySelector(resetSelector);
+
+		if (resetLink instanceof HTMLElement) {
+			resetLink.addEventListener('click', function () {
+				selectMatchingRow(table, '');
+			});
+		}
 
 		selectMatchingRow(table, select.value);
 	}
