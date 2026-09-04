@@ -9,6 +9,7 @@ declare( strict_types=1 );
 
 namespace Shurloc\SiteTools;
 
+use Shurloc\SiteTools\Checkout\Bootstrap as Checkout_Bootstrap;
 use Shurloc\SiteTools\Customer\Bootstrap as Customer_Bootstrap;
 use Shurloc\SiteTools\Media\Bootstrap as Media_Bootstrap;
 use Shurloc\SiteTools\Product\Bootstrap as Product_Bootstrap;
@@ -36,6 +37,14 @@ function shurloc_site_tools_bootstrap(): void {
 	);
 
 	$autoloader->register();
+
+	/**
+	 * Checkout domain.
+	 */
+
+	$checkout_bootstrap = new Checkout_Bootstrap();
+
+	$checkout_bootstrap->register();
 
 	/**
 	 * Customer domain.

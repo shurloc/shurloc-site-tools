@@ -29,6 +29,16 @@ $GLOBALS['shurloc_test_is_product'] = true;
 $GLOBALS['shurloc_test_is_product_tag'] = false;
 
 /**
+ * Whether the current request is the cart page.
+ */
+$GLOBALS['shurloc_test_is_cart'] = false;
+
+/**
+ * Whether the current request is the checkout page.
+ */
+$GLOBALS['shurloc_test_is_checkout'] = false;
+
+/**
  * Current WooCommerce product used during tests.
  */
 $GLOBALS['product'] = null;
@@ -55,6 +65,28 @@ if ( ! function_exists( 'is_product_tag' ) ) {
 	function is_product_tag(): bool {
 
 		return $GLOBALS['shurloc_test_is_product_tag'];
+	}
+}
+
+if ( ! function_exists( 'is_cart' ) ) {
+	/**
+	 * Determines whether the current request is the cart page.
+	 *
+	 * @return bool
+	 */
+	function is_cart(): bool {
+		return $GLOBALS['shurloc_test_is_cart'] ?? false;
+	}
+}
+
+if ( ! function_exists( 'is_checkout' ) ) {
+	/**
+	 * Determines whether the current request is the checkout page.
+	 *
+	 * @return bool
+	 */
+	function is_checkout(): bool {
+		return $GLOBALS['shurloc_test_is_checkout'] ?? false;
 	}
 }
 

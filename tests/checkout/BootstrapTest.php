@@ -1,18 +1,18 @@
 <?php
 /**
- * Tests for the plugin bootstrap.
+ * Tests for the Checkout domain bootstrap.
  *
  * @package ShurlocSiteTools
  */
 
 declare( strict_types=1 );
 
-namespace Shurloc\SiteTools;
+namespace Shurloc\SiteTools\Checkout;
 
 use PHPUnit\Framework\TestCase;
 
 /**
- * Tests the plugin bootstrap.
+ * Tests the Checkout domain bootstrap.
  */
 final class BootstrapTest extends TestCase {
 
@@ -47,92 +47,85 @@ final class BootstrapTest extends TestCase {
 	}
 
 	/**
-	 * Verify the plugin bootstrap registers its domains.
+	 * Verify registering the Checkout bootstrap wires admin hooks.
 	 *
 	 * @return void
 	 */
-	public function test_bootstrap_registers_domains(): void {
+	public function test_register_adds_checkout_admin_hooks(): void {
 
-		shurloc_site_tools_bootstrap();
+		$bootstrap = new Bootstrap();
 
-		/*
-		 * Checkout domain.
-		 */
+		$bootstrap->register();
 
 		self::assertArrayHasKey(
 			'admin_init',
 			$GLOBALS['shurloc_test_actions']
 		);
-
 		self::assertArrayHasKey(
-			'woocommerce_cart_calculate_fees',
+			'admin_menu',
 			$GLOBALS['shurloc_test_actions']
 		);
+		self::assertArrayHasKey(
+			'shurloc_tools_overview',
+			$GLOBALS['shurloc_test_actions']
+		);
+	}
+
+	/**
+	 * Verify registering the Checkout bootstrap wires fee and frontend hooks.
+	 *
+	 * @return void
+	 */
+	public function test_register_adds_checkout_fee_and_frontend_hooks(): void {
+
+		$bootstrap = new Bootstrap();
+
+		$bootstrap->register();
+
+		self::assertCount(
+			2,
+			$GLOBALS['shurloc_test_actions']['woocommerce_cart_calculate_fees']
+		);
+		self::assertCount(
+			2,
+			$GLOBALS['shurloc_test_actions']['wp_enqueue_scripts']
+		);
+	}
+
+	/**
+	 * Verify registering the Checkout bootstrap wires payment hooks.
+	 *
+	 * @return void
+	 */
+	public function test_register_adds_checkout_payment_hooks(): void {
+
+		$bootstrap = new Bootstrap();
+
+		$bootstrap->register();
 
 		self::assertArrayHasKey(
 			'woocommerce_gateway_title',
 			$GLOBALS['shurloc_test_filters']
 		);
-
-		/*
-		 * Customer domain.
-		 */
-
 		self::assertArrayHasKey(
-			'manage_users_columns',
+			'woocommerce_email_before_order_table',
+			$GLOBALS['shurloc_test_actions']
+		);
+		self::assertArrayHasKey(
+			'woocommerce_email_after_order_table',
+			$GLOBALS['shurloc_test_actions']
+		);
+		self::assertArrayHasKey(
+			'woocommerce_get_order_item_totals',
 			$GLOBALS['shurloc_test_filters']
 		);
-
 		self::assertArrayHasKey(
-			'pre_get_users',
-			$GLOBALS['shurloc_test_actions']
-		);
-
-		self::assertArrayHasKey(
-			'admin_post_shurloc_run_purchase_migration',
-			$GLOBALS['shurloc_test_actions']
-		);
-
-		/*
-		 * Media domain.
-		 */
-
-		self::assertArrayHasKey(
-			'manage_upload_columns',
+			'woocommerce_cheque_process_payment_order_status',
 			$GLOBALS['shurloc_test_filters']
 		);
-
 		self::assertArrayHasKey(
-			'admin_enqueue_scripts',
-			$GLOBALS['shurloc_test_actions']
-		);
-
-		/*
-		 * SEO domain.
-		 */
-
-		self::assertArrayHasKey(
-			'wp_head',
-			$GLOBALS['shurloc_test_actions']
-		);
-
-		/*
-		 * Product domain.
-		 */
-
-		self::assertArrayHasKey(
-			'woocommerce_structured_data_product',
+			'woocommerce_bacs_process_payment_order_status',
 			$GLOBALS['shurloc_test_filters']
-		);
-
-		self::assertArrayHasKey(
-			'woocommerce_related_products',
-			$GLOBALS['shurloc_test_filters']
-		);
-
-		self::assertArrayHasKey(
-			'add_meta_boxes_product',
-			$GLOBALS['shurloc_test_actions']
 		);
 	}
 }

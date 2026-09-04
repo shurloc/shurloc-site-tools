@@ -1,0 +1,192 @@
+/**
+ * Tariff tooltip frontend styles.
+ *
+ * @package ShurlocSiteTools
+ */
+
+tr.fee {
+	font-size: 0.9rem;
+}
+
+.shurloc-tariff-tooltip {
+	position: relative;
+	cursor: help;
+	color: #0073aa;
+	font-weight: 700;
+	margin-left: 8px;
+}
+
+.shurloc-tariff-tooltip-text {
+	visibility: hidden;
+	width: 350px;
+	background-color: #333;
+	color: #fff;
+	text-align: left;
+	border-radius: 6px;
+	padding: 14px;
+	position: absolute;
+	z-index: 99999;
+	bottom: 125%;
+	left: 50%;
+	margin-left: -175px;
+	opacity: 0;
+	transition: opacity 0.3s;
+	font-size: 12px;
+	line-height: 1.5;
+	font-weight: 400;
+	box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
+}
+
+.shurloc-tariff-tooltip:hover .shurloc-tariff-tooltip-text,
+.shurloc-tariff-tooltip:focus-within .shurloc-tariff-tooltip-text {
+	visibility: visible;
+	opacity: 1;
+}
+
+.shurloc-tariff-tooltip-arrow {
+	position: absolute;
+	top: 100%;
+	left: 50%;
+	margin-left: -5px;
+	border-width: 5px;
+	border-style: solid;
+	border-color: #333 transparent transparent transparent;
+}
+
+.shurloc-mobile-tariff-tooltip {
+	display: none;
+}
+
+.shurloc-mobile-tariff-icon {
+	border: 0;
+	background: none;
+	padding: 0;
+	margin-left: 8px;
+	color: #0073aa;
+	font-weight: 700;
+	cursor: pointer;
+}
+
+.shurloc-mobile-tariff-popup {
+	display: none;
+	position: fixed;
+	top: 50%;
+	left: 50%;
+	transform: translate(-50%, -50%);
+	background: #333;
+	color: #fff;
+	padding: 15px;
+	border-radius: 8px;
+	max-width: 300px;
+	width: 85%;
+	z-index: 9999;
+	box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
+    text-align: left;
+}
+
+.shurloc-mobile-tariff-popup p {
+	margin: 0 0 12px;
+	line-height: 1.4;
+	font-size: 13px;
+}
+
+.shurloc-mobile-tariff-close {
+	background: #0073aa;
+	color: #fff;
+	border: 0;
+	padding: 8px 16px;
+	border-radius: 4px;
+	cursor: pointer;
+	font-size: 12px;
+}
+
+@media (min-width: 769px) {
+	.woocommerce table.shop_table_responsive tbody tr.fee th {
+		display: table-cell !important;
+	}
+
+	.cart_totals,
+	.woocommerce .cart-collaterals .cart_totals,
+	.cart-collaterals,
+	.woocommerce-cart .cart-collaterals,
+	.shop_table,
+	.woocommerce table.shop_table,
+	.woocommerce-checkout-review-order-table,
+	tr.fee,
+	tr.fee th {
+		overflow: visible !important;
+	}
+
+	.cart_totals,
+	.woocommerce .cart-collaterals .cart_totals,
+	.cart-collaterals,
+	.woocommerce-cart .cart-collaterals,
+	tr.fee,
+	tr.fee th {
+		position: relative !important;
+	}
+}
+
+@media (max-width: 768px) {
+	.shurloc-tariff-tooltip {
+		display: none;
+	}
+
+	.shurloc-mobile-tariff-tooltip {
+		display: inline;
+	}
+}
+
+@media (max-width: 1320px) and (min-width: 970px) {
+	.shurloc-tariff-tooltip-text {
+		width: 300px;
+		left: auto;
+		right: 0;
+		margin-left: 0;
+		margin-right: -20px;
+	}
+
+	.shurloc-tariff-tooltip-arrow {
+		left: auto;
+		right: 30px;
+		margin-left: 0;
+	}
+}
+
+@media (max-width: 970px) {
+	.shurloc-tariff-tooltip-text {
+		width: 270px;
+		left: auto;
+		right: -10px;
+		margin-left: 0;
+		margin-right: 0;
+	}
+
+	.shurloc-tariff-tooltip-arrow {
+		left: auto;
+		right: 20px;
+		margin-left: 0;
+	}
+}
+
+@media (max-width: 480px) {
+	.shurloc-tariff-tooltip-text {
+		width: 240px;
+		right: -20px;
+		font-size: 11px;
+		padding: 12px;
+	}
+
+	.shurloc-tariff-tooltip-arrow {
+		right: 30px;
+	}
+}
+
+@media (max-width: 1320px) {
+	.woocommerce .cart-collaterals,
+	.woocommerce-cart .cart-collaterals,
+	.cart_totals,
+	.shop_table {
+		overflow: visible !important;
+	}
+}
