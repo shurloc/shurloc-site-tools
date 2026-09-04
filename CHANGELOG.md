@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.4.1] - 2026-09-04
+
+### Bugfixes
+
+- Corrected product and customer page slugs - the domains aere overlapping in the admin UI.
+- Added a handler for the "Clear" link on mesh product pages to reset the table selection.
+
 ## [0.4.0] - 2026-09-03
 
 ### Added
