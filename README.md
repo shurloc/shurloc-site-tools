@@ -10,6 +10,17 @@ bootstrap, autoloader, interfaces, and test infrastructure.
 
 ## Current Domains
 
+### Checkout
+
+Checkout and payment tools, including:
+
+- Configurable raw-material and Sefar tariff fees.
+- Customer-facing tariff tooltips in the cart and checkout.
+- Payment-processing fees for configured WooCommerce gateways.
+- Payment-gateway label customization in checkout, order, and email contexts.
+- Direct-processing status handling for eligible offline-payment orders.
+- Checkout settings and administration under the Shur-loc Tools menu.
+
 ### Customer
 
 Customer administration and tracking tools, including:
@@ -29,6 +40,17 @@ Customer administration and tracking tools, including:
 
 Media-library tools and administration functionality.
 
+### Product
+
+Product catalog and merchandising tools, including:
+
+- Mesh specification parsing, recognition, and catalog reporting.
+- Product and mesh structured data.
+- Mesh product tables and WooCommerce product-tab integration.
+- Product breadcrumbs, related products, and dynamic cross-sells.
+- Primary product category management and Yoast integration.
+- Product migrations and administration under the Shur-loc Tools menu.
+
 ### SEO
 
 Site SEO functionality and related integrations.
@@ -36,11 +58,13 @@ Site SEO functionality and related integrations.
 ## Requirements
 
 Shur-loc Site Tools is intended for the Shur-loc WordPress/WooCommerce
-site.
+site and requires:
 
-Typical requirements include WordPress, WooCommerce, and a PHP version
-compatible with the project's configured development and production
-environments.
+- WordPress 7.0 or later.
+- PHP 8.4 or later.
+- WooCommerce.
+- Yoast SEO (`wordpress-seo`).
+- Shur-loc Tools (`shurloc-tools`).
 
 Refer to `composer.json` and the project's development tooling
 configuration for the authoritative PHP and package requirements.
@@ -58,40 +82,31 @@ domain.
 
 ```text
 shurloc-site-tools/
-├── assets/
-│   ├── customer/
-│   |   ├── css/
-│   |   └── js/
-│   └── media
-│       └── css/
-├── includes/
-│   ├── customer/
-│   │   ├── admin/
-│   │   ├── formatters/
-│   │   ├── migrations/
-│   │   └── services/
-│   ├── media/
-│   │   ├── admin/
-│   │   └── services/
-│   ├── seo/
-│   │   ├── generators/
-│   │   ├── integrations/
-│   │   └── parsers/
-│   ├── shared/
-│   │   └── interfaces/
-│   ├── class-autoloader.php
-│   ├── constants.php
-│   └── bootstrap.php
-└── tests/
-    ├── customer/
-    ├── doubles/
-    ├── media/
-    ├── seo/
-    └── stubs/
+|-- assets/
+|   |-- checkout/
+|   |-- customer/
+|   |-- media/
+|   `-- product/
+|-- includes/
+|   |-- checkout/
+|   |-- customer/
+|   |-- media/
+|   |-- product/
+|   |-- seo/
+|   |-- shared/
+|   |-- class-autoloader.php
+|   |-- constants.php
+|   `-- bootstrap.php
+|-- tests/
+|   |-- checkout/
+|   |-- customer/
+|   |-- doubles/
+|   |-- media/
+|   |-- product/
+|   |-- seo/
+|   `-- stubs/
+`-- shurloc-site-tools.php
 ```
-
-The structure will expand as additional Shur-loc functionality is
-migrated into the plugin.
 
 ## Architecture
 
@@ -118,9 +133,13 @@ Plugin classes use the root namespace `Shurloc\SiteTools`.
 Domain classes are grouped beneath it, such as:
 
 ```php
+Shurloc\SiteTools\Checkout\Admin
+Shurloc\SiteTools\Checkout\Integrations
 Shurloc\SiteTools\Customer\Admin
 Shurloc\SiteTools\Customer\Migrations
 Shurloc\SiteTools\Customer\Services
+Shurloc\SiteTools\Product\Integrations
+Shurloc\SiteTools\SEO\Generators
 ```
 
 ## Customer Data Migrations
@@ -144,14 +163,19 @@ version displays, completion counts, and support for intentional reruns.
 
 Domain-specific assets are grouped beneath the domain name.
 
-Customer assets currently include:
+Domain assets include:
 
 ```text
+assets/checkout/css/shurloc-tariff-tooltips.css
+assets/checkout/js/shurloc-payment-processing-fee.js
+assets/checkout/js/shurloc-tariff-tooltips.js
 assets/customer/css/shurloc-customer-migrations.css
 assets/customer/css/shurloc-user-cart-column.css
 assets/customer/js/shurloc-customer-migrations.js
 assets/customer/js/shurloc-user-cart-column.js
 assets/media/css/shurloc-media-library-seo.css
+assets/product/css/
+assets/product/js/
 ```
 
 Shur-loc asset filenames use the `shurloc-` prefix.
@@ -201,7 +225,7 @@ for the exact test, PHPStan, and PHPCS invocations.
 
 ## Releases
 
-Releases use semantic version tags such as `v0.3.0`.
+Releases use semantic version tags such as `v0.5.0`.
 
 Annotated release tags use one summary line followed by three detail
 lines describing the primary release changes.
