@@ -13,6 +13,7 @@
 	const tableSelector = '.shurloc-mesh-specification-table';
 	const rowSelector = '.shurloc-mesh-table-row';
 	const selectSelector = 'select[name="attribute_select-mesh-count"]';
+	const resetSelector = '.reset_variations';
 	const selectedClass = 'shurloc-mesh-table-row-selected';
 
 	/**
@@ -157,6 +158,31 @@
 	}
 
 	/**
+	 * Clear selected rows after WooCommerce resets variation selections.
+	 *
+	 * @param {Element} resetLink WooCommerce clear-options link.
+	 * @return {void}
+	 */
+	function clearResetVariationRows(resetLink) {
+		const variationForm = resetLink.closest('.variations_form');
+		const tables = document.querySelectorAll(tableSelector);
+
+		tables.forEach(function (table) {
+			const select = findVariationSelect(table);
+
+			if (
+				variationForm &&
+				select &&
+				!variationForm.contains(select)
+			) {
+				return;
+			}
+
+			selectMatchingRow(table, '');
+		});
+	}
+
+	/**
 	 * Initialize all mesh specification tables.
 	 *
 	 * @return {void}
@@ -168,6 +194,22 @@
 			initializeTable(table);
 		});
 	}
+
+	document.addEventListener('click', function (event) {
+		if (!(event.target instanceof Element)) {
+			return;
+		}
+
+		const resetLink = event.target.closest(resetSelector);
+
+		if (!resetLink) {
+			return;
+		}
+
+		window.setTimeout(function () {
+			clearResetVariationRows(resetLink);
+		}, 0);
+	});
 
 	if ('loading' === document.readyState) {
 		document.addEventListener(
