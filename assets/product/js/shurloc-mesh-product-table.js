@@ -154,17 +154,32 @@
 			selectMatchingRow(table, select.value);
 		});
 
-		const resetLink = select
-			.closest('.variations_form')
-			?.querySelector(resetSelector);
-
-		if (resetLink instanceof HTMLElement) {
-			resetLink.addEventListener('click', function () {
-				selectMatchingRow(table, '');
-			});
-		}
-
 		selectMatchingRow(table, select.value);
+	}
+
+	/**
+	 * Clear selected rows after WooCommerce resets variation selections.
+	 *
+	 * @param {Element} resetLink WooCommerce clear-options link.
+	 * @return {void}
+	 */
+	function clearResetVariationRows(resetLink) {
+		const variationForm = resetLink.closest('.variations_form');
+		const tables = document.querySelectorAll(tableSelector);
+
+		tables.forEach(function (table) {
+			const select = findVariationSelect(table);
+
+			if (
+				variationForm &&
+				select &&
+				!variationForm.contains(select)
+			) {
+				return;
+			}
+
+			selectMatchingRow(table, '');
+		});
 	}
 
 	/**
@@ -179,6 +194,22 @@
 			initializeTable(table);
 		});
 	}
+
+	document.addEventListener('click', function (event) {
+		if (!(event.target instanceof Element)) {
+			return;
+		}
+
+		const resetLink = event.target.closest(resetSelector);
+
+		if (!resetLink) {
+			return;
+		}
+
+		window.setTimeout(function () {
+			clearResetVariationRows(resetLink);
+		}, 0);
+	});
 
 	if ('loading' === document.readyState) {
 		document.addEventListener(
