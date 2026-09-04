@@ -567,4 +567,39 @@ final class SettingsPageTest extends TestCase {
 			$output
 		);
 	}
+
+	/**
+	 * Tests that the tariff fees renderer emits only the settings form.
+	 *
+	 * @return void
+	 */
+	public function test_render_tariff_fees_tab_renders_settings_form(): void {
+		$this->settings_page->register_settings();
+
+		ob_start();
+
+		$this->settings_page->render_tariff_fees_tab();
+
+		$output = (string) ob_get_clean();
+
+		$this->assertStringContainsString(
+			'<form action="options.php" method="post">',
+			$output
+		);
+
+		$this->assertStringNotContainsString(
+			'<div class="wrap">',
+			$output
+		);
+
+		$this->assertStringNotContainsString(
+			'<h1>Checkout Tools</h1>',
+			$output
+		);
+
+		$this->assertStringContainsString(
+			'[tariffs][mesh][enabled]',
+			$output
+		);
+	}
 }

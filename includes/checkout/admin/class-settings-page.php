@@ -209,14 +209,25 @@ final class Settings_Page {
 		<div class="wrap">
 			<h1>Checkout Tools</h1>
 
-			<form action="options.php" method="post">
-				<?php
-				settings_fields( self::SETTINGS_GROUP );
-				do_settings_sections( self::PAGE_SLUG );
-				submit_button();
-				?>
-			</form>
+			<?php $this->render_tariff_fees_tab(); ?>
 		</div>
+		<?php
+	}
+
+	/**
+	 * Renders the tariff fees tab content.
+	 *
+	 * @return void
+	 */
+	public function render_tariff_fees_tab(): void {
+		?>
+		<form action="options.php" method="post">
+			<?php
+			settings_fields( self::SETTINGS_GROUP );
+			do_settings_sections( self::PAGE_SLUG );
+			submit_button();
+			?>
+		</form>
 		<?php
 	}
 
