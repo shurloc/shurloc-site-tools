@@ -120,7 +120,7 @@ final class AdminPageControllerTest extends TestCase {
 	 */
 	public function test_render_page_displays_migrations_tab(): void {
 
-		$_GET['page'] = 'shurloc-site-tools';
+		$_GET['page'] = 'shurloc-site-tools-customers';
 		$_GET['tab']  = 'migrations';
 
 		ob_start();
@@ -152,7 +152,7 @@ final class AdminPageControllerTest extends TestCase {
 	 */
 	public function test_render_page_invalid_tab_falls_back_to_overview(): void {
 
-		$_GET['page'] = 'shurloc-site-tools';
+		$_GET['page'] = 'shurloc-site-tools-customers';
 		$_GET['tab']  = 'invalid-tab';
 
 		ob_start();
@@ -198,7 +198,7 @@ final class AdminPageControllerTest extends TestCase {
 	 */
 	public function test_migrations_tab_is_active_when_selected(): void {
 
-		$_GET['page'] = 'shurloc-site-tools';
+		$_GET['page'] = 'shurloc-site-tools-customers';
 		$_GET['tab']  = 'migrations';
 
 		ob_start();

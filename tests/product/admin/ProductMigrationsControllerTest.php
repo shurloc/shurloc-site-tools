@@ -296,7 +296,7 @@ final class ProductMigrationsControllerTest extends TestCase {
 			$this->controller->run_cleanup_migration();
 
 		self::assertStringContainsString(
-			'page=shurloc-site-tools',
+			'page=shurloc-site-tools-products',
 			$redirect_url
 		);
 
@@ -501,7 +501,7 @@ final class ProductMigrationsControllerTest extends TestCase {
 	 */
 	public function test_enqueue_assets_on_migrations_page(): void {
 
-		$_GET['page'] = 'shurloc-site-tools';
+		$_GET['page'] = 'shurloc-site-tools-products';
 		$_GET['tab']  = 'migrations';
 
 		$this->controller->enqueue_assets();
@@ -542,7 +542,7 @@ final class ProductMigrationsControllerTest extends TestCase {
 	 */
 	public function test_enqueue_assets_skips_other_product_tools_tabs(): void {
 
-		$_GET['page'] = 'shurloc-site-tools';
+		$_GET['page'] = 'shurloc-site-tools-products';
 		$_GET['tab']  = 'catalog-report';
 
 		$this->controller->enqueue_assets();

@@ -167,7 +167,7 @@ final class CustomerMigrationsControllerTest extends TestCase {
 	 */
 	public function test_enqueue_assets_on_migrations_page(): void {
 
-		$_GET['page'] = 'shurloc-site-tools';
+		$_GET['page'] = 'shurloc-site-tools-customers';
 		$_GET['tab']  = 'migrations';
 
 		$this->controller->enqueue_assets();
@@ -195,7 +195,7 @@ final class CustomerMigrationsControllerTest extends TestCase {
 	 */
 	public function test_enqueue_assets_is_ignored_outside_migrations_page(): void {
 
-		$_GET['page'] = 'shurloc-site-tools';
+		$_GET['page'] = 'shurloc-site-tools-customers';
 		$_GET['tab']  = 'overview';
 
 		$this->controller->enqueue_assets();
@@ -436,7 +436,7 @@ final class CustomerMigrationsControllerTest extends TestCase {
 			$this->controller->run_purchase_migration();
 
 		self::assertStringContainsString(
-			'page=shurloc-site-tools',
+			'page=shurloc-site-tools-customers',
 			$redirect_url
 		);
 
@@ -778,7 +778,7 @@ final class CustomerMigrationsControllerTest extends TestCase {
 			$this->controller->run_cart_migration();
 
 		self::assertStringContainsString(
-			'page=shurloc-site-tools',
+			'page=shurloc-site-tools-customers',
 			$redirect_url
 		);
 

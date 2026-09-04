@@ -21,7 +21,7 @@ final class Product_Migrations_Controller {
 	/**
 	 * Admin page slug.
 	 */
-	private const PAGE_SLUG = 'shurloc-site-tools';
+	private const PAGE_SLUG = 'shurloc-site-tools-products';
 
 	/**
 	 * Admin tab slug.

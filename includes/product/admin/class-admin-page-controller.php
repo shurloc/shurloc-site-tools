@@ -25,7 +25,7 @@ final class Admin_Page_Controller implements Admin_Page_Interface {
 	 * Admin page slug.
 	 */
 	private const PAGE_SLUG =
-		'shurloc-site-tools';
+		'shurloc-site-tools-products';
 
 	/**
 	 * Catalog report tab slug.

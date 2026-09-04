@@ -326,7 +326,7 @@ final class AdminPageControllerTest extends TestCase {
 		$output = (string) ob_get_clean();
 
 		self::assertStringContainsString(
-			'page=shurloc-site-tools',
+			'page=shurloc-site-tools-products',
 			$output
 		);
 

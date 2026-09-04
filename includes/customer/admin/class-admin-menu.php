@@ -30,7 +30,7 @@ final class Admin_Menu {
 	 *
 	 * @var string
 	 */
-	private const CUSTOMER_MENU_SLUG = 'shurloc-site-tools';
+	private const CUSTOMER_MENU_SLUG = 'shurloc-site-tools-customers';
 
 	/**
 	 * Required capability.
