@@ -1037,6 +1037,47 @@ if ( ! function_exists( 'add_settings_field' ) ) {
 	}
 }
 
+if ( ! function_exists( 'settings_fields' ) ) {
+
+	/**
+	 * Render test Settings API hidden fields.
+	 *
+	 * @param string $option_group Settings group.
+	 * @return void
+	 */
+	function settings_fields( string $option_group ): void {
+
+		// phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- Test stub value is escaped above.
+		echo '<input type="hidden" name="option_page" value="' . esc_attr( $option_group ) . '">';
+	}
+}
+
+if ( ! function_exists( 'do_settings_sections' ) ) {
+
+	/**
+	 * Render test Settings API sections and fields.
+	 *
+	 * @param string $page Settings page.
+	 * @return void
+	 */
+	function do_settings_sections( string $page ): void {
+
+		foreach ( $GLOBALS['shurloc_test_settings_sections'] as $section ) {
+			if ( $page !== $section['page'] ) {
+				continue;
+			}
+
+			call_user_func( $section['callback'] );
+
+			foreach ( $GLOBALS['shurloc_test_settings_fields'] as $field ) {
+				if ( $page === $field['page'] && $section['id'] === $field['section'] ) {
+					call_user_func( $field['callback'] );
+				}
+			}
+		}
+	}
+}
+
 if ( ! function_exists( 'get_current_user_id' ) ) {
 	/**
 	 * Get the current test user ID.
