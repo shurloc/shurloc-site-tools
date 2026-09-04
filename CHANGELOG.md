@@ -1,5 +1,29 @@
 # Changelog
 
+## [0.5.0] - 2026-09-03
+
+### Added
+
+- Migrated the Checkout Tools domain into `shurloc-site-tools`.
+- Added configurable raw-material and Sefar tariff fee calculation and customer-facing tooltip functionality.
+- Added payment-processing fees for configured WooCommerce payment gateways.
+- Added payment-gateway label customization for checkout, order details, and email contexts.
+- Added direct-processing status handling for eligible offline-payment orders.
+- Added the Checkout Tools settings page, admin page controller, and admin-menu integration.
+- Added Checkout-specific JavaScript and CSS assets under `assets/checkout/`.
+- Added Checkout domain bootstrap registration to the main Site Tools bootstrap.
+- Added PHPUnit coverage for Checkout settings, admin components, tariff handling, payment functionality, frontend assets, and bootstrap wiring.
+- Added and extended WordPress and WooCommerce test stubs and doubles required by the Checkout domain.
+
+### Changed
+
+- Consolidated Checkout Tools classes under the `Shurloc\SiteTools\Checkout` namespace.
+- Removed the redundant `Shurloc_` prefix from migrated Checkout class names.
+- Migrated shared admin dependencies to the Site Tools shared interfaces.
+- Updated Checkout asset names and paths to the `assets/checkout/` Site Tools convention.
+- Preserved existing option names, menu slugs, hook names, asset handles, payment-gateway identifiers, and other runtime contracts for compatibility.
+- Integrated Checkout test support with the existing Site Tools hook, enqueue, capability, and WooCommerce test infrastructure.
+
 ## [0.4.1] - 2026-09-04
 
 ### Bugfixes

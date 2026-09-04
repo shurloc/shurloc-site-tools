@@ -3,7 +3,7 @@
  * Plugin Name:       Shur-loc Site Tools
  * Plugin URI:        https://github.com/shurloc/shurloc-site-tools
  * Description:       Site tools for the Shur-loc website.
- * Version:           0.4.1
+ * Version:           0.5.0
  * Requires at least: 7.0
  * Requires PHP:      8.4
  * Author:            Shur-loc
