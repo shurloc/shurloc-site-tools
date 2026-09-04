@@ -28,7 +28,7 @@ final class Admin_Menu {
 	 *
 	 * @var string
 	 */
-	private const CHECKOUT_MENU_SLUG = 'shurloc-checkout-tools';
+	private const CHECKOUT_MENU_SLUG = 'shurloc-site-tools-checkout';
 
 	/**
 	 * Required capability.

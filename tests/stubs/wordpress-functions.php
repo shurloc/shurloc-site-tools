@@ -1829,8 +1829,8 @@ if ( ! function_exists( 'add_submenu_page' ) ) {
 			'position'    => $position,
 		);
 
-		return 'shurloc-checkout-tools' === $menu_slug
-			? 'shurloc-checkout-tools'
+		return 'shurloc-site-tools-checkout' === $menu_slug
+			? 'shurloc-site-tools-checkout'
 			: 'shurloc-test-submenu-hook';
 	}
 }

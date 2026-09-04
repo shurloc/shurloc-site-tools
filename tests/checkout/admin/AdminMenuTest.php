@@ -135,7 +135,7 @@ final class AdminMenuTest extends TestCase {
 		);
 
 		$this->assertSame(
-			'shurloc-checkout-tools',
+			'shurloc-site-tools-checkout',
 			$submenu['menu_slug']
 		);
 
@@ -180,7 +180,7 @@ final class AdminMenuTest extends TestCase {
 		);
 
 		$this->assertStringContainsString(
-			'https://example.com/wp-admin/admin.php?page=shurloc-checkout-tools',
+			'https://example.com/wp-admin/admin.php?page=shurloc-site-tools-checkout',
 			$output
 		);
 	}

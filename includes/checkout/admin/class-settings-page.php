@@ -21,7 +21,7 @@ final class Settings_Page {
 	 *
 	 * @var string
 	 */
-	public const PAGE_SLUG = 'shurloc-checkout-tools';
+	public const PAGE_SLUG = 'shurloc-site-tools-checkout';
 
 	/**
 	 * Settings group name.
