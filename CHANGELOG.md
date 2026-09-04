@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.5.2] - 2026-09-04
+
+### Changed
+
+- Added Overview and Tariff Fees tabs to the Checkout Tools admin page.
+- Moved the existing tariff settings form into the Tariff Fees tab while preserving its settings and option compatibility.
+- Added Checkout admin-tab routing and rendering coverage.
+
 ## [0.5.1] - 2026-09-04
 
 ### Changed
