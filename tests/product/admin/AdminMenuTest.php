@@ -153,7 +153,7 @@ final class AdminMenuTest extends TestCase {
 		);
 
 		self::assertSame(
-			'shurloc-product-tools',
+			'shurloc-site-tools',
 			$submenu['menu_slug']
 		);
 
