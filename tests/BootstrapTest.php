@@ -47,6 +47,27 @@ final class BootstrapTest extends TestCase {
 	}
 
 	/**
+	 * Verify the plugin bootstrap registers the shared admin menu.
+	 *
+	 * @return void
+	 */
+	public function test_bootstrap_registers_shared_admin_menu(): void {
+
+		shurloc_site_tools_bootstrap();
+
+		self::assertArrayHasKey(
+			'admin_menu',
+			$GLOBALS['shurloc_test_actions']
+		);
+
+		self::assertSame(
+			10,
+			$GLOBALS['shurloc_test_action_metadata']
+				['admin_menu'][0]['priority']
+		);
+	}
+
+	/**
 	 * Verify the plugin bootstrap registers its domains.
 	 *
 	 * @return void
