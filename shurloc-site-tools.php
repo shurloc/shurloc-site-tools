@@ -6,7 +6,7 @@
  * Version:           0.5.2
  * Requires at least: 7.0
  * Requires PHP:      8.4
- * Requires Plugins:  woocommerce, wordpress-seo, shurloc-tools
+ * Requires Plugins:  woocommerce, wordpress-seo
  * Author:            Shur-loc
  * Author URI:        https://shurloc.com/
  * Text Domain:       shurloc-site-tools
