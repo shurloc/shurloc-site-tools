@@ -1,5 +1,18 @@
 # Changelog
 
+## [0.6.0] - 2026-09-05
+
+### Added
+
+- Added the shared Shur-loc Tools admin menu to Site Tools, including the Overview page and extension hook.
+- Added coverage for the shared admin menu and its root-bootstrap registration.
+
+### Changed
+
+- Removed the runtime dependency on the standalone `shurloc-tools` plugin.
+- Preserved the `shurloc-tools` menu slug and `shurloc_tools_overview` hook for compatibility.
+- Updated plugin metadata and documentation to remove the obsolete Shur-loc Tools requirement.
+
 ## [0.5.2] - 2026-09-04
 
 ### Changed
