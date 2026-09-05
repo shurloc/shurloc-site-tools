@@ -64,7 +64,6 @@ site and requires:
 - PHP 8.4 or later.
 - WooCommerce.
 - Yoast SEO (`wordpress-seo`).
-- Shur-loc Tools (`shurloc-tools`).
 
 Refer to `composer.json` and the project's development tooling
 configuration for the authoritative PHP and package requirements.
