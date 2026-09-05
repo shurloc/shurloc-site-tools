@@ -14,6 +14,7 @@ use Shurloc\SiteTools\Customer\Bootstrap as Customer_Bootstrap;
 use Shurloc\SiteTools\Media\Bootstrap as Media_Bootstrap;
 use Shurloc\SiteTools\Product\Bootstrap as Product_Bootstrap;
 use Shurloc\SiteTools\SEO\Bootstrap as SEO_Bootstrap;
+use Shurloc\SiteTools\Shared\Admin\Admin_Menu;
 
 if ( ! defined( 'ABSPATH' ) ) {
 	exit;
@@ -37,6 +38,14 @@ function shurloc_site_tools_bootstrap(): void {
 	);
 
 	$autoloader->register();
+
+	/**
+	 * Shared administration menu.
+	 */
+
+	$admin_menu = new Admin_Menu();
+
+	$admin_menu->register();
 
 	/**
 	 * Checkout domain.
