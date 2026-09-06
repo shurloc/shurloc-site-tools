@@ -117,6 +117,30 @@ final class AdminMenuTest extends TestCase {
 	}
 
 	/**
+	 * Verify that the Site Tools overview hook is registered.
+	 *
+	 * @return void
+	 */
+	public function test_register_adds_site_tools_overview_action(): void {
+
+		$this->admin_menu->register();
+
+		self::assertContains(
+			array(
+				$this->admin_menu,
+				'render_overview_section',
+			),
+			$GLOBALS['shurloc_test_actions']['shurloc_site_tools_overview']
+		);
+
+		self::assertSame(
+			20,
+			$GLOBALS['shurloc_test_action_metadata']
+				['shurloc_site_tools_overview'][0]['priority']
+		);
+	}
+
+	/**
 	 * Verify that the Products submenu is registered.
 	 *
 	 * @return void
@@ -133,7 +157,7 @@ final class AdminMenuTest extends TestCase {
 		$submenu = $GLOBALS['shurloc_test_submenu_pages'][0];
 
 		self::assertSame(
-			'shurloc-tools',
+			'shurloc-site-tools',
 			$submenu['parent_slug']
 		);
 
