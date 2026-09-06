@@ -23,7 +23,7 @@ final class Admin_Menu {
 	 *
 	 * @var string
 	 */
-	private const PARENT_MENU_SLUG = 'shurloc-tools';
+	private const PARENT_MENU_SLUG = 'shurloc-site-tools';
 
 	/**
 	 * Customer Tools menu slug.
@@ -82,7 +82,7 @@ final class Admin_Menu {
 		);
 
 		add_action(
-			'shurloc_tools_overview',
+			'shurloc_site_tools_overview',
 			array(
 				$this,
 				'render_overview_section',

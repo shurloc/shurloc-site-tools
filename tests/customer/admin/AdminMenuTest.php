@@ -100,11 +100,11 @@ final class AdminMenuTest extends TestCase {
 	}
 
 	/**
-	 * Verify the Shur-loc Tools overview hook is registered.
+	 * Verify the Site Tools overview hook is registered.
 	 *
 	 * @return void
 	 */
-	public function test_register_adds_tools_overview_action(): void {
+	public function test_register_adds_site_tools_overview_action(): void {
 
 		$this->admin_menu->register();
 
@@ -113,13 +113,13 @@ final class AdminMenuTest extends TestCase {
 				$this->admin_menu,
 				'render_overview_section',
 			),
-			$GLOBALS['shurloc_test_actions']['shurloc_tools_overview']
+			$GLOBALS['shurloc_test_actions']['shurloc_site_tools_overview']
 		);
 
 		self::assertSame(
 			30,
 			$GLOBALS['shurloc_test_action_metadata']
-				['shurloc_tools_overview'][0]['priority']
+				['shurloc_site_tools_overview'][0]['priority']
 		);
 	}
 
@@ -141,7 +141,7 @@ final class AdminMenuTest extends TestCase {
 			$GLOBALS['shurloc_test_submenu_pages'][0];
 
 		self::assertSame(
-			'shurloc-tools',
+			'shurloc-site-tools',
 			$submenu['parent_slug']
 		);
 

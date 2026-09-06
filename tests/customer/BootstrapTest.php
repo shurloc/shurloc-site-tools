@@ -171,18 +171,18 @@ final class BootstrapTest extends TestCase {
 	}
 
 	/**
-	 * Verify the Customer bootstrap registers the Tools overview section.
+	 * Verify the Customer bootstrap registers the Site Tools overview section.
 	 *
 	 * @return void
 	 */
-	public function test_register_adds_tools_overview_section(): void {
+	public function test_register_adds_site_tools_overview_section(): void {
 
 		$bootstrap = new Bootstrap();
 
 		$bootstrap->register();
 
 		self::assertArrayHasKey(
-			'shurloc_tools_overview',
+			'shurloc_site_tools_overview',
 			$GLOBALS['shurloc_test_actions']
 		);
 	}
