@@ -115,7 +115,7 @@ final class AdminMenuTest extends TestCase {
 		self::assertSame( 'Shur-loc Tools', $menu['page_title'] );
 		self::assertSame( 'Shur-loc Tools', $menu['menu_title'] );
 		self::assertSame( 'manage_options', $menu['capability'] );
-		self::assertSame( 'shurloc-tools', $menu['menu_slug'] );
+		self::assertSame( 'shurloc-site-tools', $menu['menu_slug'] );
 		self::assertSame(
 			array(
 				$this->admin_menu,
@@ -143,11 +143,11 @@ final class AdminMenuTest extends TestCase {
 
 		$submenu = $GLOBALS['shurloc_test_submenu_pages'][0];
 
-		self::assertSame( 'shurloc-tools', $submenu['parent_slug'] );
+		self::assertSame( 'shurloc-site-tools', $submenu['parent_slug'] );
 		self::assertSame( 'Shur-loc Tools', $submenu['page_title'] );
 		self::assertSame( 'Overview', $submenu['menu_title'] );
 		self::assertSame( 'manage_options', $submenu['capability'] );
-		self::assertSame( 'shurloc-tools', $submenu['menu_slug'] );
+		self::assertSame( 'shurloc-site-tools', $submenu['menu_slug'] );
 		self::assertSame(
 			array(
 				$this->admin_menu,
@@ -205,7 +205,7 @@ final class AdminMenuTest extends TestCase {
 		$overview_rendered = false;
 
 		add_action(
-			'shurloc_tools_overview',
+			'shurloc_site_tools_overview',
 			static function () use ( &$overview_rendered ): void {
 				$overview_rendered = true;
 			}
@@ -228,7 +228,7 @@ final class AdminMenuTest extends TestCase {
 	public function test_plugins_can_render_overview_content(): void {
 
 		add_action(
-			'shurloc_tools_overview',
+			'shurloc_site_tools_overview',
 			static function (): void {
 				echo '<h2>Products</h2>';
 			},
