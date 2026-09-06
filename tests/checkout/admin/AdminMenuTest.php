@@ -90,12 +90,12 @@ final class AdminMenuTest extends TestCase {
 
 		$this->assertSame(
 			array( array( $this->admin_menu, 'render_overview_section' ) ),
-			$GLOBALS['shurloc_test_actions']['shurloc_tools_overview']
+			$GLOBALS['shurloc_test_actions']['shurloc_site_tools_overview']
 		);
 
 		$this->assertSame(
 			40,
-			$GLOBALS['shurloc_test_action_metadata']['shurloc_tools_overview'][0]['priority']
+			$GLOBALS['shurloc_test_action_metadata']['shurloc_site_tools_overview'][0]['priority']
 		);
 	}
 
@@ -115,7 +115,7 @@ final class AdminMenuTest extends TestCase {
 		$submenu = $GLOBALS['shurloc_test_submenu_pages'][0];
 
 		$this->assertSame(
-			'shurloc-tools',
+			'shurloc-site-tools',
 			$submenu['parent_slug']
 		);
 

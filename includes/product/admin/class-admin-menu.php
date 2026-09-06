@@ -19,7 +19,7 @@ final class Admin_Menu {
 	/**
 	 * Parent ShurLoc Tools menu slug.
 	 */
-	private const PARENT_MENU_SLUG = 'shurloc-tools';
+	private const PARENT_MENU_SLUG = 'shurloc-site-tools';
 
 	/**
 	 * Product Tools menu slug.
@@ -68,7 +68,7 @@ final class Admin_Menu {
 		);
 
 		add_action(
-			'shurloc_tools_overview',
+			'shurloc_site_tools_overview',
 			array( $this, 'render_overview_section' ),
 			self::PRODUCT_MENU_POSITION
 		);

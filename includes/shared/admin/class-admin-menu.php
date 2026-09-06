@@ -24,7 +24,7 @@ final class Admin_Menu {
 	 *
 	 * @var string
 	 */
-	public const MENU_SLUG = 'shurloc-tools';
+	public const MENU_SLUG = 'shurloc-site-tools';
 
 	/**
 	 * Required capability.
@@ -88,7 +88,7 @@ final class Admin_Menu {
 	 * Render the Shur-loc Tools overview page.
 	 *
 	 * Individual Shur-loc plugins contribute their own overview sections
-	 * through the shurloc_tools_overview action.
+	 * through the shurloc_site_tools_overview action.
 	 *
 	 * @return void
 	 */
@@ -114,10 +114,10 @@ final class Admin_Menu {
 			 * 20 - Customers
 			 * 30 - Checkout
 			 *
-			 * @since 0.6.0
+			 * @since 0.6.1
 			 */
 
-			do_action( 'shurloc_tools_overview' );
+			do_action( 'shurloc_site_tools_overview' );
 			?>
 
 		</div>
