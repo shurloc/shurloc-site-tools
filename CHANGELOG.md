@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.6.1] - 2026-09-06
+
+### Changed
+
+- Changed the shared admin menu slug from `shurloc-tools` to `shurloc-site-tools`.
+- Renamed the overview extension hook from `shurloc_tools_overview` to `shurloc_site_tools_overview`.
+- Updated the Product, Customer, and Checkout admin-menu integrations and test coverage for the new identifiers.
+
 ## [0.6.0] - 2026-09-05
 
 ### Added
