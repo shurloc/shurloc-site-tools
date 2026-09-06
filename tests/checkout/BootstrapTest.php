@@ -66,7 +66,7 @@ final class BootstrapTest extends TestCase {
 			$GLOBALS['shurloc_test_actions']
 		);
 		self::assertArrayHasKey(
-			'shurloc_tools_overview',
+			'shurloc_site_tools_overview',
 			$GLOBALS['shurloc_test_actions']
 		);
 	}
