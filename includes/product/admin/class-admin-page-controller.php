@@ -231,7 +231,7 @@ final class Admin_Page_Controller implements Admin_Page_Interface {
 			?>
 		</p>
 
-		<ul>
+		<ul class="ul-disc">
 			<li><?php echo esc_html__( 'Catalog reports, including invalid and unrecognized mesh product reviews.', 'shurloc-site-tools' ); ?></li>
 			<li><?php echo esc_html__( 'Mesh product tables and product specification data.', 'shurloc-site-tools' ); ?></li>
 			<li><?php echo esc_html__( 'Product structured data, primary-category support, and WooCommerce schema integration.', 'shurloc-site-tools' ); ?></li>
