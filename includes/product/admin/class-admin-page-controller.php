@@ -28,6 +28,11 @@ final class Admin_Page_Controller implements Admin_Page_Interface {
 		'shurloc-site-tools-products';
 
 	/**
+	 * Overview tab slug.
+	 */
+	private const OVERVIEW_TAB = 'overview';
+
+	/**
 	 * Catalog report tab slug.
 	 */
 	private const CATALOG_REPORT_TAB =
@@ -136,6 +141,10 @@ final class Admin_Page_Controller implements Admin_Page_Interface {
 	): void {
 
 		$tabs = array(
+			self::OVERVIEW_TAB          => __(
+				'Overview',
+				'shurloc-site-tools'
+			),
 			self::CATALOG_REPORT_TAB    => __(
 				'Catalog Report',
 				'shurloc-site-tools'
@@ -195,17 +204,39 @@ final class Admin_Page_Controller implements Admin_Page_Interface {
 				break;
 
 			case self::CATALOG_REPORT_TAB:
-			default:
 				$this->catalog_report_controller
 					->render_catalog_report();
+				break;
+
+			default:
+				$this->render_overview();
 				break;
 		}
 	}
 
 	/**
+	 * Render the Product Tools overview tab.
+	 *
+	 * @return void
+	 */
+	private function render_overview(): void {
+
+		?>
+		<p>
+			<?php
+			echo esc_html__(
+				'Utilities for product administration.',
+				'shurloc-site-tools'
+			);
+			?>
+		</p>
+		<?php
+	}
+
+	/**
 	 * Get the currently selected tab.
 	 *
-	 * Invalid or missing tab values fall back to the catalog report.
+	 * Invalid or missing tab values fall back to the overview.
 	 *
 	 * @return string
 	 */
@@ -217,9 +248,10 @@ final class Admin_Page_Controller implements Admin_Page_Interface {
 				// phpcs:ignore WordPress.Security.NonceVerification.Recommended -- Read-only admin navigation value.
 				wp_unslash( $_GET['tab'] )
 			)
-			: self::CATALOG_REPORT_TAB;
+			: self::OVERVIEW_TAB;
 
 		$valid_tabs = array(
+			self::OVERVIEW_TAB,
 			self::CATALOG_REPORT_TAB,
 			self::INVALID_MESH_TAB,
 			self::UNRECOGNIZED_MESH_TAB,
@@ -233,7 +265,7 @@ final class Admin_Page_Controller implements Admin_Page_Interface {
 				true
 			)
 		) {
-			return self::CATALOG_REPORT_TAB;
+			return self::OVERVIEW_TAB;
 		}
 
 		return $tab;

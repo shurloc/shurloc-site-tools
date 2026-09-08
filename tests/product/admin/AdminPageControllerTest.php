@@ -169,11 +169,11 @@ final class AdminPageControllerTest extends TestCase {
 	}
 
 	/**
-	 * Verify the catalog report tab is active by default.
+	 * Verify the overview tab is active by default.
 	 *
 	 * @return void
 	 */
-	public function test_render_page_defaults_to_catalog_report_tab(): void {
+	public function test_render_page_defaults_to_overview_tab(): void {
 
 		ob_start();
 
@@ -182,12 +182,12 @@ final class AdminPageControllerTest extends TestCase {
 		$output = (string) ob_get_clean();
 
 		self::assertMatchesRegularExpression(
-			'/tab=catalog-report[^"]*"[^>]*class="nav-tab nav-tab-active"/',
+			'/tab=overview[^"]*"[^>]*class="nav-tab nav-tab-active"/',
 			$output
 		);
 
 		self::assertStringContainsString(
-			'Export Catalog Variations',
+			'Utilities for product administration.',
 			$output
 		);
 	}
@@ -287,11 +287,11 @@ final class AdminPageControllerTest extends TestCase {
 	}
 
 	/**
-	 * Verify an invalid tab falls back to the catalog report.
+	 * Verify an invalid tab falls back to the overview.
 	 *
 	 * @return void
 	 */
-	public function test_render_page_falls_back_to_catalog_report_for_invalid_tab(): void {
+	public function test_render_page_falls_back_to_overview_for_invalid_tab(): void {
 
 		$_GET['tab'] = 'invalid-tab';
 
@@ -302,12 +302,12 @@ final class AdminPageControllerTest extends TestCase {
 		$output = (string) ob_get_clean();
 
 		self::assertStringContainsString(
-			'Export Catalog Variations',
+			'Utilities for product administration.',
 			$output
 		);
 
 		self::assertStringNotContainsString(
-			'Yoast Product Metadata Cleanup',
+			'Export Catalog Variations',
 			$output
 		);
 	}
