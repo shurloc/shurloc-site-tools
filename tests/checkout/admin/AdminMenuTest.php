@@ -170,7 +170,12 @@ final class AdminMenuTest extends TestCase {
 		);
 
 		$this->assertStringContainsString(
-			'Checkout and payment tools.',
+			'<ul>',
+			$output
+		);
+
+		$this->assertStringContainsString(
+			'Tariff fees and checkout tooltips.',
 			$output
 		);
 
