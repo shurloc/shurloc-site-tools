@@ -107,7 +107,7 @@ final class Admin_Menu {
 		?>
 		<h2>Checkout</h2>
 
-		<ul>
+		<ul class="ul-disc">
 			<li><?php echo esc_html__( 'Tariff fees and checkout tooltips.', 'shurloc-site-tools' ); ?></li>
 			<li><?php echo esc_html__( 'Payment processing fees and gateway labels.', 'shurloc-site-tools' ); ?></li>
 			<li><?php echo esc_html__( 'Offline payment order-status handling.', 'shurloc-site-tools' ); ?></li>

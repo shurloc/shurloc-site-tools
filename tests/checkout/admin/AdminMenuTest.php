@@ -170,7 +170,7 @@ final class AdminMenuTest extends TestCase {
 		);
 
 		$this->assertStringContainsString(
-			'<ul>',
+			'<ul class="ul-disc">',
 			$output
 		);
 
