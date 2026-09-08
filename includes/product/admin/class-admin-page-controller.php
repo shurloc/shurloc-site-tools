@@ -108,15 +108,6 @@ final class Admin_Page_Controller implements Admin_Page_Interface {
 				?>
 			</h1>
 
-			<p>
-				<?php
-				echo esc_html__(
-					'Product administration, reporting, migrations, and catalog tools.',
-					'shurloc-site-tools'
-				);
-				?>
-			</p>
-
 			<?php
 			$this->render_tabs(
 				active_tab: $active_tab,

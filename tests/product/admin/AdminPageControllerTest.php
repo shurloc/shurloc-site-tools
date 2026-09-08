@@ -123,7 +123,7 @@ final class AdminPageControllerTest extends TestCase {
 			$output
 		);
 
-		self::assertStringContainsString(
+		self::assertStringNotContainsString(
 			'Product administration, reporting, migrations, and catalog tools.',
 			$output
 		);
