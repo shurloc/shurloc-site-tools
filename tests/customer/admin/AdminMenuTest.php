@@ -212,7 +212,7 @@ final class AdminMenuTest extends TestCase {
 		$output = (string) ob_get_clean();
 
 		self::assertStringContainsString(
-			'<ul>',
+			'<ul class="ul-disc">',
 			$output
 		);
 

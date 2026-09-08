@@ -134,7 +134,7 @@ final class Admin_Menu {
 			?>
 		</h2>
 
-		<ul>
+		<ul class="ul-disc">
 			<li><?php echo esc_html__( 'Customer activity, purchase, and cart tracking.', 'shurloc-site-tools' ); ?></li>
 			<li><?php echo esc_html__( 'Customer-list columns and filters.', 'shurloc-site-tools' ); ?></li>
 			<li><?php echo esc_html__( 'Phone-number support.', 'shurloc-site-tools' ); ?></li>
