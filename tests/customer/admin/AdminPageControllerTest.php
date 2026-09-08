@@ -113,7 +113,7 @@ final class AdminPageControllerTest extends TestCase {
 		);
 
 		self::assertStringContainsString(
-			'<ul>',
+			'<ul class="ul-disc">',
 			$output
 		);
 

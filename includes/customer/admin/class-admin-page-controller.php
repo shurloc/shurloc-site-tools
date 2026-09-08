@@ -123,7 +123,7 @@ final class Admin_Page_Controller implements Admin_Page_Interface {
 			?>
 		</p>
 
-		<ul>
+		<ul class="ul-disc">
 			<li><?php echo esc_html__( 'Customer activity, purchase, and cart tracking.', 'shurloc-site-tools' ); ?></li>
 			<li><?php echo esc_html__( 'Customer list columns for activity, purchases, carts, and phone numbers.', 'shurloc-site-tools' ); ?></li>
 			<li><?php echo esc_html__( 'Customer list filters for activity and purchase information.', 'shurloc-site-tools' ); ?></li>
