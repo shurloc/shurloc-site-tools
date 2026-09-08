@@ -123,7 +123,7 @@ final class AdminPageControllerTest extends TestCase {
 			$output
 		);
 
-		self::assertStringContainsString(
+		self::assertStringNotContainsString(
 			'Product administration, reporting, migrations, and catalog tools.',
 			$output
 		);
@@ -187,7 +187,17 @@ final class AdminPageControllerTest extends TestCase {
 		);
 
 		self::assertStringContainsString(
-			'Utilities for product administration.',
+			'Product tools, listed by operational importance.',
+			$output
+		);
+
+		self::assertStringContainsString(
+			'Catalog reports, including invalid and unrecognized mesh product reviews.',
+			$output
+		);
+
+		self::assertStringContainsString(
+			'<ul class="ul-disc">',
 			$output
 		);
 	}
@@ -302,7 +312,7 @@ final class AdminPageControllerTest extends TestCase {
 		$output = (string) ob_get_clean();
 
 		self::assertStringContainsString(
-			'Utilities for product administration.',
+			'Product tools, listed by operational importance.',
 			$output
 		);
 

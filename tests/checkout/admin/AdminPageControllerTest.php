@@ -89,7 +89,17 @@ final class AdminPageControllerTest extends TestCase {
 		);
 
 		$this->assertStringContainsString(
-			'Checkout and payment tools.',
+			'Checkout tools, listed by operational importance.',
+			$output
+		);
+
+		$this->assertStringContainsString(
+			'Configurable tariff fees for eligible products.',
+			$output
+		);
+
+		$this->assertStringContainsString(
+			'<ul class="ul-disc">',
 			$output
 		);
 
@@ -125,7 +135,7 @@ final class AdminPageControllerTest extends TestCase {
 		);
 
 		$this->assertStringNotContainsString(
-			'Checkout and payment tools.',
+			'Checkout tools, listed by operational importance.',
 			$output
 		);
 	}
@@ -146,7 +156,7 @@ final class AdminPageControllerTest extends TestCase {
 		$output = (string) ob_get_clean();
 
 		$this->assertStringContainsString(
-			'Checkout and payment tools.',
+			'Checkout tools, listed by operational importance.',
 			$output
 		);
 

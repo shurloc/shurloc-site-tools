@@ -103,7 +103,17 @@ final class AdminPageControllerTest extends TestCase {
 		);
 
 		self::assertStringContainsString(
-			'Utilities for customer administration.',
+			'Customer tools, listed by operational importance.',
+			$output
+		);
+
+		self::assertStringContainsString(
+			'Customer activity, purchase, and cart tracking.',
+			$output
+		);
+
+		self::assertStringContainsString(
+			'<ul class="ul-disc">',
 			$output
 		);
 
@@ -140,7 +150,7 @@ final class AdminPageControllerTest extends TestCase {
 		);
 
 		self::assertStringNotContainsString(
-			'Utilities for customer administration.',
+			'Customer tools, listed by operational importance.',
 			$output
 		);
 	}
@@ -162,7 +172,7 @@ final class AdminPageControllerTest extends TestCase {
 		$output = (string) ob_get_clean();
 
 		self::assertStringContainsString(
-			'Utilities for customer administration.',
+			'Customer tools, listed by operational importance.',
 			$output
 		);
 

@@ -108,15 +108,6 @@ final class Admin_Page_Controller implements Admin_Page_Interface {
 				?>
 			</h1>
 
-			<p>
-				<?php
-				echo esc_html__(
-					'Product administration, reporting, migrations, and catalog tools.',
-					'shurloc-site-tools'
-				);
-				?>
-			</p>
-
 			<?php
 			$this->render_tabs(
 				active_tab: $active_tab,
@@ -225,11 +216,19 @@ final class Admin_Page_Controller implements Admin_Page_Interface {
 		<p>
 			<?php
 			echo esc_html__(
-				'Utilities for product administration.',
+				'Product tools, listed by operational importance.',
 				'shurloc-site-tools'
 			);
 			?>
 		</p>
+
+		<ul class="ul-disc">
+			<li><?php echo esc_html__( 'Catalog reports, including invalid and unrecognized mesh product reviews.', 'shurloc-site-tools' ); ?></li>
+			<li><?php echo esc_html__( 'Mesh product tables and product specification data.', 'shurloc-site-tools' ); ?></li>
+			<li><?php echo esc_html__( 'Product structured data, primary-category support, and WooCommerce schema integration.', 'shurloc-site-tools' ); ?></li>
+			<li><?php echo esc_html__( 'Product navigation and recommendations, including breadcrumbs, related products, cross-sells, and tag pagination.', 'shurloc-site-tools' ); ?></li>
+			<li><?php echo esc_html__( 'Product data migrations and buyer-company order data.', 'shurloc-site-tools' ); ?></li>
+		</ul>
 		<?php
 	}
 

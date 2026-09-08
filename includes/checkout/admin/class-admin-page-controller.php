@@ -103,8 +103,15 @@ final class Admin_Page_Controller implements Admin_Page_Interface {
 	private function render_overview(): void {
 		?>
 		<p>
-			Checkout and payment tools.
+			<?php echo esc_html__( 'Checkout tools, listed by operational importance.', 'shurloc-site-tools' ); ?>
 		</p>
+
+		<ul class="ul-disc">
+			<li><?php echo esc_html__( 'Configurable tariff fees for eligible products.', 'shurloc-site-tools' ); ?></li>
+			<li><?php echo esc_html__( 'Tariff fee tooltips displayed during checkout.', 'shurloc-site-tools' ); ?></li>
+			<li><?php echo esc_html__( 'Payment processing fees and payment gateway label updates.', 'shurloc-site-tools' ); ?></li>
+			<li><?php echo esc_html__( 'Offline payment order-status handling.', 'shurloc-site-tools' ); ?></li>
+		</ul>
 		<?php
 	}
 
