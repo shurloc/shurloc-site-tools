@@ -101,10 +101,13 @@ final class Admin_Menu {
 		?>
 		<h2>Products</h2>
 
-		<p>
-			Product catalog analysis, mesh specification tools,
-			structured data, breadcrumbs, and product recommendations.
-		</p>
+		<ul>
+			<li><?php echo esc_html__( 'Catalog reports and mesh-product reviews.', 'shurloc-site-tools' ); ?></li>
+			<li><?php echo esc_html__( 'Mesh product tables.', 'shurloc-site-tools' ); ?></li>
+			<li><?php echo esc_html__( 'Structured data and primary-category support.', 'shurloc-site-tools' ); ?></li>
+			<li><?php echo esc_html__( 'Product navigation and recommendations.', 'shurloc-site-tools' ); ?></li>
+			<li><?php echo esc_html__( 'Product data migrations.', 'shurloc-site-tools' ); ?></li>
+		</ul>
 
 		<p>
 			<a
