@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.6.3] 2026-09-08
+
+### Changed
+
+- Expanded the Product, Customer, and Checkout overview pages and shared Site Tools sections with prioritized feature lists.
+- Updated overview feature lists to render with bullets and aligned the Product Tools page layout with the other domain overviews.
+
 ## [0.6.2] 2026-09-08
 
 ### Changed
