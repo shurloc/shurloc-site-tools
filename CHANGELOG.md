@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.6.2] 2026-09-08
+
+### Changed
+
+- Added an Overview tab as the default Product Tools admin view and moved Catalog Report to a secondary tab.
+
 ## [0.6.1] - 2026-09-06
 
 ### Changed
