@@ -106,7 +106,7 @@ final class Admin_Page_Controller implements Admin_Page_Interface {
 			<?php echo esc_html__( 'Checkout tools, listed by operational importance.', 'shurloc-site-tools' ); ?>
 		</p>
 
-		<ul>
+		<ul class="ul-disc">
 			<li><?php echo esc_html__( 'Configurable tariff fees for eligible products.', 'shurloc-site-tools' ); ?></li>
 			<li><?php echo esc_html__( 'Tariff fee tooltips displayed during checkout.', 'shurloc-site-tools' ); ?></li>
 			<li><?php echo esc_html__( 'Payment processing fees and payment gateway label updates.', 'shurloc-site-tools' ); ?></li>

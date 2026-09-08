@@ -99,7 +99,7 @@ final class AdminPageControllerTest extends TestCase {
 		);
 
 		$this->assertStringContainsString(
-			'<ul>',
+			'<ul class="ul-disc">',
 			$output
 		);
 
