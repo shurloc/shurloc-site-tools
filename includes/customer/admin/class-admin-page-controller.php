@@ -117,11 +117,18 @@ final class Admin_Page_Controller implements Admin_Page_Interface {
 		<p>
 			<?php
 			echo esc_html__(
-				'Utilities for customer administration.',
+				'Customer tools, listed by operational importance.',
 				'shurloc-site-tools'
 			);
 			?>
 		</p>
+
+		<ul>
+			<li><?php echo esc_html__( 'Customer activity, purchase, and cart tracking.', 'shurloc-site-tools' ); ?></li>
+			<li><?php echo esc_html__( 'Customer list columns for activity, purchases, carts, and phone numbers.', 'shurloc-site-tools' ); ?></li>
+			<li><?php echo esc_html__( 'Customer list filters for activity and purchase information.', 'shurloc-site-tools' ); ?></li>
+			<li><?php echo esc_html__( 'Customer data migrations for purchase tracking and cart data.', 'shurloc-site-tools' ); ?></li>
+		</ul>
 		<?php
 	}
 

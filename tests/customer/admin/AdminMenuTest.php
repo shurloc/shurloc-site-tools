@@ -212,7 +212,12 @@ final class AdminMenuTest extends TestCase {
 		$output = (string) ob_get_clean();
 
 		self::assertStringContainsString(
-			'Customer tools.',
+			'<ul>',
+			$output
+		);
+
+		self::assertStringContainsString(
+			'Customer activity, purchase, and cart tracking.',
 			$output
 		);
 	}
