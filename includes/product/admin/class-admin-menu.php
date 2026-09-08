@@ -101,7 +101,7 @@ final class Admin_Menu {
 		?>
 		<h2>Products</h2>
 
-		<ul>
+		<ul class="ul-disc">
 			<li><?php echo esc_html__( 'Catalog reports and mesh-product reviews.', 'shurloc-site-tools' ); ?></li>
 			<li><?php echo esc_html__( 'Mesh product tables.', 'shurloc-site-tools' ); ?></li>
 			<li><?php echo esc_html__( 'Structured data and primary-category support.', 'shurloc-site-tools' ); ?></li>

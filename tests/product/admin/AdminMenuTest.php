@@ -207,4 +207,23 @@ final class AdminMenuTest extends TestCase {
 			$submenu['callback']
 		);
 	}
+
+	/**
+	 * Verify the overview section uses a bulleted feature list.
+	 *
+	 * @return void
+	 */
+	public function test_overview_section_uses_bulleted_feature_list(): void {
+
+		ob_start();
+
+		$this->admin_menu->render_overview_section();
+
+		$output = (string) ob_get_clean();
+
+		self::assertStringContainsString(
+			'<ul class="ul-disc">',
+			$output
+		);
+	}
 }
