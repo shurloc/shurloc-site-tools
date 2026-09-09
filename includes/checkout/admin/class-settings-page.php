@@ -38,6 +38,20 @@ final class Settings_Page {
 	private const TARIFF_SECTION_ID = 'shurloc_checkout_tools_tariffs';
 
 	/**
+	 * Payment processing settings page ID.
+	 *
+	 * @var string
+	 */
+	private const PAYMENT_PROCESSING_PAGE = 'shurloc_checkout_tools_payment_processing';
+
+	/**
+	 * Payment processing settings section ID.
+	 *
+	 * @var string
+	 */
+	private const PAYMENT_PROCESSING_SECTION_ID = 'shurloc_checkout_tools_payment_processing';
+
+	/**
 	 * Checkout Tools settings.
 	 *
 	 * @var Settings
@@ -98,6 +112,37 @@ final class Settings_Page {
 			self::TARIFF_SECTION_ID
 		);
 
+		add_settings_section(
+			self::PAYMENT_PROCESSING_SECTION_ID,
+			'Payment Processing Fees',
+			array( $this, 'render_payment_processing_section' ),
+			self::PAYMENT_PROCESSING_PAGE
+		);
+
+		add_settings_field(
+			'payment_processing_enabled',
+			'Payment Processing Fees',
+			array( $this, 'render_payment_processing_enabled_field' ),
+			self::PAYMENT_PROCESSING_PAGE,
+			self::PAYMENT_PROCESSING_SECTION_ID
+		);
+
+		add_settings_field(
+			'payment_processing_standard_rate',
+			'Standard Rate',
+			array( $this, 'render_payment_processing_standard_rate_field' ),
+			self::PAYMENT_PROCESSING_PAGE,
+			self::PAYMENT_PROCESSING_SECTION_ID
+		);
+
+		add_settings_field(
+			'payment_processing_paypal_rate',
+			'PayPal Rate',
+			array( $this, 'render_payment_processing_paypal_rate_field' ),
+			self::PAYMENT_PROCESSING_PAGE,
+			self::PAYMENT_PROCESSING_SECTION_ID
+		);
+
 		add_settings_field(
 			'mesh_tariff_rate',
 			'Raw Material Tariff Rate',
@@ -156,9 +201,11 @@ final class Settings_Page {
 			return $defaults;
 		}
 
+		$current_settings = $this->settings->get_settings();
+
 		$tariffs = isset( $input['tariffs'] ) && is_array( $input['tariffs'] )
 			? $input['tariffs']
-			: array();
+			: $current_settings['tariffs'];
 
 		$mesh = isset( $tariffs['mesh'] ) && is_array( $tariffs['mesh'] )
 			? $tariffs['mesh']
@@ -168,8 +215,12 @@ final class Settings_Page {
 			? $tariffs['sefar']
 			: array();
 
+		$payment_processing = isset( $input['payment_processing'] ) && is_array( $input['payment_processing'] )
+			? $input['payment_processing']
+			: $current_settings['payment_processing'];
+
 		return array(
-			'tariffs' => array(
+			'tariffs'            => array(
 				'mesh'  => array(
 					'enabled' => ! empty( $mesh['enabled'] ),
 					'rate'    => $this->sanitize_rate(
@@ -191,6 +242,17 @@ final class Settings_Page {
 						value: $sefar['message'] ?? null,
 						default_message: $defaults['tariffs']['sefar']['message']
 					),
+				),
+			),
+			'payment_processing' => array(
+				'enabled'       => ! empty( $payment_processing['enabled'] ),
+				'standard_rate' => $this->sanitize_rate(
+					value: $payment_processing['standard_rate'] ?? null,
+					default_rate: $defaults['payment_processing']['standard_rate']
+				),
+				'paypal_rate'   => $this->sanitize_rate(
+					value: $payment_processing['paypal_rate'] ?? null,
+					default_rate: $defaults['payment_processing']['paypal_rate']
 				),
 			),
 		);
@@ -232,6 +294,23 @@ final class Settings_Page {
 	}
 
 	/**
+	 * Renders the payment processing fees tab content.
+	 *
+	 * @return void
+	 */
+	public function render_payment_processing_fees_tab(): void {
+		?>
+		<form action="options.php" method="post">
+			<?php
+			settings_fields( self::SETTINGS_GROUP );
+			do_settings_sections( self::PAYMENT_PROCESSING_PAGE );
+			submit_button();
+			?>
+		</form>
+		<?php
+	}
+
+	/**
 	 * Renders the tariff settings section description.
 	 *
 	 * @return void
@@ -242,6 +321,67 @@ final class Settings_Page {
 			Configure the tariff fees and customer-facing messages shown in the cart and checkout.
 		</p>
 		<?php
+	}
+
+	/**
+	 * Renders the payment processing settings section description.
+	 *
+	 * @return void
+	 */
+	public function render_payment_processing_section(): void {
+		?>
+		<p>
+			Configure fees charged for eligible payment gateways at checkout.
+		</p>
+		<?php
+	}
+
+	/**
+	 * Renders the payment processing enabled field.
+	 *
+	 * @return void
+	 */
+	public function render_payment_processing_enabled_field(): void {
+		?>
+		<label>
+			<input
+				type="hidden"
+				name="<?php echo esc_attr( Settings::OPTION_NAME ); ?>[payment_processing][enabled]"
+				value="0"
+			>
+			<input
+				type="checkbox"
+				name="<?php echo esc_attr( Settings::OPTION_NAME ); ?>[payment_processing][enabled]"
+				value="1"
+				<?php checked( $this->settings->is_payment_processing_fee_enabled() ); ?>
+			>
+			Enable payment processing fees
+		</label>
+		<?php
+	}
+
+	/**
+	 * Renders the standard payment processing fee rate field.
+	 *
+	 * @return void
+	 */
+	public function render_payment_processing_standard_rate_field(): void {
+		$this->render_payment_processing_rate_field(
+			rate_type: 'standard_rate',
+			rate: $this->settings->get_standard_payment_processing_fee_rate() * 100
+		);
+	}
+
+	/**
+	 * Renders the PayPal payment processing fee rate field.
+	 *
+	 * @return void
+	 */
+	public function render_payment_processing_paypal_rate_field(): void {
+		$this->render_payment_processing_rate_field(
+			rate_type: 'paypal_rate',
+			rate: $this->settings->get_paypal_payment_processing_fee_rate() * 100
+		);
 	}
 
 	/**
@@ -359,6 +499,31 @@ final class Settings_Page {
 		<input
 			type="number"
 			name="<?php echo esc_attr( Settings::OPTION_NAME ); ?>[tariffs][<?php echo esc_attr( $tariff_type ); ?>][rate]"
+			value="<?php echo esc_attr( number_format( $rate, 2, '.', '' ) ); ?>"
+			min="0"
+			max="100"
+			step="0.01"
+			class="small-text"
+		>
+		%
+		<?php
+	}
+
+	/**
+	 * Renders a payment processing fee rate field.
+	 *
+	 * @param string $rate_type Payment processing rate type.
+	 * @param float  $rate      Payment processing fee percentage.
+	 * @return void
+	 */
+	private function render_payment_processing_rate_field(
+		string $rate_type,
+		float $rate
+	): void {
+		?>
+		<input
+			type="number"
+			name="<?php echo esc_attr( Settings::OPTION_NAME ); ?>[payment_processing][<?php echo esc_attr( $rate_type ); ?>]"
 			value="<?php echo esc_attr( number_format( $rate, 2, '.', '' ) ); ?>"
 			min="0"
 			max="100"
