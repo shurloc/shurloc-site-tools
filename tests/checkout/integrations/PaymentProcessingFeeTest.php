@@ -10,6 +10,7 @@ declare( strict_types=1 );
 namespace Shurloc\SiteTools\Checkout\Integrations;
 
 use PHPUnit\Framework\TestCase;
+use Shurloc\SiteTools\Checkout\Settings\Settings;
 use Shurloc\SiteTools\Checkout\Test_Fee;
 use Shurloc\SiteTools\Checkout\Test_WooCommerce;
 
@@ -39,6 +40,7 @@ final class PaymentProcessingFeeTest extends TestCase {
 		$GLOBALS['shurloc_test_is_admin']         = false;
 		$GLOBALS['shurloc_test_is_checkout']      = true;
 		$GLOBALS['shurloc_test_enqueued_scripts'] = array();
+		$GLOBALS['shurloc_test_options']          = array();
 	}
 
 	/**
@@ -52,7 +54,8 @@ final class PaymentProcessingFeeTest extends TestCase {
 			$GLOBALS['shurloc_test_action_metadata'],
 			$GLOBALS['shurloc_test_is_admin'],
 			$GLOBALS['shurloc_test_is_checkout'],
-			$GLOBALS['shurloc_test_enqueued_scripts']
+			$GLOBALS['shurloc_test_enqueued_scripts'],
+			$GLOBALS['shurloc_test_options']
 		);
 
 		parent::tearDown();
@@ -180,6 +183,90 @@ final class PaymentProcessingFeeTest extends TestCase {
 
 		$this->assertSame(
 			array(),
+			$this->woocommerce->cart->get_added_fees()
+		);
+	}
+
+	/**
+	 * Tests that disabled payment processing fees are not added.
+	 *
+	 * @return void
+	 */
+	public function test_disabled_payment_processing_fee_is_not_added(): void {
+		$this->set_payment_method( 'bacs' );
+		$this->woocommerce->cart->set_cart_contents_total( 100.00 );
+		$this->set_payment_processing_settings(
+			array(
+				'enabled' => false,
+			)
+		);
+
+		$processing_fee = new Payment_Processing_Fee( new Settings() );
+
+		$processing_fee->add_processing_fee();
+
+		$this->assertSame(
+			array(),
+			$this->woocommerce->cart->get_added_fees()
+		);
+	}
+
+	/**
+	 * Tests that configured standard payment processing fee rates are applied.
+	 *
+	 * @return void
+	 */
+	public function test_configured_standard_payment_processing_fee_rate_is_applied(): void {
+		$this->set_payment_method( 'bacs' );
+		$this->woocommerce->cart->set_cart_contents_total( 100.00 );
+		$this->set_payment_processing_settings(
+			array(
+				'standard_rate' => 2.0,
+			)
+		);
+
+		$processing_fee = new Payment_Processing_Fee( new Settings() );
+
+		$processing_fee->add_processing_fee();
+
+		$this->assertSame(
+			array(
+				array(
+					'name'    => 'Payment Processing Fee (2.00%)',
+					'amount'  => 2.00,
+					'taxable' => false,
+				),
+			),
+			$this->woocommerce->cart->get_added_fees()
+		);
+	}
+
+	/**
+	 * Tests that configured PayPal payment processing fee rates are applied.
+	 *
+	 * @return void
+	 */
+	public function test_configured_paypal_payment_processing_fee_rate_is_applied(): void {
+		$this->set_payment_method( 'ppcp-gateway' );
+		$this->woocommerce->cart->set_cart_contents_total( 100.00 );
+		$this->set_payment_processing_settings(
+			array(
+				'paypal_rate' => 2.5,
+			)
+		);
+
+		$processing_fee = new Payment_Processing_Fee( new Settings() );
+
+		$processing_fee->add_processing_fee();
+
+		$this->assertSame(
+			array(
+				array(
+					'name'    => 'Payment Processing Fee (2.50%)',
+					'amount'  => 2.50,
+					'taxable' => false,
+				),
+			),
 			$this->woocommerce->cart->get_added_fees()
 		);
 	}
@@ -407,6 +494,20 @@ final class PaymentProcessingFeeTest extends TestCase {
 		$this->woocommerce->session->set(
 			'chosen_payment_method',
 			$payment_method
+		);
+	}
+
+	/**
+	 * Stores payment processing settings for a test.
+	 *
+	 * @param array<string, mixed> $payment_processing Payment processing settings.
+	 * @return void
+	 */
+	private function set_payment_processing_settings(
+		array $payment_processing
+	): void {
+		$GLOBALS['shurloc_test_options'][ Settings::OPTION_NAME ] = array(
+			'payment_processing' => $payment_processing,
 		);
 	}
 }
