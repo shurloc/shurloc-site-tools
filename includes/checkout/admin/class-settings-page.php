@@ -303,6 +303,8 @@ final class Settings_Page {
 	 * @return void
 	 */
 	public function render_payment_processing_fees_tab(): void {
+		$this->render_payment_processing_success_notice();
+
 		?>
 		<form action="options.php" method="post">
 			<?php
@@ -324,6 +326,35 @@ final class Settings_Page {
 				?>
 			</p>
 		</form>
+		<?php
+	}
+
+	/**
+	 * Renders the payment processing settings success notice.
+	 *
+	 * @return void
+	 */
+	private function render_payment_processing_success_notice(): void {
+
+		// phpcs:ignore WordPress.Security.NonceVerification.Recommended -- Read-only display of the Settings API redirect flag.
+		if ( ! isset( $_GET['settings-updated'] ) ) {
+			return;
+		}
+
+		$settings_updated = sanitize_text_field(
+			// phpcs:ignore WordPress.Security.NonceVerification.Recommended -- Read-only display of the Settings API redirect flag.
+			wp_unslash( $_GET['settings-updated'] )
+		);
+
+		if ( 'true' !== $settings_updated ) {
+			return;
+		}
+		?>
+		<div class="notice notice-success is-dismissible">
+			<p>
+				<?php esc_html_e( 'Payment processing fee settings saved.', 'shurloc-site-tools' ); ?>
+			</p>
+		</div>
 		<?php
 	}
 

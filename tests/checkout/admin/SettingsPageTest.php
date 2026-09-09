@@ -49,6 +49,8 @@ final class SettingsPageTest extends TestCase {
 			'manage_options' => true,
 		);
 
+		$_GET = array();
+
 		$this->settings = new Settings();
 
 		$this->settings_page = new Settings_Page(
@@ -71,6 +73,8 @@ final class SettingsPageTest extends TestCase {
 			$GLOBALS['shurloc_test_settings_fields'],
 			$GLOBALS['shurloc_test_user_capabilities']
 		);
+
+		$_GET = array();
 
 		parent::tearDown();
 	}
@@ -778,6 +782,31 @@ final class SettingsPageTest extends TestCase {
 
 		$this->assertMatchesRegularExpression(
 			'/<p class="submit">\s*<input[^>]+Save Changes[^>]*>\s*<span aria-hidden="true">&nbsp;<\/span>\s*<input[^>]+Reset to defaults[^>]*>\s*<\/p>/',
+			$output
+		);
+	}
+
+	/**
+	 * Tests that a payment processing save displays a success notice.
+	 *
+	 * @return void
+	 */
+	public function test_render_payment_processing_fees_tab_displays_success_notice_after_save(): void {
+		$_GET['settings-updated'] = 'true';
+
+		ob_start();
+
+		$this->settings_page->render_payment_processing_fees_tab();
+
+		$output = (string) ob_get_clean();
+
+		$this->assertStringContainsString(
+			'notice notice-success is-dismissible',
+			$output
+		);
+
+		$this->assertStringContainsString(
+			'Payment processing fee settings saved.',
 			$output
 		);
 	}
