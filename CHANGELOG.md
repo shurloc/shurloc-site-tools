@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.7.0] - 2026-09-09
+
+### Added
+
+- Added a Payment Processing Fees tab to Checkout Tools with configurable enablement, standard and PayPal fee rates, and reset-to-defaults controls.
+- Added success notices for saved and reset payment processing fee settings.
+
 ## [0.6.3] 2026-09-08
 
 ### Changed
