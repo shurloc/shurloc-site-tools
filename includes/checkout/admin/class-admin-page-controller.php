@@ -33,6 +33,13 @@ final class Admin_Page_Controller implements Admin_Page_Interface {
 	private const TARIFF_FEES_TAB = 'tariff-fees';
 
 	/**
+	 * Payment processing fees tab slug.
+	 *
+	 * @var string
+	 */
+	private const PAYMENT_PROCESSING_FEES_TAB = 'payment-processing-fees';
+
+	/**
 	 * Checkout Tools settings page.
 	 *
 	 * @var Settings_Page
@@ -80,11 +87,24 @@ final class Admin_Page_Controller implements Admin_Page_Interface {
 				>
 					Tariff Fees
 				</a>
+
+				<a
+					href="<?php echo esc_url( $this->get_tab_url( tab: self::PAYMENT_PROCESSING_FEES_TAB ) ); ?>"
+					class="nav-tab <?php echo self::PAYMENT_PROCESSING_FEES_TAB === $current_tab ? 'nav-tab-active' : ''; ?>"
+				>
+					Payment Processing Fees
+				</a>
 			</nav>
 
 			<?php
 			if ( self::TARIFF_FEES_TAB === $current_tab ) {
 				$this->settings_page->render_tariff_fees_tab();
+
+				return;
+			}
+
+			if ( self::PAYMENT_PROCESSING_FEES_TAB === $current_tab ) {
+				$this->settings_page->render_payment_processing_fees_tab();
 
 				return;
 			}
@@ -138,6 +158,7 @@ final class Admin_Page_Controller implements Admin_Page_Interface {
 				array(
 					self::OVERVIEW_TAB,
 					self::TARIFF_FEES_TAB,
+					self::PAYMENT_PROCESSING_FEES_TAB,
 				),
 				true
 			)
