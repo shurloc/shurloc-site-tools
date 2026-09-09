@@ -312,6 +312,9 @@ final class Settings_Page {
 			<p class="submit">
 				<?php
 				submit_button( 'Save Changes', 'primary', 'submit', false );
+				?>
+				<span aria-hidden="true">&nbsp;</span>
+				<?php
 				submit_button(
 					'Reset to defaults',
 					'secondary',
@@ -320,7 +323,6 @@ final class Settings_Page {
 				);
 				?>
 			</p>
-			?>
 		</form>
 		<?php
 	}

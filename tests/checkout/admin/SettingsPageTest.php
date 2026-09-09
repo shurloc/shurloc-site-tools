@@ -777,7 +777,7 @@ final class SettingsPageTest extends TestCase {
 		);
 
 		$this->assertMatchesRegularExpression(
-			'/<p class="submit">\s*<input[^>]+Save Changes[^>]*>\s*<input[^>]+Reset to defaults[^>]*>\s*<\/p>/',
+			'/<p class="submit">\s*<input[^>]+Save Changes[^>]*>\s*<span aria-hidden="true">&nbsp;<\/span>\s*<input[^>]+Reset to defaults[^>]*>\s*<\/p>/',
 			$output
 		);
 	}
