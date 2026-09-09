@@ -50,7 +50,7 @@ final class SettingsTest extends TestCase {
 
 		$this->assertSame(
 			array(
-				'tariffs' => array(
+				'tariffs'            => array(
 					'mesh'  => array(
 						'enabled' => true,
 						'rate'    => 3.0,
@@ -61,6 +61,11 @@ final class SettingsTest extends TestCase {
 						'rate'    => 9.0,
 						'message' => 'Due to a 12% mesh tariff from Sefar, mesh orders will include a 9% tariff fee as a separate line item on invoices. Shur-loc pays 3% of this tariff based on paying half of 6% for both Murakami and Saati sharing this cost to minimize industry impact and Shur-loc will adjust if tariff conditions change. Thank you for your understanding.',
 					),
+				),
+				'payment_processing' => array(
+					'enabled'       => true,
+					'standard_rate' => 1.5,
+					'paypal_rate'   => 1.75,
 				),
 			),
 			$settings->get_defaults()
@@ -102,6 +107,20 @@ final class SettingsTest extends TestCase {
 			'9% tariff fee',
 			$settings->get_sefar_tariff_message()
 		);
+
+		$this->assertTrue(
+			$settings->is_payment_processing_fee_enabled()
+		);
+
+		$this->assertSame(
+			0.015,
+			$settings->get_standard_payment_processing_fee_rate()
+		);
+
+		$this->assertSame(
+			0.0175,
+			$settings->get_paypal_payment_processing_fee_rate()
+		);
 	}
 
 	/**
@@ -111,7 +130,7 @@ final class SettingsTest extends TestCase {
 	 */
 	public function test_stored_settings_override_defaults(): void {
 		$GLOBALS['shurloc_test_options'][ Settings::OPTION_NAME ] = array(
-			'tariffs' => array(
+			'tariffs'            => array(
 				'mesh'  => array(
 					'enabled' => false,
 					'rate'    => 5.0,
@@ -122,6 +141,11 @@ final class SettingsTest extends TestCase {
 					'rate'    => 12.0,
 					'message' => 'Custom Sefar tariff message.',
 				),
+			),
+			'payment_processing' => array(
+				'enabled'       => false,
+				'standard_rate' => 2.0,
+				'paypal_rate'   => 2.5,
 			),
 		);
 
@@ -153,6 +177,20 @@ final class SettingsTest extends TestCase {
 		$this->assertSame(
 			'Custom Sefar tariff message.',
 			$settings->get_sefar_tariff_message()
+		);
+
+		$this->assertFalse(
+			$settings->is_payment_processing_fee_enabled()
+		);
+
+		$this->assertSame(
+			0.02,
+			$settings->get_standard_payment_processing_fee_rate()
+		);
+
+		$this->assertSame(
+			0.025,
+			$settings->get_paypal_payment_processing_fee_rate()
 		);
 	}
 
@@ -193,6 +231,20 @@ final class SettingsTest extends TestCase {
 		$this->assertSame(
 			0.09,
 			$settings->get_sefar_tariff_rate()
+		);
+
+		$this->assertTrue(
+			$settings->is_payment_processing_fee_enabled()
+		);
+
+		$this->assertSame(
+			0.015,
+			$settings->get_standard_payment_processing_fee_rate()
+		);
+
+		$this->assertSame(
+			0.0175,
+			$settings->get_paypal_payment_processing_fee_rate()
 		);
 	}
 
@@ -340,6 +392,33 @@ final class SettingsTest extends TestCase {
 		$this->assertStringContainsString(
 			'9% tariff fee',
 			$settings->get_sefar_tariff_message()
+		);
+	}
+
+	/**
+	 * Tests that malformed payment processing settings fall back to defaults.
+	 *
+	 * @return void
+	 */
+	public function test_malformed_payment_processing_settings_fall_back_to_defaults(): void {
+		$GLOBALS['shurloc_test_options'][ Settings::OPTION_NAME ] = array(
+			'payment_processing' => 'invalid',
+		);
+
+		$settings = new Settings();
+
+		$this->assertTrue(
+			$settings->is_payment_processing_fee_enabled()
+		);
+
+		$this->assertSame(
+			0.015,
+			$settings->get_standard_payment_processing_fee_rate()
+		);
+
+		$this->assertSame(
+			0.0175,
+			$settings->get_paypal_payment_processing_fee_rate()
 		);
 	}
 }

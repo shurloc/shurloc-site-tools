@@ -36,6 +36,20 @@ final class Settings {
 	private const DEFAULT_SEFAR_TARIFF_RATE = 9.0;
 
 	/**
+	 * Default standard payment processing fee percentage.
+	 *
+	 * @var float
+	 */
+	private const DEFAULT_STANDARD_PAYMENT_PROCESSING_FEE_RATE = 1.5;
+
+	/**
+	 * Default PayPal payment processing fee percentage.
+	 *
+	 * @var float
+	 */
+	private const DEFAULT_PAYPAL_PAYMENT_PROCESSING_FEE_RATE = 1.75;
+
+	/**
 	 * Default mesh tariff message.
 	 *
 	 * @var string
@@ -116,6 +130,39 @@ final class Settings {
 	}
 
 	/**
+	 * Gets whether payment processing fees are enabled.
+	 *
+	 * @return bool Whether payment processing fees are enabled.
+	 */
+	public function is_payment_processing_fee_enabled(): bool {
+		$settings = $this->get_settings();
+
+		return $settings['payment_processing']['enabled'];
+	}
+
+	/**
+	 * Gets the standard payment processing fee rate.
+	 *
+	 * @return float Standard payment processing fee rate as a decimal.
+	 */
+	public function get_standard_payment_processing_fee_rate(): float {
+		$settings = $this->get_settings();
+
+		return $settings['payment_processing']['standard_rate'] / 100;
+	}
+
+	/**
+	 * Gets the PayPal payment processing fee rate.
+	 *
+	 * @return float PayPal payment processing fee rate as a decimal.
+	 */
+	public function get_paypal_payment_processing_fee_rate(): float {
+		$settings = $this->get_settings();
+
+		return $settings['payment_processing']['paypal_rate'] / 100;
+	}
+
+	/**
 	 * Gets normalized Checkout Tools settings.
 	 *
 	 * Tariff rates are stored as percentages.
@@ -132,6 +179,11 @@ final class Settings {
 	 *             rate: float,
 	 *             message: string
 	 *         }
+	 *     },
+	 *     payment_processing: array{
+	 *         enabled: bool,
+	 *         standard_rate: float,
+	 *         paypal_rate: float
 	 *     }
 	 * } Normalized settings.
 	 */
@@ -167,12 +219,17 @@ final class Settings {
 	 *             rate: float,
 	 *             message: string
 	 *         }
+	 *     },
+	 *     payment_processing: array{
+	 *         enabled: bool,
+	 *         standard_rate: float,
+	 *         paypal_rate: float
 	 *     }
 	 * } Default settings.
 	 */
 	public function get_defaults(): array {
 		return array(
-			'tariffs' => array(
+			'tariffs'            => array(
 				'mesh'  => array(
 					'enabled' => true,
 					'rate'    => self::DEFAULT_MESH_TARIFF_RATE,
@@ -183,6 +240,11 @@ final class Settings {
 					'rate'    => self::DEFAULT_SEFAR_TARIFF_RATE,
 					'message' => self::DEFAULT_SEFAR_TARIFF_MESSAGE,
 				),
+			),
+			'payment_processing' => array(
+				'enabled'       => true,
+				'standard_rate' => self::DEFAULT_STANDARD_PAYMENT_PROCESSING_FEE_RATE,
+				'paypal_rate'   => self::DEFAULT_PAYPAL_PAYMENT_PROCESSING_FEE_RATE,
 			),
 		);
 	}
@@ -205,6 +267,11 @@ final class Settings {
 	 *             rate: float,
 	 *             message: string
 	 *         }
+	 *     },
+	 *     payment_processing: array{
+	 *         enabled: bool,
+	 *         standard_rate: float,
+	 *         paypal_rate: float
 	 *     }
 	 * } Normalized settings.
 	 */
@@ -223,8 +290,12 @@ final class Settings {
 			tariff_type: 'sefar'
 		);
 
+		$payment_processing_settings = $this->get_payment_processing_settings(
+			settings: $settings
+		);
+
 		return array(
-			'tariffs' => array(
+			'tariffs'            => array(
 				'mesh'  => array(
 					'enabled' => isset( $mesh_settings['enabled'] )
 						? (bool) $mesh_settings['enabled']
@@ -248,7 +319,37 @@ final class Settings {
 						: $defaults['tariffs']['sefar']['message'],
 				),
 			),
+			'payment_processing' => array(
+				'enabled'       => isset( $payment_processing_settings['enabled'] )
+					? (bool) $payment_processing_settings['enabled']
+					: $defaults['payment_processing']['enabled'],
+				'standard_rate' => isset( $payment_processing_settings['standard_rate'] ) && is_numeric( $payment_processing_settings['standard_rate'] )
+					? (float) $payment_processing_settings['standard_rate']
+					: $defaults['payment_processing']['standard_rate'],
+				'paypal_rate'   => isset( $payment_processing_settings['paypal_rate'] ) && is_numeric( $payment_processing_settings['paypal_rate'] )
+					? (float) $payment_processing_settings['paypal_rate']
+					: $defaults['payment_processing']['paypal_rate'],
+			),
 		);
+	}
+
+	/**
+	 * Gets stored payment processing settings.
+	 *
+	 * @param array<string, mixed> $settings Stored settings.
+	 * @return array<string, mixed> Stored payment processing settings.
+	 */
+	private function get_payment_processing_settings(
+		array $settings
+	): array {
+		if (
+			! isset( $settings['payment_processing'] ) ||
+			! is_array( $settings['payment_processing'] )
+		) {
+			return array();
+		}
+
+		return $settings['payment_processing'];
 	}
 
 	/**
