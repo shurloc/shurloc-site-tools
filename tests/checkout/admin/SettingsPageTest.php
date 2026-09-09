@@ -45,9 +45,12 @@ final class SettingsPageTest extends TestCase {
 		$GLOBALS['shurloc_test_registered_settings'] = array();
 		$GLOBALS['shurloc_test_settings_sections']   = array();
 		$GLOBALS['shurloc_test_settings_fields']     = array();
+		$GLOBALS['shurloc_test_settings_errors']     = array();
 		$GLOBALS['shurloc_test_user_capabilities']   = array(
 			'manage_options' => true,
 		);
+
+		$_GET = array();
 
 		$this->settings = new Settings();
 
@@ -69,8 +72,11 @@ final class SettingsPageTest extends TestCase {
 			$GLOBALS['shurloc_test_registered_settings'],
 			$GLOBALS['shurloc_test_settings_sections'],
 			$GLOBALS['shurloc_test_settings_fields'],
+			$GLOBALS['shurloc_test_settings_errors'],
 			$GLOBALS['shurloc_test_user_capabilities']
 		);
+
+		$_GET = array();
 
 		parent::tearDown();
 	}
@@ -141,7 +147,7 @@ final class SettingsPageTest extends TestCase {
 		$this->settings_page->register_settings();
 
 		$this->assertCount(
-			1,
+			2,
 			$GLOBALS['shurloc_test_settings_sections']
 		);
 
@@ -169,6 +175,27 @@ final class SettingsPageTest extends TestCase {
 	}
 
 	/**
+	 * Tests that the payment processing settings section is registered.
+	 *
+	 * @return void
+	 */
+	public function test_register_settings_registers_payment_processing_section(): void {
+		$this->settings_page->register_settings();
+
+		$section = $GLOBALS['shurloc_test_settings_sections'][1];
+
+		$this->assertSame(
+			'Payment Processing Fees',
+			$section['title']
+		);
+
+		$this->assertSame(
+			array( $this->settings_page, 'render_payment_processing_section' ),
+			$section['callback']
+		);
+	}
+
+	/**
 	 * Tests that all tariff settings fields are registered.
 	 *
 	 * @return void
@@ -177,7 +204,7 @@ final class SettingsPageTest extends TestCase {
 		$this->settings_page->register_settings();
 
 		$this->assertCount(
-			6,
+			9,
 			$GLOBALS['shurloc_test_settings_fields']
 		);
 
@@ -189,6 +216,9 @@ final class SettingsPageTest extends TestCase {
 		$this->assertSame(
 			array(
 				'mesh_tariff_enabled',
+				'payment_processing_enabled',
+				'payment_processing_standard_rate',
+				'payment_processing_paypal_rate',
 				'mesh_tariff_rate',
 				'mesh_tariff_message',
 				'sefar_tariff_enabled',
@@ -224,7 +254,7 @@ final class SettingsPageTest extends TestCase {
 
 		$this->assertSame(
 			array(
-				'tariffs' => array(
+				'tariffs'            => array(
 					'mesh'  => array(
 						'enabled' => true,
 						'rate'    => 4.5,
@@ -235,6 +265,11 @@ final class SettingsPageTest extends TestCase {
 						'rate'    => 11.25,
 						'message' => 'Custom Sefar message.',
 					),
+				),
+				'payment_processing' => array(
+					'enabled'       => true,
+					'standard_rate' => 1.5,
+					'paypal_rate'   => 1.75,
 				),
 			),
 			$sanitized
@@ -268,6 +303,81 @@ final class SettingsPageTest extends TestCase {
 
 		$this->assertFalse(
 			$sanitized['tariffs']['sefar']['enabled']
+		);
+	}
+
+	/**
+	 * Tests that payment processing settings are sanitized.
+	 *
+	 * @return void
+	 */
+	public function test_payment_processing_settings_are_sanitized(): void {
+		$sanitized = $this->settings_page->sanitize_settings(
+			input: array(
+				'payment_processing' => array(
+					'enabled'       => '1',
+					'standard_rate' => '2.00',
+					'paypal_rate'   => '2.50',
+				),
+			)
+		);
+
+		$this->assertSame(
+			array(
+				'enabled'       => true,
+				'standard_rate' => 2.0,
+				'paypal_rate'   => 2.5,
+			),
+			$sanitized['payment_processing']
+		);
+	}
+
+	/**
+	 * Tests that payment processing settings reset without changing tariffs.
+	 *
+	 * @return void
+	 */
+	public function test_payment_processing_settings_can_be_reset_to_defaults(): void {
+		$sanitized = $this->settings_page->sanitize_settings(
+			input: array(
+				'tariffs'            => array(
+					'mesh'  => array(
+						'enabled' => '0',
+						'rate'    => '4.00',
+						'message' => 'Custom mesh message.',
+					),
+					'sefar' => array(
+						'enabled' => '1',
+						'rate'    => '10.00',
+						'message' => 'Custom Sefar message.',
+					),
+				),
+				'payment_processing' => array(
+					'enabled'       => '0',
+					'standard_rate' => '2.00',
+					'paypal_rate'   => '2.50',
+					'reset'         => 'Reset to defaults',
+				),
+			)
+		);
+
+		$this->assertSame(
+			array(
+				'enabled'       => true,
+				'standard_rate' => 1.5,
+				'paypal_rate'   => 1.75,
+			),
+			$sanitized['payment_processing']
+		);
+
+		$this->assertSame(
+			4.0,
+			$sanitized['tariffs']['mesh']['rate']
+		);
+
+		$this->assertSame(
+			'Custom Sefar message.',
+			$sanitized['tariffs']['sefar']['message']
 		);
 	}
 
@@ -444,7 +554,7 @@ final class SettingsPageTest extends TestCase {
 			input: array()
 		);
 
-		$this->assertFalse(
+		$this->assertTrue(
 			$sanitized['tariffs']['mesh']['enabled']
 		);
 
@@ -458,7 +568,7 @@ final class SettingsPageTest extends TestCase {
 			$sanitized['tariffs']['mesh']['message']
 		);
 
-		$this->assertFalse(
+		$this->assertTrue(
 			$sanitized['tariffs']['sefar']['enabled']
 		);
 
@@ -549,6 +659,36 @@ final class SettingsPageTest extends TestCase {
 	}
 
 	/**
+	 * Tests that payment processing fields render their configured defaults.
+	 *
+	 * @return void
+	 */
+	public function test_payment_processing_fields_render_default_values(): void {
+		ob_start();
+
+		$this->settings_page->render_payment_processing_enabled_field();
+		$this->settings_page->render_payment_processing_standard_rate_field();
+		$this->settings_page->render_payment_processing_paypal_rate_field();
+
+		$output = (string) ob_get_clean();
+
+		$this->assertStringContainsString(
+			'[payment_processing][enabled]',
+			$output
+		);
+
+		$this->assertStringContainsString(
+			'value="1.50"',
+			$output
+		);
+
+		$this->assertStringContainsString(
+			'value="1.75"',
+			$output
+		);
+	}
+
+	/**
 	 * Tests that unauthorized users do not receive settings page output.
 	 *
 	 * @return void
@@ -599,6 +739,82 @@ final class SettingsPageTest extends TestCase {
 
 		$this->assertStringContainsString(
 			'[tariffs][mesh][enabled]',
+			$output
+		);
+	}
+
+	/**
+	 * Tests that the payment processing fees renderer emits its settings form.
+	 *
+	 * @return void
+	 */
+	public function test_render_payment_processing_fees_tab_renders_settings_form(): void {
+		$this->settings_page->register_settings();
+
+		ob_start();
+
+		$this->settings_page->render_payment_processing_fees_tab();
+
+		$output = (string) ob_get_clean();
+
+		$this->assertStringContainsString(
+			'<form action="options.php" method="post">',
+			$output
+		);
+
+		$this->assertStringContainsString(
+			'[payment_processing][enabled]',
+			$output
+		);
+
+		$this->assertStringNotContainsString(
+			'[tariffs][mesh][enabled]',
+			$output
+		);
+
+		$this->assertStringContainsString(
+			'Reset to defaults',
+			$output
+		);
+
+		$this->assertStringContainsString(
+			'[payment_processing][reset]',
+			$output
+		);
+
+		$this->assertMatchesRegularExpression(
+			'/<p class="submit">\s*<input[^>]+Save Changes[^>]*>\s*<span aria-hidden="true">&nbsp;<\/span>\s*<input[^>]+Reset to defaults[^>]*>\s*<\/p>/',
+			$output
+		);
+	}
+
+	/**
+	 * Tests that resetting payment processing settings displays a success notice.
+	 *
+	 * @return void
+	 */
+	public function test_reset_payment_processing_settings_displays_success_notice(): void {
+		$this->settings_page->sanitize_settings(
+			input: array(
+				'payment_processing' => array(
+					'reset' => 'Reset to defaults',
+				),
+			)
+		);
+
+		ob_start();
+
+		$this->settings_page->render_payment_processing_fees_tab();
+
+		$output = (string) ob_get_clean();
+
+		$this->assertStringContainsString(
+			'notice notice-success is-dismissible',
+			$output
+		);
+
+		$this->assertStringContainsString(
+			'Payment processing fee settings reset to defaults.',
 			$output
 		);
 	}

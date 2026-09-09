@@ -9,20 +9,19 @@ declare( strict_types=1 );
 
 namespace Shurloc\SiteTools\Checkout\Integrations;
 
+use Shurloc\SiteTools\Checkout\Settings\Settings;
+
 /**
  * Adds payment processing fees to the WooCommerce cart.
  */
 final class Payment_Processing_Fee {
 
 	/**
-	 * Standard processing fee rate.
+	 * Checkout Tools settings.
+	 *
+	 * @var Settings
 	 */
-	private const STANDARD_FEE_RATE = 0.015;
-
-	/**
-	 * Higher processing fee rate.
-	 */
-	private const HIGHER_FEE_RATE = 0.0175;
+	private Settings $settings;
 
 	/**
 	 * Gateways that incur a processing fee.
@@ -53,6 +52,17 @@ final class Payment_Processing_Fee {
 	);
 
 	/**
+	 * Creates the payment processing fee handler.
+	 *
+	 * @param Settings|null $settings Checkout Tools settings.
+	 */
+	public function __construct(
+		?Settings $settings = null
+	) {
+		$this->settings = $settings ?? new Settings();
+	}
+
+	/**
 	 * Registers WooCommerce hooks.
 	 */
 	public function register(): void {
@@ -72,6 +82,10 @@ final class Payment_Processing_Fee {
 	 * Adds the applicable payment processing fee.
 	 */
 	public function add_processing_fee(): void {
+		if ( ! $this->settings->is_payment_processing_fee_enabled() ) {
+			return;
+		}
+
 		if (
 			is_admin() &&
 			! defined( 'DOING_AJAX' )
@@ -165,9 +179,9 @@ final class Payment_Processing_Fee {
 				true
 			)
 		) {
-			return self::HIGHER_FEE_RATE;
+			return $this->settings->get_paypal_payment_processing_fee_rate();
 		}
 
-		return self::STANDARD_FEE_RATE;
+		return $this->settings->get_standard_payment_processing_fee_rate();
 	}
 }

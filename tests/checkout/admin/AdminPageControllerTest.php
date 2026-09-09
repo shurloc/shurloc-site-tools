@@ -141,6 +141,37 @@ final class AdminPageControllerTest extends TestCase {
 	}
 
 	/**
+	 * Tests that the payment processing fees tab displays its settings form.
+	 *
+	 * @return void
+	 */
+	public function test_render_page_displays_payment_processing_fees_tab(): void {
+		$_GET['page'] = Settings_Page::PAGE_SLUG;
+		$_GET['tab']  = 'payment-processing-fees';
+
+		ob_start();
+
+		$this->controller->render_page();
+
+		$output = (string) ob_get_clean();
+
+		$this->assertStringContainsString(
+			'<form action="options.php" method="post">',
+			$output
+		);
+
+		$this->assertStringContainsString(
+			'[payment_processing][enabled]',
+			$output
+		);
+
+		$this->assertStringNotContainsString(
+			'[tariffs][mesh][enabled]',
+			$output
+		);
+	}
+
+	/**
 	 * Tests that an invalid tab falls back to the overview.
 	 *
 	 * @return void
@@ -201,6 +232,27 @@ final class AdminPageControllerTest extends TestCase {
 
 		$this->assertMatchesRegularExpression(
 			'/tab=tariff-fees[^\"]*"[^>]*class="nav-tab nav-tab-active"/',
+			$output
+		);
+	}
+
+	/**
+	 * Tests that the payment processing fees tab is active when selected.
+	 *
+	 * @return void
+	 */
+	public function test_payment_processing_fees_tab_is_active_when_selected(): void {
+		$_GET['page'] = Settings_Page::PAGE_SLUG;
+		$_GET['tab']  = 'payment-processing-fees';
+
+		ob_start();
+
+		$this->controller->render_page();
+
+		$output = (string) ob_get_clean();
+
+		$this->assertMatchesRegularExpression(
+			'/tab=payment-processing-fees[^\"]*"[^>]*class="nav-tab nav-tab-active"/',
 			$output
 		);
 	}

@@ -1052,6 +1052,60 @@ if ( ! function_exists( 'settings_fields' ) ) {
 	}
 }
 
+if ( ! function_exists( 'add_settings_error' ) ) {
+	/**
+	 * Register a test Settings API notice.
+	 *
+	 * @param string $setting Setting name.
+	 * @param string $code    Notice code.
+	 * @param string $message Notice message.
+	 * @param string $type    Notice type.
+	 * @return void
+	 */
+	function add_settings_error(
+		string $setting,
+		string $code,
+		string $message,
+		string $type = 'error'
+	): void {
+		$GLOBALS['shurloc_test_settings_errors'][] = array(
+			'setting' => $setting,
+			'code'    => $code,
+			'message' => $message,
+			'type'    => $type,
+		);
+	}
+}
+
+if ( ! function_exists( 'settings_errors' ) ) {
+	/**
+	 * Render test Settings API notices.
+	 *
+	 * @param string $setting Setting name.
+	 * @return void
+	 */
+	function settings_errors( string $setting = '' ): void {
+		$errors = $GLOBALS['shurloc_test_settings_errors'] ?? array();
+
+		if ( ! is_array( $errors ) ) {
+			return;
+		}
+
+		foreach ( $errors as $error ) {
+			if ( $setting !== $error['setting'] ) {
+				continue;
+			}
+
+			$notice_type = 'updated' === $error['type']
+				? 'success'
+				: $error['type'];
+
+			// phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- Test stub values are escaped below.
+			echo '<div class="notice notice-' . esc_attr( $notice_type ) . ' is-dismissible"><p>' . esc_html( $error['message'] ) . '</p></div>';
+		}
+	}
+}
+
 if ( ! function_exists( 'do_settings_sections' ) ) {
 
 	/**
