@@ -203,6 +203,8 @@ final class Settings_Page {
 
 		$current_settings = $this->settings->get_settings();
 
+		$tariffs_submitted = isset( $input['tariffs'] ) && is_array( $input['tariffs'] );
+
 		$tariffs = isset( $input['tariffs'] ) && is_array( $input['tariffs'] )
 			? $input['tariffs']
 			: $current_settings['tariffs'];
@@ -214,6 +216,14 @@ final class Settings_Page {
 		$sefar = isset( $tariffs['sefar'] ) && is_array( $tariffs['sefar'] )
 			? $tariffs['sefar']
 			: array();
+
+		$tariffs_reset = ! empty( $tariffs['reset'] );
+
+		if ( $tariffs_reset ) {
+			$tariffs = $defaults['tariffs'];
+			$mesh    = $tariffs['mesh'];
+			$sefar   = $tariffs['sefar'];
+		}
 
 		$payment_processing_submitted = isset( $input['payment_processing'] ) && is_array( $input['payment_processing'] );
 
@@ -265,6 +275,17 @@ final class Settings_Page {
 			),
 		);
 
+		if ( $tariffs_submitted ) {
+			add_settings_error(
+				Settings::OPTION_NAME,
+				'tariff-settings-updated',
+				$tariffs_reset
+					? 'Tariff fee settings reset to defaults.'
+					: 'Tariff fee settings saved.',
+				'updated'
+			);
+		}
+
 		if ( $payment_processing_submitted ) {
 			add_settings_error(
 				Settings::OPTION_NAME,
@@ -303,13 +324,28 @@ final class Settings_Page {
 	 * @return void
 	 */
 	public function render_tariff_fees_tab(): void {
+		settings_errors( Settings::OPTION_NAME );
+
 		?>
 		<form action="options.php" method="post">
 			<?php
 			settings_fields( self::SETTINGS_GROUP );
 			do_settings_sections( self::PAGE_SLUG );
-			submit_button();
 			?>
+			<p class="submit">
+				<?php
+				submit_button( 'Save Changes', 'primary', 'submit', false );
+				?>
+				<span aria-hidden="true">&nbsp;</span>
+				<?php
+				submit_button(
+					'Reset to defaults',
+					'secondary',
+					Settings::OPTION_NAME . '[tariffs][reset]',
+					false
+				);
+				?>
+			</p>
 		</form>
 		<?php
 	}
