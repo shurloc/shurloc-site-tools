@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.7.1] - 2026-09-09
+
+### Added
+
+- Added reset-to-defaults controls and save/reset confirmation notices to the Checkout Tools Tariff Fees tab.
+
 ## [0.7.0] - 2026-09-09
 
 ### Added
