@@ -219,6 +219,10 @@ final class Settings_Page {
 			? $input['payment_processing']
 			: $current_settings['payment_processing'];
 
+		if ( ! empty( $payment_processing['reset'] ) ) {
+			$payment_processing = $defaults['payment_processing'];
+		}
+
 		return array(
 			'tariffs'            => array(
 				'mesh'  => array(
@@ -305,6 +309,12 @@ final class Settings_Page {
 			settings_fields( self::SETTINGS_GROUP );
 			do_settings_sections( self::PAYMENT_PROCESSING_PAGE );
 			submit_button();
+			submit_button(
+				'Reset to defaults',
+				'secondary',
+				Settings::OPTION_NAME . '[payment_processing][reset]',
+				false
+			);
 			?>
 		</form>
 		<?php

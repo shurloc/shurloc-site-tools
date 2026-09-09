@@ -327,6 +327,55 @@ final class SettingsPageTest extends TestCase {
 	}
 
 	/**
+	 * Tests that payment processing settings reset without changing tariffs.
+	 *
+	 * @return void
+	 */
+	public function test_payment_processing_settings_can_be_reset_to_defaults(): void {
+		$sanitized = $this->settings_page->sanitize_settings(
+			input: array(
+				'tariffs'            => array(
+					'mesh'  => array(
+						'enabled' => '0',
+						'rate'    => '4.00',
+						'message' => 'Custom mesh message.',
+					),
+					'sefar' => array(
+						'enabled' => '1',
+						'rate'    => '10.00',
+						'message' => 'Custom Sefar message.',
+					),
+				),
+				'payment_processing' => array(
+					'enabled'       => '0',
+					'standard_rate' => '2.00',
+					'paypal_rate'   => '2.50',
+					'reset'         => 'Reset to defaults',
+				),
+			)
+		);
+
+		$this->assertSame(
+			array(
+				'enabled'       => true,
+				'standard_rate' => 1.5,
+				'paypal_rate'   => 1.75,
+			),
+			$sanitized['payment_processing']
+		);
+
+		$this->assertSame(
+			4.0,
+			$sanitized['tariffs']['mesh']['rate']
+		);
+
+		$this->assertSame(
+			'Custom Sefar message.',
+			$sanitized['tariffs']['sefar']['message']
+		);
+	}
+
+	/**
 	 * Tests that explicit zero enabled values are sanitized as disabled.
 	 *
 	 * @return void
@@ -714,6 +763,16 @@ final class SettingsPageTest extends TestCase {
 
 		$this->assertStringNotContainsString(
 			'[tariffs][mesh][enabled]',
+			$output
+		);
+
+		$this->assertStringContainsString(
+			'Reset to defaults',
+			$output
+		);
+
+		$this->assertStringContainsString(
+			'[payment_processing][reset]',
 			$output
 		);
 	}
