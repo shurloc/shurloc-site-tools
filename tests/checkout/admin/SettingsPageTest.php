@@ -45,6 +45,7 @@ final class SettingsPageTest extends TestCase {
 		$GLOBALS['shurloc_test_registered_settings'] = array();
 		$GLOBALS['shurloc_test_settings_sections']   = array();
 		$GLOBALS['shurloc_test_settings_fields']     = array();
+		$GLOBALS['shurloc_test_settings_errors']     = array();
 		$GLOBALS['shurloc_test_user_capabilities']   = array(
 			'manage_options' => true,
 		);
@@ -71,6 +72,7 @@ final class SettingsPageTest extends TestCase {
 			$GLOBALS['shurloc_test_registered_settings'],
 			$GLOBALS['shurloc_test_settings_sections'],
 			$GLOBALS['shurloc_test_settings_fields'],
+			$GLOBALS['shurloc_test_settings_errors'],
 			$GLOBALS['shurloc_test_user_capabilities']
 		);
 
@@ -787,12 +789,18 @@ final class SettingsPageTest extends TestCase {
 	}
 
 	/**
-	 * Tests that a payment processing save displays a success notice.
+	 * Tests that resetting payment processing settings displays a success notice.
 	 *
 	 * @return void
 	 */
-	public function test_render_payment_processing_fees_tab_displays_success_notice_after_save(): void {
-		$_GET['settings-updated'] = 'true';
+	public function test_reset_payment_processing_settings_displays_success_notice(): void {
+		$this->settings_page->sanitize_settings(
+			input: array(
+				'payment_processing' => array(
+					'reset' => 'Reset to defaults',
+				),
+			)
+		);
 
 		ob_start();
 
@@ -806,7 +814,7 @@ final class SettingsPageTest extends TestCase {
 		);
 
 		$this->assertStringContainsString(
-			'Payment processing fee settings saved.',
+			'Payment processing fee settings reset to defaults.',
 			$output
 		);
 	}

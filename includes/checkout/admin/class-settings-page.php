@@ -215,15 +215,19 @@ final class Settings_Page {
 			? $tariffs['sefar']
 			: array();
 
-		$payment_processing = isset( $input['payment_processing'] ) && is_array( $input['payment_processing'] )
+		$payment_processing_submitted = isset( $input['payment_processing'] ) && is_array( $input['payment_processing'] );
+
+		$payment_processing = $payment_processing_submitted
 			? $input['payment_processing']
 			: $current_settings['payment_processing'];
 
-		if ( ! empty( $payment_processing['reset'] ) ) {
+		$payment_processing_reset = ! empty( $payment_processing['reset'] );
+
+		if ( $payment_processing_reset ) {
 			$payment_processing = $defaults['payment_processing'];
 		}
 
-		return array(
+		$sanitized = array(
 			'tariffs'            => array(
 				'mesh'  => array(
 					'enabled' => ! empty( $mesh['enabled'] ),
@@ -260,6 +264,19 @@ final class Settings_Page {
 				),
 			),
 		);
+
+		if ( $payment_processing_submitted ) {
+			add_settings_error(
+				Settings::OPTION_NAME,
+				'payment-processing-settings-updated',
+				$payment_processing_reset
+					? 'Payment processing fee settings reset to defaults.'
+					: 'Payment processing fee settings saved.',
+				'updated'
+			);
+		}
+
+		return $sanitized;
 	}
 
 	/**
@@ -303,7 +320,7 @@ final class Settings_Page {
 	 * @return void
 	 */
 	public function render_payment_processing_fees_tab(): void {
-		$this->render_payment_processing_success_notice();
+		settings_errors( Settings::OPTION_NAME );
 
 		?>
 		<form action="options.php" method="post">
@@ -326,35 +343,6 @@ final class Settings_Page {
 				?>
 			</p>
 		</form>
-		<?php
-	}
-
-	/**
-	 * Renders the payment processing settings success notice.
-	 *
-	 * @return void
-	 */
-	private function render_payment_processing_success_notice(): void {
-
-		// phpcs:ignore WordPress.Security.NonceVerification.Recommended -- Read-only display of the Settings API redirect flag.
-		if ( ! isset( $_GET['settings-updated'] ) ) {
-			return;
-		}
-
-		$settings_updated = sanitize_text_field(
-			// phpcs:ignore WordPress.Security.NonceVerification.Recommended -- Read-only display of the Settings API redirect flag.
-			wp_unslash( $_GET['settings-updated'] )
-		);
-
-		if ( 'true' !== $settings_updated ) {
-			return;
-		}
-		?>
-		<div class="notice notice-success is-dismissible">
-			<p>
-				<?php esc_html_e( 'Payment processing fee settings saved.', 'shurloc-site-tools' ); ?>
-			</p>
-		</div>
 		<?php
 	}
 
