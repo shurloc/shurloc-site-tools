@@ -709,7 +709,7 @@ final class SettingsPageTest extends TestCase {
 	}
 
 	/**
-	 * Tests that the tariff fees renderer emits only the settings form.
+	 * Tests that the tariff fees renderer emits its settings form.
 	 *
 	 * @return void
 	 */
@@ -739,6 +739,82 @@ final class SettingsPageTest extends TestCase {
 
 		$this->assertStringContainsString(
 			'[tariffs][mesh][enabled]',
+			$output
+		);
+
+		$this->assertStringContainsString(
+			'Reset to defaults',
+			$output
+		);
+
+		$this->assertStringContainsString(
+			'[tariffs][reset]',
+			$output
+		);
+
+		$this->assertMatchesRegularExpression(
+			'/<p class="submit">\s*<input[^>]+Save Changes[^>]*>\s*<span aria-hidden="true">&nbsp;<\\/span>\s*<input[^>]+Reset to defaults[^>]*>\s*<\\/p>/',
+			$output
+		);
+	}
+
+	/**
+	 * Tests that resetting tariff settings displays a success notice.
+	 *
+	 * @return void
+	 */
+	public function test_reset_tariff_settings_displays_success_notice(): void {
+		$this->settings_page->sanitize_settings(
+			input: array(
+				'tariffs' => array(
+					'reset' => 'Reset to defaults',
+				),
+			)
+		);
+
+		ob_start();
+
+		$this->settings_page->render_tariff_fees_tab();
+
+		$output = (string) ob_get_clean();
+
+		$this->assertStringContainsString(
+			'notice notice-success is-dismissible',
+			$output
+		);
+
+		$this->assertStringContainsString(
+			'Tariff fee settings reset to defaults.',
+			$output
+		);
+	}
+
+	/**
+	 * Tests that saving tariff settings displays a success notice.
+	 *
+	 * @return void
+	 */
+	public function test_save_tariff_settings_displays_success_notice(): void {
+		$this->settings_page->sanitize_settings(
+			input: array(
+				'tariffs' => array(
+					'mesh' => array(
+						'enabled' => '1',
+						'rate'    => '3',
+						'message' => 'Tariff message.',
+					),
+				),
+			)
+		);
+
+		ob_start();
+
+		$this->settings_page->render_tariff_fees_tab();
+
+		$output = (string) ob_get_clean();
+
+		$this->assertStringContainsString(
+			'Tariff fee settings saved.',
 			$output
 		);
 	}
