@@ -1085,7 +1085,13 @@ if ( ! function_exists( 'settings_errors' ) ) {
 	 * @return void
 	 */
 	function settings_errors( string $setting = '' ): void {
-		foreach ( $GLOBALS['shurloc_test_settings_errors'] as $error ) {
+		$errors = $GLOBALS['shurloc_test_settings_errors'] ?? array();
+
+		if ( ! is_array( $errors ) ) {
+			return;
+		}
+
+		foreach ( $errors as $error ) {
 			if ( $setting !== $error['setting'] ) {
 				continue;
 			}
