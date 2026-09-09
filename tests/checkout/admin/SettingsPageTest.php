@@ -775,5 +775,10 @@ final class SettingsPageTest extends TestCase {
 			'[payment_processing][reset]',
 			$output
 		);
+
+		$this->assertMatchesRegularExpression(
+			'/<p class="submit">\s*<input[^>]+Save Changes[^>]*>\s*<input[^>]+Reset to defaults[^>]*>\s*<\/p>/',
+			$output
+		);
 	}
 }

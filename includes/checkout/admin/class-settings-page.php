@@ -308,13 +308,18 @@ final class Settings_Page {
 			<?php
 			settings_fields( self::SETTINGS_GROUP );
 			do_settings_sections( self::PAYMENT_PROCESSING_PAGE );
-			submit_button();
-			submit_button(
-				'Reset to defaults',
-				'secondary',
-				Settings::OPTION_NAME . '[payment_processing][reset]',
-				false
-			);
+			?>
+			<p class="submit">
+				<?php
+				submit_button( 'Save Changes', 'primary', 'submit', false );
+				submit_button(
+					'Reset to defaults',
+					'secondary',
+					Settings::OPTION_NAME . '[payment_processing][reset]',
+					false
+				);
+				?>
+			</p>
 			?>
 		</form>
 		<?php
