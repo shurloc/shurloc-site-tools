@@ -66,11 +66,11 @@ final class FAQSchemaParserTest extends TestCase {
 	}
 
 	/**
-	 * Verify content without H3 headings returns no FAQ items.
+	 * Verify content without question headings returns no FAQ items.
 	 *
 	 * @return void
 	 */
-	public function test_parse_returns_empty_array_without_h3_headings(): void {
+	public function test_parse_returns_empty_array_without_question_headings(): void {
 
 		$content = '
 			<h2>Frequently Asked Questions</h2>
@@ -113,6 +113,35 @@ final class FAQSchemaParserTest extends TestCase {
 				),
 			),
 			$result
+		);
+	}
+
+	/**
+	 * Verify a valid H2 FAQ item is parsed.
+	 *
+	 * @return void
+	 */
+	public function test_parse_returns_valid_h2_faq_item(): void {
+
+		$content = '
+			<h2>What is Shur-loc mesh?</h2>
+			<p>
+				Shur-loc mesh is used for screening and filtration
+				applications in many industries.
+			</p>
+		';
+
+		self::assertSame(
+			array(
+				array(
+					'question' => 'What is Shur-loc mesh?',
+					'answer'   =>
+						'Shur-loc mesh is used for screening and filtration applications in many industries.',
+				),
+			),
+			$this->parser->parse(
+				content: $content,
+			)
 		);
 	}
 

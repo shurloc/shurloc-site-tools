@@ -38,7 +38,7 @@ final class FAQ_Schema_Parser {
 	/**
 	 * Parse rendered FAQ HTML.
 	 *
-	 * Only H3 elements whose text ends with a question mark are treated as
+	 * Only H2 and H3 elements whose text ends with a question mark are treated as
 	 * potential FAQ questions. The answer consists of following element
 	 * siblings until another heading element is encountered.
 	 *
@@ -79,7 +79,7 @@ final class FAQ_Schema_Parser {
 
 		$xpath = new DOMXPath( $dom );
 
-		$headings = $xpath->query( '//h3' );
+		$headings = $xpath->query( '//h2 | //h3' );
 
 		if (
 			false === $headings ||
