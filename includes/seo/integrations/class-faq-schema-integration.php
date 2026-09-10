@@ -29,7 +29,7 @@ final class FAQ_Schema_Integration {
 	 *
 	 * @var array<int,int>
 	 */
-	private const FAQ_PAGE_IDS = array(
+	public const FAQ_PAGE_IDS = array(
 		2190,
 		269645,
 		269656,

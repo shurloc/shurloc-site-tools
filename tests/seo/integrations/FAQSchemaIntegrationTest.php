@@ -216,73 +216,13 @@ final class FAQSchemaIntegrationTest extends TestCase {
 	}
 
 	/**
-	 * Verify valid FAQ schema is rendered.
+	 * Verify valid FAQ schema is rendered for each configured FAQ page.
 	 *
 	 * @return void
 	 */
 	public function test_render_schema_outputs_faq_json_ld(): void {
 
-		$GLOBALS['shurloc_test_page_id'] = 2190;
-
-		$GLOBALS['shurloc_test_post'] =
-			new WP_Post(
-				(object) array(
-					'ID'           => 2190,
-					'post_content' => '
-						<h3>What is Shur-loc mesh?</h3>
-						<p>
-							Shur-loc mesh is used for screening and filtration
-							applications in many industries.
-						</p>
-					',
-				)
-			);
-
-		ob_start();
-
-		$this->integration->render_schema();
-
-		$output = (string) ob_get_clean();
-
-		self::assertStringContainsString(
-			'<script type="application/ld+json">',
-			$output
-		);
-
-		self::assertStringContainsString(
-			'"@context":"https://schema.org"',
-			$output
-		);
-
-		self::assertStringContainsString(
-			'"@type":"FAQPage"',
-			$output
-		);
-
-		self::assertStringContainsString(
-			'"name":"What is Shur-loc mesh?"',
-			$output
-		);
-
-		self::assertStringContainsString(
-			'"@type":"Answer"',
-			$output
-		);
-
-		self::assertStringContainsString(
-			'Shur-loc mesh is used for screening and filtration applications in many industries.',
-			$output
-		);
-	}
-
-	/**
-	 * Verify schema is rendered for additional configured FAQ pages.
-	 *
-	 * @return void
-	 */
-	public function test_render_schema_outputs_schema_for_additional_faq_pages(): void {
-
-		foreach ( array( 269645, 269656, 269679, 269683 ) as $page_id ) {
+		foreach ( FAQ_Schema_Integration::FAQ_PAGE_IDS as $page_id ) {
 			$GLOBALS['shurloc_test_page_id'] = $page_id;
 
 			$GLOBALS['shurloc_test_post'] =
@@ -290,10 +230,10 @@ final class FAQSchemaIntegrationTest extends TestCase {
 					(object) array(
 						'ID'           => $page_id,
 						'post_content' => '
-							<h3>What is a configured FAQ page?</h3>
+							<h3>What is Shur-loc mesh?</h3>
 							<p>
-								Configured FAQ pages produce FAQ schema from their
-								rendered content.
+								Shur-loc mesh is used for screening and filtration
+								applications in many industries.
 							</p>
 						',
 					)
@@ -306,7 +246,32 @@ final class FAQSchemaIntegrationTest extends TestCase {
 			$output = (string) ob_get_clean();
 
 			self::assertStringContainsString(
+				'<script type="application/ld+json">',
+				$output
+			);
+
+			self::assertStringContainsString(
+				'"@context":"https://schema.org"',
+				$output
+			);
+
+			self::assertStringContainsString(
 				'"@type":"FAQPage"',
+				$output
+			);
+
+			self::assertStringContainsString(
+				'"name":"What is Shur-loc mesh?"',
+				$output
+			);
+
+			self::assertStringContainsString(
+				'"@type":"Answer"',
+				$output
+			);
+
+			self::assertStringContainsString(
+				'Shur-loc mesh is used for screening and filtration applications in many industries.',
 				$output
 			);
 		}
