@@ -276,6 +276,43 @@ final class FAQSchemaIntegrationTest extends TestCase {
 	}
 
 	/**
+	 * Verify schema is rendered for additional configured FAQ pages.
+	 *
+	 * @return void
+	 */
+	public function test_render_schema_outputs_schema_for_additional_faq_pages(): void {
+
+		foreach ( array( 269645, 269656 ) as $page_id ) {
+			$GLOBALS['shurloc_test_page_id'] = $page_id;
+
+			$GLOBALS['shurloc_test_post'] =
+				new WP_Post(
+					(object) array(
+						'ID'           => $page_id,
+						'post_content' => '
+							<h3>What is a configured FAQ page?</h3>
+							<p>
+								Configured FAQ pages produce FAQ schema from their
+								rendered content.
+							</p>
+						',
+					)
+				);
+
+			ob_start();
+
+			$this->integration->render_schema();
+
+			$output = (string) ob_get_clean();
+
+			self::assertStringContainsString(
+				'"@type":"FAQPage"',
+				$output
+			);
+		}
+	}
+
+	/**
 	 * Verify filtered content is used rather than raw post content.
 	 *
 	 * @return void

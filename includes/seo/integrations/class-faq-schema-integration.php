@@ -23,11 +23,17 @@ use WP_Post;
 final class FAQ_Schema_Integration {
 
 	/**
-	 * FAQ page ID.
+	 * FAQ page IDs.
 	 *
-	 * @var int
+	 * Add FAQ page IDs here as more pages need FAQ schema.
+	 *
+	 * @var array<int,int>
 	 */
-	private const FAQ_PAGE_ID = 2190;
+	private const FAQ_PAGE_IDS = array(
+		2190,
+		269645,
+		269656,
+	);
 
 	/**
 	 * FAQ schema parser.
@@ -82,7 +88,7 @@ final class FAQ_Schema_Integration {
 	 */
 	public function render_schema(): void {
 
-		if ( ! is_page( self::FAQ_PAGE_ID ) ) {
+		if ( ! is_page( self::FAQ_PAGE_IDS ) ) {
 			return;
 		}
 
