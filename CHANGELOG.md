@@ -1,5 +1,15 @@
 # Changelog
 
+## [0.7.2] - 2026-09-10
+
+### Added
+
+- Added FAQPage schema generation for the configured additional FAQ pages.
+
+### Changed
+
+- Updated FAQ schema parsing to recognize question headings in both H2 and H3 elements.
+
 ## [0.7.1] - 2026-09-09
 
 ### Added
