@@ -33,6 +33,8 @@ final class FAQ_Schema_Integration {
 		2190,
 		269645,
 		269656,
+		269679,
+		269683,
 	);
 
 	/**

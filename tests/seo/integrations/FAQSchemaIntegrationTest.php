@@ -282,7 +282,7 @@ final class FAQSchemaIntegrationTest extends TestCase {
 	 */
 	public function test_render_schema_outputs_schema_for_additional_faq_pages(): void {
 
-		foreach ( array( 269645, 269656 ) as $page_id ) {
+		foreach ( array( 269645, 269656, 269679, 269683 ) as $page_id ) {
 			$GLOBALS['shurloc_test_page_id'] = $page_id;
 
 			$GLOBALS['shurloc_test_post'] =
