@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.7.3] - 2026-09-14
+
+### Changed
+
+- Moved the Mesh Specifications product tab before the Reviews tab.
+
 ## [0.7.2] - 2026-09-10
 
 ### Added
