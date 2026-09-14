@@ -77,7 +77,7 @@ final class Mesh_Product_Table_Tab {
 
 		$tabs['shurloc_mesh_specifications'] = array(
 			'title'    => __( 'Mesh Specifications', 'shurloc-site-tools' ),
-			'priority' => 35,
+			'priority' => 25,
 			'callback' => array(
 				$this,
 				'render_tab',
