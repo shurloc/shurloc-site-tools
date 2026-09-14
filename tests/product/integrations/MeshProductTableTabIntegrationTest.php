@@ -130,7 +130,7 @@ final class MeshProductTableTabIntegrationTest extends TestCase {
 		);
 
 		$this->assertSame(
-			35,
+			25,
 			$tabs['shurloc_mesh_specifications']['priority']
 		);
 
