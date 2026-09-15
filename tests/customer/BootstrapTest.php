@@ -10,6 +10,7 @@ declare( strict_types=1 );
 namespace Shurloc\SiteTools\Customer;
 
 use PHPUnit\Framework\TestCase;
+use Shurloc\SiteTools\Customer\Admin\Carts_Controller;
 use Shurloc\SiteTools\Customer\Admin\User_Cart_Column;
 use Shurloc\SiteTools\Customer\Admin\User_Filters;
 
@@ -104,6 +105,20 @@ final class BootstrapTest extends TestCase {
 		self::assertArrayHasKey(
 			'admin_enqueue_scripts',
 			$GLOBALS['shurloc_test_actions']
+		);
+
+		$carts_controller_callbacks = array_filter(
+			$GLOBALS['shurloc_test_actions']['admin_enqueue_scripts'],
+			static function ( mixed $callback ): bool {
+				return is_array( $callback ) &&
+					isset( $callback[0] ) &&
+					$callback[0] instanceof Carts_Controller;
+			}
+		);
+
+		self::assertCount(
+			1,
+			$carts_controller_callbacks
 		);
 
 		self::assertArrayHasKey(

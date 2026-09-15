@@ -35,15 +35,25 @@ final class Admin_Page_Controller implements Admin_Page_Interface {
 	private Customer_Migrations_Controller $migrations_controller;
 
 	/**
+	 * Carts controller.
+	 *
+	 * @var Carts_Controller
+	 */
+	private Carts_Controller $carts_controller;
+
+	/**
 	 * Constructor.
 	 *
 	 * @param Customer_Migrations_Controller $migrations_controller Migrations controller.
+	 * @param Carts_Controller               $carts_controller      Carts controller.
 	 */
 	public function __construct(
-		Customer_Migrations_Controller $migrations_controller
+		Customer_Migrations_Controller $migrations_controller,
+		Carts_Controller $carts_controller
 	) {
 
 		$this->migrations_controller = $migrations_controller;
+		$this->carts_controller      = $carts_controller;
 	}
 
 	/**
@@ -81,6 +91,18 @@ final class Admin_Page_Controller implements Admin_Page_Interface {
 				</a>
 
 				<a
+					href="<?php echo esc_url( $this->get_tab_url( tab: 'carts' ) ); ?>"
+					class="nav-tab <?php echo 'carts' === $current_tab ? 'nav-tab-active' : ''; ?>"
+				>
+					<?php
+					echo esc_html__(
+						'Carts',
+						'shurloc-site-tools'
+					);
+					?>
+				</a>
+
+				<a
 					href="<?php echo esc_url( $this->get_tab_url( tab: 'migrations' ) ); ?>"
 					class="nav-tab <?php echo 'migrations' === $current_tab ? 'nav-tab-active' : ''; ?>"
 				>
@@ -94,6 +116,12 @@ final class Admin_Page_Controller implements Admin_Page_Interface {
 			</nav>
 
 			<?php
+			if ( 'carts' === $current_tab ) {
+				$this->carts_controller->render();
+
+				return;
+			}
+
 			if ( 'migrations' === $current_tab ) {
 				$this->migrations_controller->render();
 
@@ -154,6 +182,7 @@ final class Admin_Page_Controller implements Admin_Page_Interface {
 				$tab,
 				array(
 					'overview',
+					'carts',
 					'migrations',
 				),
 				true
