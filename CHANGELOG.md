@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.7.4] - 2026-09-15
+
+### Fixed
+
+- Kept customer cart preview modals fully visible within the admin viewport.
+
 ## [0.7.3] - 2026-09-14
 
 ### Changed
