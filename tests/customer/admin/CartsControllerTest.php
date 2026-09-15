@@ -114,6 +114,12 @@ final class CartsControllerTest extends TestCase {
 			array( $this->controller, 'enqueue_assets' ),
 			$GLOBALS['shurloc_test_actions']['admin_enqueue_scripts']
 		);
+
+		self::assertSame(
+			0,
+			$GLOBALS['shurloc_test_action_metadata']
+				['admin_enqueue_scripts'][0]['accepted_args']
+		);
 	}
 
 	/**
@@ -123,11 +129,10 @@ final class CartsControllerTest extends TestCase {
 	 */
 	public function test_assets_enqueue_only_on_carts_tab(): void {
 
-		$_GET['tab'] = 'carts';
+		$_GET['page'] = 'shurloc-site-tools-customers';
+		$_GET['tab']  = 'carts';
 
-		$this->controller->enqueue_assets(
-			hook_suffix: 'shurloc-site-tools_page_shurloc-site-tools-customers',
-		);
+		$this->controller->enqueue_assets();
 
 		self::assertArrayHasKey(
 			'shurloc-user-cart-column',
@@ -142,9 +147,23 @@ final class CartsControllerTest extends TestCase {
 		$GLOBALS['shurloc_test_enqueued_scripts'] = array();
 		$_GET['tab']                              = 'overview';
 
-		$this->controller->enqueue_assets(
-			hook_suffix: 'shurloc-site-tools_page_shurloc-site-tools-customers',
-		);
+		$this->controller->enqueue_assets();
+
+		self::assertSame( array(), $GLOBALS['shurloc_test_styles'] );
+		self::assertSame( array(), $GLOBALS['shurloc_test_enqueued_scripts'] );
+	}
+
+	/**
+	 * Verify cart-modal assets do not load on another admin page.
+	 *
+	 * @return void
+	 */
+	public function test_assets_do_not_enqueue_on_another_admin_page(): void {
+
+		$_GET['page'] = 'another-admin-page';
+		$_GET['tab']  = 'carts';
+
+		$this->controller->enqueue_assets();
 
 		self::assertSame( array(), $GLOBALS['shurloc_test_styles'] );
 		self::assertSame( array(), $GLOBALS['shurloc_test_enqueued_scripts'] );

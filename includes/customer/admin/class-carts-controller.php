@@ -36,14 +36,6 @@ final class Carts_Controller {
 	private const TAB_SLUG = 'carts';
 
 	/**
-	 * Customer Tools admin hook suffix.
-	 *
-	 * @var string
-	 */
-	private const HOOK_SUFFIX =
-		'shurloc-site-tools_page_shurloc-site-tools-customers';
-
-	/**
 	 * Shared cart asset handle.
 	 *
 	 * @var string
@@ -108,22 +100,21 @@ final class Carts_Controller {
 
 		add_action(
 			'admin_enqueue_scripts',
-			array( $this, 'enqueue_assets' )
+			array( $this, 'enqueue_assets' ),
+			10,
+			0
 		);
 	}
 
 	/**
 	 * Enqueue shared cart-modal assets only on the Carts tab.
 	 *
-	 * @param string $hook_suffix Current admin hook suffix.
 	 * @return void
 	 */
-	public function enqueue_assets(
-		string $hook_suffix
-	): void {
+	public function enqueue_assets(): void {
 
 		if (
-			self::HOOK_SUFFIX !== $hook_suffix ||
+			self::PAGE_SLUG !== $this->get_request_value( key: 'page' ) ||
 			self::TAB_SLUG !== $this->get_request_value( key: 'tab' )
 		) {
 			return;
