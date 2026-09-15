@@ -13,6 +13,7 @@ defined( 'ABSPATH' ) || exit;
 
 use Shurloc\SiteTools\Customer\Admin\Admin_Menu;
 use Shurloc\SiteTools\Customer\Admin\Admin_Page_Controller;
+use Shurloc\SiteTools\Customer\Admin\Cart_Details_Renderer;
 use Shurloc\SiteTools\Customer\Admin\Customer_Migrations_Controller;
 use Shurloc\SiteTools\Customer\Admin\User_Activity_Columns;
 use Shurloc\SiteTools\Customer\Admin\User_Activity_Filters;
@@ -42,6 +43,7 @@ final class Bootstrap {
 	public function register(): void {
 
 		$relative_time_formatter = new Relative_Time_Formatter();
+		$cart_details_renderer   = new Cart_Details_Renderer();
 
 		$user_activity_service = new User_Activity_Service();
 		$user_activity_service->register();
@@ -85,7 +87,9 @@ final class Bootstrap {
 		);
 		$user_purchase_columns->register();
 
-		$user_cart_column = new User_Cart_Column();
+		$user_cart_column = new User_Cart_Column(
+			cart_details_renderer: $cart_details_renderer,
+		);
 		$user_cart_column->register();
 
 		$user_filters = new User_Filters();

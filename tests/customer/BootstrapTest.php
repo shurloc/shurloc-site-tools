@@ -10,6 +10,7 @@ declare( strict_types=1 );
 namespace Shurloc\SiteTools\Customer;
 
 use PHPUnit\Framework\TestCase;
+use Shurloc\SiteTools\Customer\Admin\User_Cart_Column;
 use Shurloc\SiteTools\Customer\Admin\User_Filters;
 
 /**
@@ -113,6 +114,20 @@ final class BootstrapTest extends TestCase {
 		self::assertArrayHasKey(
 			'manage_users_custom_column',
 			$GLOBALS['shurloc_test_filters']
+		);
+
+		$cart_column_callbacks = array_filter(
+			$GLOBALS['shurloc_test_filters']['manage_users_columns'],
+			static function ( mixed $callback ): bool {
+				return is_array( $callback ) &&
+					isset( $callback[0] ) &&
+					$callback[0] instanceof User_Cart_Column;
+			}
+		);
+
+		self::assertCount(
+			1,
+			$cart_column_callbacks
 		);
 
 		self::assertArrayHasKey(

@@ -42,7 +42,9 @@ final class UserCartColumnTest extends TestCase {
 		$GLOBALS['shurloc_test_enqueued_scripts'] = array();
 		$GLOBALS['shurloc_test_permalinks']       = array();
 
-		$this->cart_column = new User_Cart_Column();
+		$this->cart_column = new User_Cart_Column(
+			cart_details_renderer: new Cart_Details_Renderer(),
+		);
 	}
 
 	/**
@@ -349,6 +351,16 @@ final class UserCartColumnTest extends TestCase {
 
 		self::assertStringContainsString(
 			'(TEST-123)',
+			$result
+		);
+
+		self::assertStringContainsString(
+			'class="shurloc-cart-line-total"',
+			$result
+		);
+
+		self::assertStringContainsString(
+			'$50.00',
 			$result
 		);
 	}
