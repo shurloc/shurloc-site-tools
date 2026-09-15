@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.8.0] - 2026-09-15
+
+### Added
+
+- Added a Customer Tools Carts tab for viewing authenticated and guest WooCommerce carts with visitor filters, activity statuses, pagination, and shared cart-detail modals.
+
 ## [0.7.4] - 2026-09-15
 
 ### Fixed
