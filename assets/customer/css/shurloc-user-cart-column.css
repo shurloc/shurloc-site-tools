@@ -18,14 +18,16 @@
 
 .shurloc-cart-panel {
 	display: none;
-	position: absolute;
-	top: 100%;
+	position: fixed;
+	top: 0;
 	left: 0;
 	z-index: 9999;
 
 	width: 380px;
-	margin-top: 6px;
+	max-width: calc( 100vw - 16px );
+	margin-top: 0;
 	padding: 10px 12px;
+	box-sizing: border-box;
 
 	color: #1d2327;
 	background: #ffffff;
