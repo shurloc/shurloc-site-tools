@@ -36,6 +36,25 @@ final class User_Cart_Column {
 	private const ASSET_HANDLE = 'shurloc-user-cart-column';
 
 	/**
+	 * Shared cart details renderer.
+	 *
+	 * @var Cart_Details_Renderer
+	 */
+	private Cart_Details_Renderer $cart_details_renderer;
+
+	/**
+	 * Constructor.
+	 *
+	 * @param Cart_Details_Renderer $cart_details_renderer Shared cart details renderer.
+	 */
+	public function __construct(
+		Cart_Details_Renderer $cart_details_renderer
+	) {
+
+		$this->cart_details_renderer = $cart_details_renderer;
+	}
+
+	/**
 	 * Register WordPress hooks.
 	 *
 	 * @return void
@@ -131,8 +150,8 @@ final class User_Cart_Column {
 			$contents = array();
 		}
 
-		return $this->render_cart(
-			user_id: $user_id,
+		return $this->cart_details_renderer->render(
+			reference: (string) $user_id,
 			item_count: $item_count,
 			total: $total,
 			contents: $contents,
@@ -168,280 +187,6 @@ final class User_Cart_Column {
 			array(),
 			SHURLOC_SITE_TOOLS_VERSION,
 			true
-		);
-	}
-
-	/**
-	 * Render a stored cart snapshot.
-	 *
-	 * @param int              $user_id    User ID.
-	 * @param int              $item_count Total cart item quantity.
-	 * @param float            $total      Cart contents total.
-	 * @param array<int,mixed> $contents   Stored cart contents.
-	 * @return string
-	 */
-	private function render_cart(
-		int $user_id,
-		int $item_count,
-		float $total,
-		array $contents
-	): string {
-
-		$panel_id = 'shurloc-cart-panel-' . $user_id;
-
-		ob_start();
-		?>
-
-		<div class="shurloc-cart-wrap">
-
-			<a
-				href="#"
-				class="shurloc-cart-toggle"
-				data-target="<?php echo esc_attr( $panel_id ); ?>"
-			>
-				<strong>
-					<?php echo esc_html( (string) $item_count ); ?>
-					<?php
-					echo esc_html(
-						_n(
-							'item',
-							'items',
-							$item_count,
-							'shurloc-site-tools'
-						)
-					);
-					?>
-				</strong>
-			</a>
-
-			<br>
-
-			<?php echo wp_kses_post( wc_price( $total ) ); ?>
-
-			<div
-				id="<?php echo esc_attr( $panel_id ); ?>"
-				class="shurloc-cart-panel"
-			>
-
-				<div class="shurloc-cart-panel-header">
-
-					<strong>
-						<?php
-						echo esc_html__(
-							'Cart Details',
-							'shurloc-site-tools'
-						);
-						?>
-					</strong>
-
-					<a
-						href="#"
-						class="shurloc-cart-close"
-						aria-label="<?php echo esc_attr__( 'Close cart details', 'shurloc-site-tools' ); ?>"
-					>
-						&times;
-					</a>
-
-				</div>
-
-				<?php foreach ( $contents as $item ) : ?>
-
-					<?php
-					if ( ! is_array( $item ) ) {
-						continue;
-					}
-
-					$this->render_cart_item(
-						item: $item,
-					);
-					?>
-
-				<?php endforeach; ?>
-
-			</div>
-
-		</div>
-
-		<?php
-
-		$output = ob_get_clean();
-
-		return is_string( $output )
-			? $output
-			: '';
-	}
-
-	/**
-	 * Render a stored cart item.
-	 *
-	 * Supports both the original seeded cart snapshot shape and newer
-	 * snapshots containing optional variation attributes.
-	 *
-	 * @param array<string,mixed> $item Stored cart item.
-	 * @return void
-	 */
-	private function render_cart_item(
-		array $item
-	): void {
-
-		$product_id = isset( $item['product_id'] )
-			? (int) $item['product_id']
-			: 0;
-
-		$variation_id = isset( $item['variation_id'] )
-			? (int) $item['variation_id']
-			: 0;
-
-		$quantity = isset( $item['quantity'] )
-			? (int) $item['quantity']
-			: 0;
-
-		$name = isset( $item['name'] ) && is_string( $item['name'] )
-			? $item['name']
-			: '';
-
-		$sku = isset( $item['sku'] ) && is_string( $item['sku'] )
-			? $item['sku']
-			: '';
-
-		$product_url = $this->get_product_url(
-			product_id: $product_id,
-			variation_id: $variation_id,
-		);
-
-		$attributes = $this->get_variation_attributes_text(
-			item: $item,
-		);
-		?>
-
-		<div class="shurloc-cart-row">
-
-			<?php echo esc_html( (string) $quantity ); ?> ×
-
-			<?php if ( '' !== $product_url ) : ?>
-
-				<a
-					href="<?php echo esc_url( $product_url ); ?>"
-					target="_blank"
-					rel="noopener noreferrer"
-				>
-					<?php echo esc_html( $name ); ?>
-				</a>
-
-			<?php else : ?>
-
-				<?php echo esc_html( $name ); ?>
-
-			<?php endif; ?>
-
-			<?php if ( '' !== $sku ) : ?>
-
-				<span class="shurloc-cart-sku">
-					(<?php echo esc_html( $sku ); ?>)
-				</span>
-
-			<?php endif; ?>
-
-			<?php if ( '' !== $attributes ) : ?>
-
-				<div class="shurloc-cart-attrs">
-					<?php echo esc_html( $attributes ); ?>
-				</div>
-
-			<?php endif; ?>
-
-		</div>
-
-		<?php
-	}
-
-	/**
-	 * Get the product URL for a stored cart item.
-	 *
-	 * Prefer the variation URL when available and fall back to the parent
-	 * product URL.
-	 *
-	 * @param int $product_id   Parent product ID.
-	 * @param int $variation_id Variation ID.
-	 * @return string
-	 */
-	private function get_product_url(
-		int $product_id,
-		int $variation_id
-	): string {
-
-		if ( 0 < $variation_id ) {
-
-			$url = get_permalink( $variation_id );
-
-			if ( is_string( $url ) && '' !== $url ) {
-				return $url;
-			}
-		}
-
-		if ( 0 >= $product_id ) {
-			return '';
-		}
-
-		$url = get_permalink( $product_id );
-
-		return is_string( $url )
-			? $url
-			: '';
-	}
-
-	/**
-	 * Get formatted variation attributes for a stored cart item.
-	 *
-	 * Seeded legacy snapshots do not contain variation metadata, so the field
-	 * is treated as optional.
-	 *
-	 * @param array<string,mixed> $item Stored cart item.
-	 * @return string
-	 */
-	private function get_variation_attributes_text(
-		array $item
-	): string {
-
-		if (
-			! isset( $item['variation'] ) ||
-			! is_array( $item['variation'] )
-		) {
-			return '';
-		}
-
-		$attribute_parts = array();
-
-		foreach ( $item['variation'] as $attribute_key => $attribute_value ) {
-
-			if (
-				! is_string( $attribute_key ) ||
-				! is_string( $attribute_value ) ||
-				'' === $attribute_value
-			) {
-				continue;
-			}
-
-			$attribute_key = str_replace(
-				'attribute_',
-				'',
-				$attribute_key
-			);
-
-			$attribute_label = wc_attribute_label(
-				$attribute_key
-			);
-
-			$attribute_parts[] = sprintf(
-				'%1$s: %2$s',
-				$attribute_label,
-				$attribute_value
-			);
-		}
-
-		return implode(
-			' | ',
-			$attribute_parts
 		);
 	}
 }

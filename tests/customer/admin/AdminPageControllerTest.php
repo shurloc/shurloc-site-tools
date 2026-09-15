@@ -10,10 +10,14 @@ declare( strict_types=1 );
 namespace Shurloc\SiteTools\Customer\Admin;
 
 use PHPUnit\Framework\TestCase;
+use Shurloc\SiteTools\Customer\Formatters\Relative_Time_Formatter;
 use Shurloc\SiteTools\Customer\Migrations\User_Cart_Migration;
 use Shurloc\SiteTools\Customer\Migrations\User_Purchase_Migration;
+use Shurloc\SiteTools\Customer\Repositories\Cart_Session_Repository;
+use Shurloc\SiteTools\Customer\Services\Cart_Listing_Service;
 use Shurloc\SiteTools\Customer\Services\User_Cart_Service;
 use Shurloc\SiteTools\Customer\Services\User_Purchase_Service;
+use Shurloc_Test_WPDB;
 
 /**
  * Tests the customer admin page controller.
@@ -38,6 +42,14 @@ final class AdminPageControllerTest extends TestCase {
 
 		$GLOBALS['shurloc_test_options']      = array();
 		$GLOBALS['shurloc_test_nonce_fields'] = array();
+		$GLOBALS['shurloc_test_filters']      = array();
+		$GLOBALS['shurloc_test_products']     = array();
+		$GLOBALS['shurloc_test_users']        = array();
+		$GLOBALS['shurloc_test_permalinks']   = array();
+		$GLOBALS['shurloc_test_time']         = \time();
+
+		// phpcs:ignore WordPress.WP.GlobalVariablesOverride.Prohibited -- Test-only wpdb replacement.
+		$GLOBALS['wpdb'] = new Shurloc_Test_WPDB();
 
 		$_GET = array();
 
@@ -63,9 +75,21 @@ final class AdminPageControllerTest extends TestCase {
 				cart_migration: $cart_migration,
 			);
 
+		$repository = new Cart_Session_Repository();
+
+		$carts_controller = new Carts_Controller(
+			listing_service: new Cart_Listing_Service(
+				cart_session_repository: $repository,
+			),
+			session_repository: $repository,
+			cart_details_renderer: new Cart_Details_Renderer(),
+			time_formatter: new Relative_Time_Formatter(),
+		);
+
 		$this->controller =
 			new Admin_Page_Controller(
 				migrations_controller: $migrations_controller,
+				carts_controller: $carts_controller,
 			);
 	}
 
@@ -78,6 +102,11 @@ final class AdminPageControllerTest extends TestCase {
 
 		$GLOBALS['shurloc_test_options']      = array();
 		$GLOBALS['shurloc_test_nonce_fields'] = array();
+		$GLOBALS['shurloc_test_filters']      = array();
+		$GLOBALS['shurloc_test_products']     = array();
+		$GLOBALS['shurloc_test_users']        = array();
+		$GLOBALS['shurloc_test_permalinks']   = array();
+		$GLOBALS['shurloc_test_time']         = 0;
 
 		$_GET = array();
 
@@ -156,6 +185,43 @@ final class AdminPageControllerTest extends TestCase {
 	}
 
 	/**
+	 * Verify the Carts tab renders the operational cart table.
+	 *
+	 * @return void
+	 */
+	public function test_render_page_displays_carts_tab(): void {
+
+		$_GET['page'] = 'shurloc-site-tools-customers';
+		$_GET['tab']  = 'carts';
+
+		ob_start();
+
+		$this->controller->render_page();
+
+		$output = (string) ob_get_clean();
+
+		self::assertStringContainsString(
+			'class="widefat fixed striped shurloc-carts-table"',
+			$output
+		);
+
+		self::assertStringContainsString(
+			'No non-empty carts were found.',
+			$output
+		);
+
+		self::assertStringNotContainsString(
+			'Customer tools, listed by operational importance.',
+			$output
+		);
+
+		self::assertStringNotContainsString(
+			'Customer Data Migrations',
+			$output
+		);
+	}
+
+	/**
 	 * Verify an invalid tab falls back to the overview tab.
 	 *
 	 * @return void
@@ -219,6 +285,28 @@ final class AdminPageControllerTest extends TestCase {
 
 		self::assertMatchesRegularExpression(
 			'/tab=migrations[^"]*"[^>]*class="nav-tab nav-tab-active"/',
+			$output
+		);
+	}
+
+	/**
+	 * Verify the Carts tab is active when selected.
+	 *
+	 * @return void
+	 */
+	public function test_carts_tab_is_active_when_selected(): void {
+
+		$_GET['page'] = 'shurloc-site-tools-customers';
+		$_GET['tab']  = 'carts';
+
+		ob_start();
+
+		$this->controller->render_page();
+
+		$output = (string) ob_get_clean();
+
+		self::assertMatchesRegularExpression(
+			'/tab=carts[^\"]*"[^>]*class="nav-tab nav-tab-active"/',
 			$output
 		);
 	}

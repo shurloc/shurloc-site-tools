@@ -13,6 +13,8 @@ defined( 'ABSPATH' ) || exit;
 
 use Shurloc\SiteTools\Customer\Admin\Admin_Menu;
 use Shurloc\SiteTools\Customer\Admin\Admin_Page_Controller;
+use Shurloc\SiteTools\Customer\Admin\Cart_Details_Renderer;
+use Shurloc\SiteTools\Customer\Admin\Carts_Controller;
 use Shurloc\SiteTools\Customer\Admin\Customer_Migrations_Controller;
 use Shurloc\SiteTools\Customer\Admin\User_Activity_Columns;
 use Shurloc\SiteTools\Customer\Admin\User_Activity_Filters;
@@ -25,6 +27,8 @@ use Shurloc\SiteTools\Customer\Admin\User_Purchase_Filters;
 use Shurloc\SiteTools\Customer\Formatters\Relative_Time_Formatter;
 use Shurloc\SiteTools\Customer\Migrations\User_Cart_Migration;
 use Shurloc\SiteTools\Customer\Migrations\User_Purchase_Migration;
+use Shurloc\SiteTools\Customer\Repositories\Cart_Session_Repository;
+use Shurloc\SiteTools\Customer\Services\Cart_Listing_Service;
 use Shurloc\SiteTools\Customer\Services\User_Activity_Service;
 use Shurloc\SiteTools\Customer\Services\User_Cart_Service;
 use Shurloc\SiteTools\Customer\Services\User_Purchase_Service;
@@ -42,6 +46,7 @@ final class Bootstrap {
 	public function register(): void {
 
 		$relative_time_formatter = new Relative_Time_Formatter();
+		$cart_details_renderer   = new Cart_Details_Renderer();
 
 		$user_activity_service = new User_Activity_Service();
 		$user_activity_service->register();
@@ -66,8 +71,23 @@ final class Bootstrap {
 		);
 		$migrations_controller->register();
 
+		$cart_session_repository = new Cart_Session_Repository();
+
+		$cart_listing_service = new Cart_Listing_Service(
+			cart_session_repository: $cart_session_repository,
+		);
+
+		$carts_controller = new Carts_Controller(
+			listing_service: $cart_listing_service,
+			session_repository: $cart_session_repository,
+			cart_details_renderer: $cart_details_renderer,
+			time_formatter: $relative_time_formatter,
+		);
+		$carts_controller->register();
+
 		$customer_page = new Admin_Page_Controller(
 			migrations_controller: $migrations_controller,
+			carts_controller: $carts_controller,
 		);
 
 		$admin_menu = new Admin_Menu(
@@ -85,7 +105,9 @@ final class Bootstrap {
 		);
 		$user_purchase_columns->register();
 
-		$user_cart_column = new User_Cart_Column();
+		$user_cart_column = new User_Cart_Column(
+			cart_details_renderer: $cart_details_renderer,
+		);
 		$user_cart_column->register();
 
 		$user_filters = new User_Filters();
