@@ -62,6 +62,7 @@ final class CartsControllerTest extends TestCase {
 		$GLOBALS['shurloc_test_enqueued_scripts'] = array();
 		$GLOBALS['shurloc_test_products']         = array();
 		$GLOBALS['shurloc_test_users']            = array();
+		$GLOBALS['shurloc_test_user_data']        = array();
 		$GLOBALS['shurloc_test_permalinks']       = array();
 
 		$this->current_time           = \time();
@@ -95,6 +96,7 @@ final class CartsControllerTest extends TestCase {
 		$GLOBALS['shurloc_test_enqueued_scripts'] = array();
 		$GLOBALS['shurloc_test_products']         = array();
 		$GLOBALS['shurloc_test_users']            = array();
+		$GLOBALS['shurloc_test_user_data']        = array();
 		$GLOBALS['shurloc_test_permalinks']       = array();
 		$GLOBALS['shurloc_test_time']             = 0;
 
@@ -201,7 +203,28 @@ final class CartsControllerTest extends TestCase {
 	 */
 	public function test_renders_authenticated_visitor_link(): void {
 
-		$GLOBALS['shurloc_test_users'][101] = true;
+		$GLOBALS['shurloc_test_users'][101]     = true;
+		$GLOBALS['shurloc_test_user_data'][101] = array(
+			'display_name' => 'Ada <Admin>',
+			'user_email'   => 'ada@example.com',
+		);
+
+		$this->add_session( session_key: '101' );
+
+		$output = $this->render();
+
+		self::assertStringContainsString( 'Ada &lt;Admin&gt;', $output );
+		self::assertStringContainsString( 'ada@example.com', $output );
+		self::assertStringContainsString( 'user-edit.php?user_id=101', $output );
+		self::assertStringContainsString( '>Logged In</td>', $output );
+	}
+
+	/**
+	 * Verify authenticated carts retain a safe fallback for missing users.
+	 *
+	 * @return void
+	 */
+	public function test_renders_authenticated_visitor_fallback(): void {
 
 		$this->add_session( session_key: '101' );
 
@@ -209,7 +232,6 @@ final class CartsControllerTest extends TestCase {
 
 		self::assertStringContainsString( 'User #101', $output );
 		self::assertStringContainsString( 'user-edit.php?user_id=101', $output );
-		self::assertStringContainsString( '>Logged In</td>', $output );
 	}
 
 	/**
