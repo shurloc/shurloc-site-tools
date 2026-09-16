@@ -52,8 +52,9 @@ final class CartListingServiceTest extends TestCase {
 		// phpcs:ignore WordPress.WP.GlobalVariablesOverride.Prohibited -- Test-only wpdb replacement.
 		$GLOBALS['wpdb'] = new Shurloc_Test_WPDB();
 
-		$GLOBALS['shurloc_test_filters']  = array();
-		$GLOBALS['shurloc_test_products'] = array();
+		$GLOBALS['shurloc_test_filters']                 = array();
+		$GLOBALS['shurloc_test_products']                = array();
+		$GLOBALS['shurloc_test_user_capabilities_by_id'] = array();
 
 		$this->current_time           = \time();
 		$GLOBALS['shurloc_test_time'] = $this->current_time;
@@ -73,9 +74,10 @@ final class CartListingServiceTest extends TestCase {
 		// phpcs:ignore WordPress.WP.GlobalVariablesOverride.Prohibited -- Test-only wpdb replacement.
 		$GLOBALS['wpdb'] = new Shurloc_Test_WPDB();
 
-		$GLOBALS['shurloc_test_filters']  = array();
-		$GLOBALS['shurloc_test_products'] = array();
-		$GLOBALS['shurloc_test_time']     = 0;
+		$GLOBALS['shurloc_test_filters']                 = array();
+		$GLOBALS['shurloc_test_products']                = array();
+		$GLOBALS['shurloc_test_user_capabilities_by_id'] = array();
+		$GLOBALS['shurloc_test_time']                    = 0;
 
 		parent::tearDown();
 	}
@@ -270,6 +272,49 @@ final class CartListingServiceTest extends TestCase {
 		self::assertCount( 1, $listing['items'] );
 		self::assertSame( 0, $listing['items'][0]['user_id'] );
 		self::assertSame( 1, $listing['total_items'] );
+	}
+
+	/**
+	 * Verify administrator carts are excluded from the report.
+	 *
+	 * @return void
+	 */
+	public function test_excludes_administrator_carts(): void {
+
+		$GLOBALS['shurloc_test_user_capabilities_by_id'][101]['manage_options'] = true;
+
+		$this->add_session( session_key: '101' );
+		$this->add_session( session_key: 't_guest' );
+
+		$listing = $this->service->get_listing();
+
+		self::assertCount( 1, $listing['items'] );
+		self::assertSame( 1, $listing['total_items'] );
+		self::assertSame( 1, $listing['counts']['all'] );
+		self::assertSame( 0, $listing['counts']['authenticated'] );
+		self::assertSame( 1, $listing['counts']['unauthenticated'] );
+	}
+
+	/**
+	 * Verify explicitly configured user IDs are excluded from the report.
+	 *
+	 * @return void
+	 */
+	public function test_excludes_configured_user_ids(): void {
+
+		$this->add_session( session_key: '101' );
+		$this->add_session( session_key: '102' );
+
+		$service = new Cart_Listing_Service(
+			cart_session_repository: new Cart_Session_Repository(),
+			excluded_user_ids: array( 101 ),
+		);
+
+		$listing = $service->get_listing();
+
+		self::assertCount( 1, $listing['items'] );
+		self::assertSame( 102, $listing['items'][0]['user_id'] );
+		self::assertSame( 1, $listing['counts']['all'] );
 	}
 
 	/**
