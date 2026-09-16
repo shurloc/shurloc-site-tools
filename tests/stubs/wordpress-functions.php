@@ -47,6 +47,11 @@ $GLOBALS['shurloc_test_filter_metadata'] = array();
 $GLOBALS['shurloc_test_is_admin'] = true;
 
 /**
+ * Whether the current test request is a WordPress AJAX request.
+ */
+$GLOBALS['shurloc_test_doing_ajax'] = false;
+
+/**
  * Registered test styles.
  */
 $GLOBALS['shurloc_test_styles'] = array();
@@ -335,6 +340,19 @@ if ( ! function_exists( 'add_action' ) ) {
 	}
 }
 
+if ( ! function_exists( 'register_activation_hook' ) ) {
+	/**
+	 * Record a plugin activation callback for tests.
+	 *
+	 * @param string   $file     Main plugin file.
+	 * @param callable $callback Activation callback.
+	 * @return void
+	 */
+	function register_activation_hook( string $file, callable $callback ): void {
+		$GLOBALS['shurloc_test_activation_hooks'][ $file ] = $callback;
+	}
+}
+
 if ( ! function_exists( 'add_filter' ) ) {
 
 	/**
@@ -376,6 +394,17 @@ if ( ! function_exists( 'is_admin' ) ) {
 	function is_admin(): bool {
 
 		return $GLOBALS['shurloc_test_is_admin'] ?? false;
+	}
+}
+
+if ( ! function_exists( 'wp_doing_ajax' ) ) {
+	/**
+	 * Determine whether the current test request is an AJAX request.
+	 *
+	 * @return bool
+	 */
+	function wp_doing_ajax(): bool {
+		return $GLOBALS['shurloc_test_doing_ajax'] ?? false;
 	}
 }
 

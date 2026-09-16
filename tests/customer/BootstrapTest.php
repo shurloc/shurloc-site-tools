@@ -10,9 +10,13 @@ declare( strict_types=1 );
 namespace Shurloc\SiteTools\Customer;
 
 use PHPUnit\Framework\TestCase;
+use RuntimeException;
 use Shurloc\SiteTools\Customer\Admin\Carts_Controller;
 use Shurloc\SiteTools\Customer\Admin\User_Cart_Column;
 use Shurloc\SiteTools\Customer\Admin\User_Filters;
+use Shurloc\SiteTools\Customer\Journey\Admin\Journey_Schema_Admin;
+use Shurloc\SiteTools\Customer\Journey\Migrations\Journey_Schema_Migrator;
+use Shurloc_Test_WPDB;
 
 /**
  * Tests the Customer domain bootstrap.
@@ -28,10 +32,16 @@ final class BootstrapTest extends TestCase {
 
 		parent::setUp();
 
-		$GLOBALS['shurloc_test_actions']         = array();
-		$GLOBALS['shurloc_test_action_metadata'] = array();
-		$GLOBALS['shurloc_test_filters']         = array();
-		$GLOBALS['shurloc_test_filter_metadata'] = array();
+		$GLOBALS['shurloc_test_actions']               = array();
+		$GLOBALS['shurloc_test_action_metadata']       = array();
+		$GLOBALS['shurloc_test_filters']               = array();
+		$GLOBALS['shurloc_test_filter_metadata']       = array();
+		$GLOBALS['shurloc_test_options']               = array();
+		$GLOBALS['shurloc_test_is_admin']              = true;
+		$GLOBALS['shurloc_test_doing_ajax']            = false;
+		$GLOBALS['shurloc_test_user_capabilities']     = array();
+		$GLOBALS['shurloc_journey_schema_attempts']    = 0;
+		$GLOBALS['shurloc_journey_schema_should_fail'] = true;
 	}
 
 	/**
@@ -41,10 +51,19 @@ final class BootstrapTest extends TestCase {
 	 */
 	protected function tearDown(): void {
 
-		$GLOBALS['shurloc_test_actions']         = array();
-		$GLOBALS['shurloc_test_action_metadata'] = array();
-		$GLOBALS['shurloc_test_filters']         = array();
-		$GLOBALS['shurloc_test_filter_metadata'] = array();
+		$GLOBALS['shurloc_test_actions']               = array();
+		$GLOBALS['shurloc_test_action_metadata']       = array();
+		$GLOBALS['shurloc_test_filters']               = array();
+		$GLOBALS['shurloc_test_filter_metadata']       = array();
+		$GLOBALS['shurloc_test_options']               = array();
+		$GLOBALS['shurloc_test_is_admin']              = true;
+		$GLOBALS['shurloc_test_doing_ajax']            = false;
+		$GLOBALS['shurloc_test_user_capabilities']     = array();
+		$GLOBALS['shurloc_journey_schema_attempts']    = 0;
+		$GLOBALS['shurloc_journey_schema_should_fail'] = true;
+
+		// phpcs:ignore WordPress.WP.GlobalVariablesOverride.Prohibited -- Restore the shared test-only database double.
+		$GLOBALS['wpdb'] = new Shurloc_Test_WPDB();
 
 		parent::tearDown();
 	}
@@ -197,6 +216,195 @@ final class BootstrapTest extends TestCase {
 		self::assertArrayHasKey(
 			'admin_post_shurloc_run_cart_migration',
 			$GLOBALS['shurloc_test_actions']
+		);
+	}
+
+	/**
+	 * Verify the Journey retry, notice, and admin upgrade hooks are wired.
+	 *
+	 * @return void
+	 */
+	public function test_register_adds_journey_schema_admin_hooks(): void {
+		$bootstrap = new Bootstrap();
+		$bootstrap->register();
+
+		self::assertContains(
+			array( $bootstrap, 'maybe_migrate_journey_schema' ),
+			$GLOBALS['shurloc_test_actions']['admin_init']
+		);
+
+		$journey_callbacks = array_filter(
+			$GLOBALS['shurloc_test_actions']['admin_notices'],
+			static function ( mixed $callback ): bool {
+				return is_array( $callback ) &&
+					isset( $callback[0] ) &&
+					$callback[0] instanceof Journey_Schema_Admin;
+			}
+		);
+
+		self::assertCount( 1, $journey_callbacks );
+		self::assertArrayHasKey(
+			'admin_post_shurloc_retry_journey_schema',
+			$GLOBALS['shurloc_test_actions']
+		);
+
+		$upgrade_index = array_search(
+			array( $bootstrap, 'maybe_migrate_journey_schema' ),
+			$GLOBALS['shurloc_test_actions']['admin_init'],
+			true
+		);
+
+		self::assertIsInt( $upgrade_index );
+		self::assertSame(
+			5,
+			$GLOBALS['shurloc_test_action_metadata']['admin_init'][ $upgrade_index ]['priority']
+		);
+	}
+
+	/**
+	 * Verify storefront bootstrap does not register Journey schema work.
+	 *
+	 * @return void
+	 */
+	public function test_storefront_registers_no_journey_schema_hooks(): void {
+		$GLOBALS['shurloc_test_is_admin'] = false;
+
+		$bootstrap = new Bootstrap();
+		$bootstrap->register();
+
+		self::assertArrayNotHasKey(
+			'admin_notices',
+			$GLOBALS['shurloc_test_actions']
+		);
+		self::assertArrayNotHasKey(
+			'admin_post_shurloc_retry_journey_schema',
+			$GLOBALS['shurloc_test_actions']
+		);
+		self::assertNotContains(
+			array( $bootstrap, 'maybe_migrate_journey_schema' ),
+			$GLOBALS['shurloc_test_actions']['admin_init']
+		);
+	}
+
+	/**
+	 * Verify the admin check attempts a pending migration only once after failure.
+	 *
+	 * @return void
+	 */
+	public function test_pending_journey_schema_attempts_upgrade_and_waits_after_failure(): void {
+		// phpcs:ignore WordPress.WP.GlobalVariablesOverride.Prohibited -- Simulate a database failure before dbDelta runs.
+		$GLOBALS['wpdb'] = new class() {
+			/**
+			 * Table prefix.
+			 *
+			 * @var string
+			 */
+			public string $prefix = 'wp_';
+
+			/**
+			 * Options table for lock release.
+			 *
+			 * @var string
+			 */
+			public string $options = 'wp_options';
+
+			/**
+			 * Fail before the schema updater is called.
+			 *
+			 * @return string Charset SQL.
+			 * @throws RuntimeException Always, to simulate a database failure.
+			 */
+			public function get_charset_collate(): string {
+				++$GLOBALS['shurloc_journey_schema_attempts'];
+				if ( $GLOBALS['shurloc_journey_schema_should_fail'] ) {
+					throw new RuntimeException( 'Simulated schema failure.' );
+				}
+
+				return 'DEFAULT CHARACTER SET utf8mb4';
+			}
+
+			/**
+			 * Return the lock query for the test double.
+			 *
+			 * @param string $query SQL query.
+			 * @param mixed  ...$args Placeholder arguments.
+			 * @return string Query.
+			 */
+			public function prepare( string $query, mixed ...$args ): string {
+				unset( $args );
+				return $query;
+			}
+
+			/**
+			 * Release the simulated migration lock.
+			 *
+			 * @param string $query SQL query.
+			 * @return int Deleted rows.
+			 */
+			public function query( string $query ): int {
+				unset( $query );
+				unset( $GLOBALS['shurloc_test_options'][ Journey_Schema_Migrator::LOCK_OPTION ] );
+				return 1;
+			}
+		};
+
+		$bootstrap = new Bootstrap();
+		$bootstrap->register();
+		$bootstrap->maybe_migrate_journey_schema();
+
+		self::assertSame( 1, $GLOBALS['shurloc_journey_schema_attempts'] );
+		self::assertSame(
+			'migration_failed',
+			$GLOBALS['shurloc_test_options'][ Journey_Schema_Migrator::FAILURE_OPTION ]
+		);
+		self::assertArrayNotHasKey(
+			Journey_Schema_Migrator::VERSION_OPTION,
+			$GLOBALS['shurloc_test_options']
+		);
+
+		$bootstrap->maybe_migrate_journey_schema();
+		self::assertSame( 1, $GLOBALS['shurloc_journey_schema_attempts'] );
+	}
+
+	/**
+	 * Verify admin checks skip AJAX, ready, newer, failed, and unauthorized requests.
+	 *
+	 * @return void
+	 */
+	public function test_admin_upgrade_check_skips_ineligible_requests(): void {
+		$bootstrap = new Bootstrap();
+		$bootstrap->register();
+
+		$GLOBALS['shurloc_test_doing_ajax'] = true;
+		$bootstrap->maybe_migrate_journey_schema();
+		self::assertSame( array(), $GLOBALS['shurloc_test_options'] );
+		$GLOBALS['shurloc_test_doing_ajax'] = false;
+
+		$GLOBALS['shurloc_test_user_capabilities']['manage_options'] = false;
+		$bootstrap->maybe_migrate_journey_schema();
+		self::assertSame( array(), $GLOBALS['shurloc_test_options'] );
+
+		$GLOBALS['shurloc_test_user_capabilities']['manage_options']                = true;
+		$GLOBALS['shurloc_test_options'][ Journey_Schema_Migrator::VERSION_OPTION ] = 1;
+		$bootstrap->maybe_migrate_journey_schema();
+		self::assertArrayNotHasKey(
+			Journey_Schema_Migrator::FAILURE_OPTION,
+			$GLOBALS['shurloc_test_options']
+		);
+
+		$GLOBALS['shurloc_test_options'][ Journey_Schema_Migrator::VERSION_OPTION ] = 2;
+		$bootstrap->maybe_migrate_journey_schema();
+		self::assertArrayNotHasKey(
+			Journey_Schema_Migrator::FAILURE_OPTION,
+			$GLOBALS['shurloc_test_options']
+		);
+
+		$GLOBALS['shurloc_test_options'][ Journey_Schema_Migrator::VERSION_OPTION ] = 0;
+		$GLOBALS['shurloc_test_options'][ Journey_Schema_Migrator::FAILURE_OPTION ] = 'migration_failed';
+		$bootstrap->maybe_migrate_journey_schema();
+		self::assertSame(
+			'migration_failed',
+			$GLOBALS['shurloc_test_options'][ Journey_Schema_Migrator::FAILURE_OPTION ]
 		);
 	}
 

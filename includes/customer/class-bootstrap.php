@@ -25,6 +25,8 @@ use Shurloc\SiteTools\Customer\Admin\User_Phone_Column;
 use Shurloc\SiteTools\Customer\Admin\User_Purchase_Columns;
 use Shurloc\SiteTools\Customer\Admin\User_Purchase_Filters;
 use Shurloc\SiteTools\Customer\Formatters\Relative_Time_Formatter;
+use Shurloc\SiteTools\Customer\Journey\Admin\Journey_Schema_Admin;
+use Shurloc\SiteTools\Customer\Journey\Migrations\Journey_Schema_Migrator;
 use Shurloc\SiteTools\Customer\Migrations\User_Cart_Migration;
 use Shurloc\SiteTools\Customer\Migrations\User_Purchase_Migration;
 use Shurloc\SiteTools\Customer\Repositories\Cart_Session_Repository;
@@ -37,6 +39,12 @@ use Shurloc\SiteTools\Customer\Services\User_Purchase_Service;
  * Bootstraps the Customer domain.
  */
 final class Bootstrap {
+	/**
+	 * Migrator shared by the admin upgrade check and retry controller.
+	 *
+	 * @var Journey_Schema_Migrator|null
+	 */
+	private ?Journey_Schema_Migrator $journey_schema_migrator = null;
 
 	/**
 	 * Register the Customer domain.
@@ -44,6 +52,20 @@ final class Bootstrap {
 	 * @return void
 	 */
 	public function register(): void {
+		if ( is_admin() ) {
+			$this->journey_schema_migrator = new Journey_Schema_Migrator();
+
+			$journey_schema_admin = new Journey_Schema_Admin(
+				migrator: $this->journey_schema_migrator,
+			);
+			$journey_schema_admin->register();
+
+			add_action(
+				'admin_init',
+				array( $this, 'maybe_migrate_journey_schema' ),
+				5
+			);
+		}
 
 		$relative_time_formatter = new Relative_Time_Formatter();
 		$cart_details_renderer   = new Cart_Details_Renderer();
@@ -124,5 +146,34 @@ final class Bootstrap {
 
 		$user_phone_column = new User_Phone_Column();
 		$user_phone_column->register();
+	}
+
+	/**
+	 * Upgrade pending Journey schemas on an authorized admin page request.
+	 *
+	 * A recorded failure waits for the explicit retry action. This prevents a
+	 * broken schema from causing another expensive attempt on every admin page.
+	 * AJAX requests wait for a normal admin page load.
+	 *
+	 * @return void
+	 */
+	public function maybe_migrate_journey_schema(): void {
+		if (
+			null === $this->journey_schema_migrator ||
+			wp_doing_ajax() ||
+			! current_user_can( 'manage_options' )
+		) {
+			return;
+		}
+
+		if (
+			$this->journey_schema_migrator->get_installed_version() >=
+				Journey_Schema_Migrator::CURRENT_VERSION ||
+			'' !== $this->journey_schema_migrator->get_failure_code()
+		) {
+			return;
+		}
+
+		$this->journey_schema_migrator->migrate();
 	}
 }
