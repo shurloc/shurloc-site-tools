@@ -12,7 +12,7 @@ namespace Shurloc\SiteTools\Customer\Journey;
 use PHPUnit\Framework\TestCase;
 use WP_User;
 
-// phpcs:disable Universal.Files.SeparateFunctionsFromOO.Mixed, Generic.Files.OneObjectStructurePerFile.MultipleFound -- Keep scoped WordPress request doubles with their policy tests.
+// phpcs:disable Universal.Files.SeparateFunctionsFromOO.Mixed -- Keep scoped WordPress request function doubles with their policy tests.
 
 /**
  * Return the current Journey test user.
@@ -30,18 +30,6 @@ function wp_get_current_user(): WP_User {
  */
 function wp_doing_cron(): bool {
 	return $GLOBALS['shurloc_journey_test_doing_cron'];
-}
-
-/**
- * Test user with the WordPress role list used by the policy.
- */
-final class Journey_Collection_Test_User extends WP_User {
-	/**
-	 * WordPress role slugs for this test user.
-	 *
-	 * @var array<int,string>
-	 */
-	public $roles = array();
 }
 
 /**
