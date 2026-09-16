@@ -408,6 +408,39 @@ if ( ! function_exists( 'wp_doing_ajax' ) ) {
 	}
 }
 
+if ( ! function_exists( 'wp_doing_cron' ) ) {
+	/**
+	 * Determine whether the current Journey test request runs from cron.
+	 *
+	 * @return bool Whether the request runs from cron.
+	 */
+	function wp_doing_cron(): bool {
+		return $GLOBALS['shurloc_journey_test_doing_cron'] ?? false;
+	}
+}
+
+if ( ! function_exists( 'wp_get_current_user' ) ) {
+	/**
+	 * Return the configured current Journey test user.
+	 *
+	 * @return WP_User Current test user.
+	 */
+	function wp_get_current_user(): WP_User {
+		return $GLOBALS['shurloc_journey_test_current_user'] ?? new WP_User();
+	}
+}
+
+if ( ! function_exists( 'is_ssl' ) ) {
+	/**
+	 * Return the configured Journey test request protocol.
+	 *
+	 * @return bool Whether the request is HTTPS.
+	 */
+	function is_ssl(): bool {
+		return $GLOBALS['shurloc_journey_cookie_test_is_ssl'] ?? false;
+	}
+}
+
 if ( ! function_exists( 'sanitize_key' ) ) {
 
 	/**

@@ -10,27 +10,6 @@ declare( strict_types=1 );
 namespace Shurloc\SiteTools\Customer\Journey;
 
 use PHPUnit\Framework\TestCase;
-use WP_User;
-
-// phpcs:disable Universal.Files.SeparateFunctionsFromOO.Mixed -- Keep scoped WordPress request function doubles with their policy tests.
-
-/**
- * Return the current Journey test user.
- *
- * @return WP_User Current test user.
- */
-function wp_get_current_user(): WP_User {
-	return $GLOBALS['shurloc_journey_test_current_user'];
-}
-
-/**
- * Return the current Journey test cron status.
- *
- * @return bool Whether this is a cron request.
- */
-function wp_doing_cron(): bool {
-	return $GLOBALS['shurloc_journey_test_doing_cron'];
-}
 
 /**
  * Tests consent, request, role, and capability collection rules.

@@ -11,76 +11,10 @@ namespace Shurloc\SiteTools\Customer\Journey;
 
 use PHPUnit\Framework\TestCase;
 
-// phpcs:disable Universal.Files.SeparateFunctionsFromOO.Mixed -- Keep scoped cookie function doubles with their tests.
-
-/**
- * Capture a cookie header without sending it to the PHPUnit process.
- *
- * @param string              $name Cookie name.
- * @param string              $value Cookie value.
- * @param array<string,mixed> $options Cookie options.
- * @return bool Configured test result.
- */
-function setcookie( string $name, string $value, array $options ): bool {
-	JourneyVisitorCookieTest::$sent_cookies[] = array(
-		'name'    => $name,
-		'value'   => $value,
-		'options' => $options,
-	);
-
-	return JourneyVisitorCookieTest::$setcookie_result;
-}
-
-/**
- * Return the configured request protocol.
- *
- * @return bool Whether the request is HTTPS.
- */
-function is_ssl(): bool {
-	return JourneyVisitorCookieTest::$is_ssl;
-}
-
-/**
- * Return the configured response header state.
- *
- * @return bool Whether response headers have already been sent.
- */
-function headers_sent(): bool {
-	return JourneyVisitorCookieTest::$headers_sent;
-}
-
 /**
  * Tests validated reads and secure, host-only visitor cookie writes.
  */
 final class JourneyVisitorCookieTest extends TestCase {
-	/**
-	 * Recorded cookie calls.
-	 *
-	 * @var list<array{name:string,value:string,options:array<string,mixed>}>
-	 */
-	public static array $sent_cookies = array();
-
-	/**
-	 * Test response from setcookie().
-	 *
-	 * @var bool
-	 */
-	public static bool $setcookie_result = true;
-
-	/**
-	 * Test HTTPS state.
-	 *
-	 * @var bool
-	 */
-	public static bool $is_ssl = false;
-
-	/**
-	 * Test response header state.
-	 *
-	 * @var bool
-	 */
-	public static bool $headers_sent = false;
-
 	/**
 	 * Original cookies to restore after each test.
 	 *
@@ -99,10 +33,10 @@ final class JourneyVisitorCookieTest extends TestCase {
 		$this->original_cookies = $_COOKIE;
 		$_COOKIE                = array();
 
-		self::$sent_cookies     = array();
-		self::$setcookie_result = true;
-		self::$is_ssl           = false;
-		self::$headers_sent     = false;
+		$GLOBALS['shurloc_journey_cookie_test_calls']        = array();
+		$GLOBALS['shurloc_journey_cookie_test_result']       = true;
+		$GLOBALS['shurloc_journey_cookie_test_is_ssl']       = false;
+		$GLOBALS['shurloc_journey_cookie_test_headers_sent'] = false;
 
 		$GLOBALS['shurloc_test_filters'] = array();
 	}
@@ -159,9 +93,9 @@ final class JourneyVisitorCookieTest extends TestCase {
 		self::assertTrue( ( new Journey_Visitor_Cookie() )->write( uuid: $uuid ) );
 
 		$after = time();
-		self::assertCount( 1, self::$sent_cookies );
+		self::assertCount( 1, $GLOBALS['shurloc_journey_cookie_test_calls'] );
 
-		$cookie = self::$sent_cookies[0];
+		$cookie = $GLOBALS['shurloc_journey_cookie_test_calls'][0];
 		self::assertSame( Journey_Visitor_Cookie::NAME, $cookie['name'] );
 		self::assertSame( $uuid, $cookie['value'] );
 		self::assertSame( '/', $cookie['options']['path'] );
@@ -186,12 +120,12 @@ final class JourneyVisitorCookieTest extends TestCase {
 	 * @return void
 	 */
 	public function test_write_sets_secure_on_https(): void {
-		self::$is_ssl                            = true;
+		$GLOBALS['shurloc_journey_cookie_test_is_ssl'] = true;
 		$uuid                                    = '123e4567-e89b-42d3-a456-426614174000';
 		$_COOKIE[ Journey_Visitor_Cookie::NAME ] = $uuid;
 
 		self::assertTrue( ( new Journey_Visitor_Cookie() )->write( uuid: $uuid ) );
-		self::assertTrue( self::$sent_cookies[0]['options']['secure'] );
+		self::assertTrue( $GLOBALS['shurloc_journey_cookie_test_calls'][0]['options']['secure'] );
 		self::assertSame( $uuid, $_COOKIE[ Journey_Visitor_Cookie::NAME ] );
 	}
 
@@ -214,8 +148,8 @@ final class JourneyVisitorCookieTest extends TestCase {
 		);
 		$after = time();
 
-		self::assertGreaterThanOrEqual( $before + 600, self::$sent_cookies[0]['options']['expires'] );
-		self::assertLessThanOrEqual( $after + 600, self::$sent_cookies[0]['options']['expires'] );
+		self::assertGreaterThanOrEqual( $before + 600, $GLOBALS['shurloc_journey_cookie_test_calls'][0]['options']['expires'] );
+		self::assertLessThanOrEqual( $after + 600, $GLOBALS['shurloc_journey_cookie_test_calls'][0]['options']['expires'] );
 	}
 
 	/**
@@ -239,7 +173,7 @@ final class JourneyVisitorCookieTest extends TestCase {
 			);
 		}
 
-		self::assertSame( array(), self::$sent_cookies );
+		self::assertSame( array(), $GLOBALS['shurloc_journey_cookie_test_calls'] );
 	}
 
 	/**
@@ -251,14 +185,14 @@ final class JourneyVisitorCookieTest extends TestCase {
 		$cookie = new Journey_Visitor_Cookie();
 		$uuid   = '123e4567-e89b-42d3-a456-426614174000';
 
-		self::$headers_sent = true;
+		$GLOBALS['shurloc_journey_cookie_test_headers_sent'] = true;
 		self::assertFalse( $cookie->write( uuid: $uuid ) );
-		self::assertSame( array(), self::$sent_cookies );
+		self::assertSame( array(), $GLOBALS['shurloc_journey_cookie_test_calls'] );
 
-		self::$headers_sent     = false;
-		self::$setcookie_result = false;
+		$GLOBALS['shurloc_journey_cookie_test_headers_sent'] = false;
+		$GLOBALS['shurloc_journey_cookie_test_result']       = false;
 		self::assertFalse( $cookie->write( uuid: $uuid ) );
-		self::assertCount( 1, self::$sent_cookies );
+		self::assertCount( 1, $GLOBALS['shurloc_journey_cookie_test_calls'] );
 	}
 
 	/**
@@ -267,12 +201,12 @@ final class JourneyVisitorCookieTest extends TestCase {
 	 * @return void
 	 */
 	public function test_clear_expires_cookie_and_removes_request_value(): void {
-		self::$is_ssl                            = true;
-		$_COOKIE[ Journey_Visitor_Cookie::NAME ] = '123e4567-e89b-42d3-a456-426614174000';
+		$GLOBALS['shurloc_journey_cookie_test_is_ssl'] = true;
+		$_COOKIE[ Journey_Visitor_Cookie::NAME ]       = '123e4567-e89b-42d3-a456-426614174000';
 
 		self::assertTrue( ( new Journey_Visitor_Cookie() )->clear() );
 
-		$cookie = self::$sent_cookies[0];
+		$cookie = $GLOBALS['shurloc_journey_cookie_test_calls'][0];
 		self::assertSame( Journey_Visitor_Cookie::NAME, $cookie['name'] );
 		self::assertSame( '', $cookie['value'] );
 		self::assertLessThan( time(), $cookie['options']['expires'] );
@@ -293,12 +227,12 @@ final class JourneyVisitorCookieTest extends TestCase {
 		$_COOKIE[ Journey_Visitor_Cookie::NAME ] = $uuid;
 		$cookie                                  = new Journey_Visitor_Cookie();
 
-		self::$headers_sent = true;
+		$GLOBALS['shurloc_journey_cookie_test_headers_sent'] = true;
 		self::assertFalse( $cookie->clear() );
-		self::assertSame( array(), self::$sent_cookies );
+		self::assertSame( array(), $GLOBALS['shurloc_journey_cookie_test_calls'] );
 
-		self::$headers_sent     = false;
-		self::$setcookie_result = false;
+		$GLOBALS['shurloc_journey_cookie_test_headers_sent'] = false;
+		$GLOBALS['shurloc_journey_cookie_test_result']       = false;
 		self::assertFalse( $cookie->clear() );
 		self::assertSame( $uuid, $_COOKIE[ Journey_Visitor_Cookie::NAME ] );
 	}

@@ -44,6 +44,7 @@ require_once __DIR__ . '/stubs/customer-formatters-functions.php';
 require_once __DIR__ . '/stubs/customer-services-functions.php';
 require_once __DIR__ . '/stubs/customer-admin-functions.php';
 require_once __DIR__ . '/stubs/customer-migrations-functions.php';
+require_once __DIR__ . '/stubs/customer-journey-functions.php';
 
 require_once __DIR__ . '/stubs/woocommerce-functions.php';
 
@@ -81,6 +82,3 @@ require_once __DIR__ . '/doubles/class-woocommerce.php';
 require_once __DIR__ . '/doubles/class-test-woocommerce.php';
 require_once __DIR__ . '/doubles/class-wp-user-query.php';
 require_once __DIR__ . '/doubles/class-shurloc-test-wpdb.php';
-require_once __DIR__ . '/doubles/class-shurloc-journey-schema-test-wpdb.php';
-require_once __DIR__ . '/doubles/class-journey-visitor-repository-test-wpdb.php';
-require_once __DIR__ . '/doubles/class-journey-identity-period-test-wpdb.php';

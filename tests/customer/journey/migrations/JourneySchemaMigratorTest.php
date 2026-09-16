@@ -19,9 +19,9 @@ final class JourneySchemaMigratorTest extends TestCase {
 	/**
 	 * Database double.
 	 *
-	 * @var Shurloc_Journey_Schema_Test_WPDB
+	 * @var Shurloc_Test_WPDB
 	 */
-	private Shurloc_Journey_Schema_Test_WPDB $database;
+	private Shurloc_Test_WPDB $database;
 
 	/**
 	 * Prepare each test.
@@ -35,7 +35,7 @@ final class JourneySchemaMigratorTest extends TestCase {
 		$GLOBALS['shurloc_journey_dbdelta_calls'] = array();
 		$GLOBALS['shurloc_journey_dbdelta_apply'] = true;
 
-		$this->database = new Shurloc_Journey_Schema_Test_WPDB();
+		$this->database = new Shurloc_Test_WPDB();
 
 		// phpcs:ignore WordPress.WP.GlobalVariablesOverride.Prohibited -- Test-only wpdb replacement.
 		$GLOBALS['wpdb'] = $this->database;

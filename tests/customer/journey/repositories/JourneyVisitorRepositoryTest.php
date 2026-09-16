@@ -20,9 +20,9 @@ final class JourneyVisitorRepositoryTest extends TestCase {
 	/**
 	 * Database double under test.
 	 *
-	 * @var Journey_Visitor_Repository_Test_WPDB
+	 * @var Shurloc_Test_WPDB
 	 */
-	private Journey_Visitor_Repository_Test_WPDB $database;
+	private Shurloc_Test_WPDB $database;
 
 	/**
 	 * Install the ready schema option and a fresh database double.
@@ -36,7 +36,7 @@ final class JourneyVisitorRepositoryTest extends TestCase {
 			Journey_Schema_Migrator::VERSION_OPTION => Journey_Schema_Migrator::CURRENT_VERSION,
 		);
 
-		$this->database = new Journey_Visitor_Repository_Test_WPDB();
+		$this->database = new Shurloc_Test_WPDB();
 
 		// phpcs:ignore WordPress.WP.GlobalVariablesOverride.Prohibited -- Test-only wpdb replacement.
 		$GLOBALS['wpdb'] = $this->database;
@@ -155,7 +155,7 @@ final class JourneyVisitorRepositoryTest extends TestCase {
 	 * @return void
 	 */
 	public function test_find_or_create_returns_null_after_insert_failure(): void {
-		$this->database->fail_insert = true;
+		$this->database->fail_visitor_insert = true;
 
 		self::assertNull(
 			( new Journey_Visitor_Repository() )->find_or_create(
@@ -203,7 +203,9 @@ final class JourneyVisitorRepositoryTest extends TestCase {
 
 		self::assertTrue( $repository->mark_seen( visitor_id: 7, seen_at: '2026-09-16 12:05:00' ) );
 		self::assertTrue( $repository->mark_seen( visitor_id: 7, seen_at: '2026-09-16 12:03:00' ) );
-		self::assertSame( '2026-09-16 12:05:00', $this->database->visitors[ $uuid ]['last_seen_at'] );
+		$visitor = $this->database->visitors[ $uuid ];
+		self::assertIsArray( $visitor );
+		self::assertSame( '2026-09-16 12:05:00', $visitor['last_seen_at'] );
 		self::assertSame(
 			array(
 				'query' => 'UPDATE %i SET last_seen_at = %s WHERE id = %d AND last_seen_at < %s',

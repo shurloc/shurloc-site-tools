@@ -78,7 +78,7 @@ final class Journey_Identity_Period_Repository {
 				$period_id = $current['id'];
 			} else {
 				if ( null !== $current ) {
-					if ( $observed_at <= $current['started_at'] ) {
+					if ( $observed_at < $current['started_at'] ) {
 						throw new RuntimeException( 'Journey identity transition is out of order.' );
 					}
 

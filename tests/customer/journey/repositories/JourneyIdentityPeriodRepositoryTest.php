@@ -20,9 +20,9 @@ final class JourneyIdentityPeriodRepositoryTest extends TestCase {
 	/**
 	 * Database double.
 	 *
-	 * @var Journey_Identity_Period_Test_WPDB
+	 * @var Shurloc_Test_WPDB
 	 */
-	private Journey_Identity_Period_Test_WPDB $database;
+	private Shurloc_Test_WPDB $database;
 
 	/**
 	 * Prepare a ready schema and one visitor.
@@ -36,7 +36,7 @@ final class JourneyIdentityPeriodRepositoryTest extends TestCase {
 			Journey_Schema_Migrator::VERSION_OPTION => Journey_Schema_Migrator::CURRENT_VERSION,
 		);
 
-		$this->database               = new Journey_Identity_Period_Test_WPDB();
+		$this->database               = new Shurloc_Test_WPDB();
 		$this->database->visitors[12] = true;
 
 		// phpcs:ignore WordPress.WP.GlobalVariablesOverride.Prohibited -- Test-only wpdb replacement.
@@ -145,10 +145,24 @@ final class JourneyIdentityPeriodRepositoryTest extends TestCase {
 		self::assertSame( 1, $repository->ensure_current( visitor_id: 12, user_id: 37, observed_at: '2026-09-16 12:05:00' ) );
 
 		self::assertNull( $repository->ensure_current( visitor_id: 12, user_id: null, observed_at: '2026-09-16 12:04:00' ) );
-		self::assertNull( $repository->ensure_current( visitor_id: 12, user_id: null, observed_at: '2026-09-16 12:05:00' ) );
 		self::assertCount( 1, $this->database->periods );
 		self::assertNull( $this->database->periods[1]['ended_at'] );
 		self::assertSame( 'ROLLBACK', $this->database->queries[ count( $this->database->queries ) - 1 ] );
+	}
+
+	/**
+	 * A login in the same stored second still opens a new identity period.
+	 *
+	 * @return void
+	 */
+	public function test_same_second_login_can_transition_identity(): void {
+		$repository = new Journey_Identity_Period_Repository();
+
+		self::assertSame( 1, $repository->ensure_current( visitor_id: 12, user_id: null, observed_at: '2026-09-16 12:05:00' ) );
+		self::assertSame( 2, $repository->ensure_current( visitor_id: 12, user_id: 37, observed_at: '2026-09-16 12:05:00' ) );
+		self::assertSame( '2026-09-16 12:05:00', $this->database->periods[1]['ended_at'] );
+		self::assertSame( 37, $this->database->periods[1]['user_id'] );
+		self::assertSame( '2026-09-16 12:05:00', $this->database->periods[2]['started_at'] );
 	}
 
 	/**
