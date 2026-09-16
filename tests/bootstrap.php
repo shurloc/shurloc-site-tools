@@ -83,3 +83,4 @@ require_once __DIR__ . '/doubles/class-wp-user-query.php';
 require_once __DIR__ . '/doubles/class-shurloc-test-wpdb.php';
 require_once __DIR__ . '/doubles/class-shurloc-journey-schema-test-wpdb.php';
 require_once __DIR__ . '/doubles/class-journey-visitor-repository-test-wpdb.php';
+require_once __DIR__ . '/doubles/class-journey-identity-period-test-wpdb.php';
