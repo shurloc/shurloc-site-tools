@@ -122,6 +122,11 @@ $GLOBALS['shurloc_test_orders'] = array();
 $GLOBALS['shurloc_test_users'] = array();
 
 /**
+ * Per-user capabilities used by user_can() tests.
+ */
+$GLOBALS['shurloc_test_user_capabilities_by_id'] = array();
+
+/**
  * WordPress options stored during tests.
  */
 $GLOBALS['shurloc_test_options'] = array();
@@ -1782,6 +1787,29 @@ if ( ! function_exists( 'current_user_can' ) ) {
 
 		return $GLOBALS['shurloc_test_user_capabilities']
 			[ $capability ] ?? true;
+	}
+}
+
+if ( ! function_exists( 'user_can' ) ) {
+	/**
+	 * Determine whether a test user has a capability.
+	 *
+	 * @param int|WP_User $user       User ID or test user object.
+	 * @param string      $capability Capability name.
+	 * @param mixed       ...$args    Additional capability arguments.
+	 * @return bool
+	 */
+	function user_can(
+		int|WP_User $user,
+		string $capability,
+		mixed ...$args
+	): bool {
+
+		unset( $args );
+
+		$user_id = $user instanceof WP_User ? $user->ID : $user;
+
+		return $GLOBALS['shurloc_test_user_capabilities_by_id'][ $user_id ][ $capability ] ?? false;
 	}
 }
 

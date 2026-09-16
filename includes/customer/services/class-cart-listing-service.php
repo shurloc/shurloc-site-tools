@@ -52,6 +52,16 @@ use WC_Product;
 final class Cart_Listing_Service {
 
 	/**
+	 * Registered user IDs excluded from the cart report.
+	 *
+	 * Add customer IDs here when their carts should not appear in the report.
+	 * Administrator carts are excluded separately by capability.
+	 *
+	 * @var int[]
+	 */
+	public const EXCLUDED_USER_IDS = array();
+
+	/**
 	 * All-cart filter.
 	 *
 	 * @var string
@@ -136,15 +146,25 @@ final class Cart_Listing_Service {
 	private Cart_Session_Repository $cart_session_repository;
 
 	/**
+	 * Registered user IDs excluded from the report.
+	 *
+	 * @var int[]
+	 */
+	private array $excluded_user_ids;
+
+	/**
 	 * Constructor.
 	 *
 	 * @param Cart_Session_Repository $cart_session_repository Cart session repository.
+	 * @param array<int>              $excluded_user_ids      Registered user IDs to exclude.
 	 */
 	public function __construct(
-		Cart_Session_Repository $cart_session_repository
+		Cart_Session_Repository $cart_session_repository,
+		array $excluded_user_ids = self::EXCLUDED_USER_IDS
 	) {
 
 		$this->cart_session_repository = $cart_session_repository;
+		$this->excluded_user_ids       = $excluded_user_ids;
 	}
 
 	/**
@@ -165,7 +185,12 @@ final class Cart_Listing_Service {
 		$page     = max( 1, $page );
 		$per_page = max( 1, min( self::MAX_PER_PAGE, $per_page ) );
 
-		$stored_carts = $this->cart_session_repository->find_non_empty();
+		$stored_carts = array_values(
+			array_filter(
+				$this->cart_session_repository->find_non_empty(),
+				fn ( array $cart ): bool => ! $this->is_excluded( cart: $cart )
+			)
+		);
 		$counts       = $this->get_counts( carts: $stored_carts );
 		$filtered     = $this->filter_carts(
 			carts: $stored_carts,
@@ -285,6 +310,26 @@ final class Cart_Listing_Service {
 	): bool {
 
 		return isset( $cart['user_id'] ) && 0 < (int) $cart['user_id'];
+	}
+
+	/**
+	 * Determine whether a cart should be hidden from the report.
+	 *
+	 * @param array<string,mixed> $cart Stored cart.
+	 * @return bool
+	 */
+	private function is_excluded(
+		array $cart
+	): bool {
+
+		$user_id = isset( $cart['user_id'] ) ? (int) $cart['user_id'] : 0;
+
+		if ( 0 >= $user_id ) {
+			return false;
+		}
+
+		return in_array( $user_id, $this->excluded_user_ids, true ) ||
+			user_can( $user_id, 'manage_options' );
 	}
 
 	/**
