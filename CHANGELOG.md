@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.8.1] - 2026-09-16
+
+### Added
+
+- Added cart-report exclusions for administrators and configurable user IDs.
+
 ## [0.8.0] - 2026-09-15
 
 ### Added
