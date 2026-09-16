@@ -12,6 +12,24 @@ use Shurloc\SiteTools\Customer\Journey\Migrations\Journey_Schema_V1;
 
 /**
  * WordPress database test double.
+ *
+ * @phpstan-type SessionRow array{
+ *     id:int,
+ *     visitor_id:int,
+ *     identity_period_id:int,
+ *     user_id_at_start:int|null,
+ *     began_authenticated:int,
+ *     started_at:string,
+ *     last_activity_at:string,
+ *     ended_at:string|null,
+ *     landing_path:string|null,
+ *     referrer_host:string|null,
+ *     utm_source:string|null,
+ *     utm_medium:string|null,
+ *     utm_campaign:string|null,
+ *     utm_term:string|null,
+ *     utm_content:string|null
+ * }
  */
 final class Shurloc_Test_WPDB {
 
@@ -110,6 +128,13 @@ final class Shurloc_Test_WPDB {
 	public array $periods = array();
 
 	/**
+	 * Journey sessions keyed by their ID.
+	 *
+	 * @var array<int,SessionRow>
+	 */
+	public array $sessions = array();
+
+	/**
 	 * Insert calls and their arguments.
 	 *
 	 * @var list<array{table:string,data:array<string,mixed>,formats:array<int,string>}>
@@ -187,6 +212,34 @@ final class Shurloc_Test_WPDB {
 	public bool $fail_commit = false;
 
 	/**
+	 * Simulate session lookup failure.
+	 *
+	 * @var bool
+	 */
+	public bool $fail_session_select = false;
+
+	/**
+	 * Simulate session insertion failure.
+	 *
+	 * @var bool
+	 */
+	public bool $fail_session_insert = false;
+
+	/**
+	 * Simulate session activity update failure.
+	 *
+	 * @var bool
+	 */
+	public bool $fail_session_update = false;
+
+	/**
+	 * Simulate session close failure.
+	 *
+	 * @var bool
+	 */
+	public bool $fail_session_close = false;
+
+	/**
 	 * Arguments of the latest prepared query.
 	 *
 	 * @var list<mixed>
@@ -208,6 +261,13 @@ final class Shurloc_Test_WPDB {
 	private int $next_visitor_id = 1;
 
 	/**
+	 * Next session ID.
+	 *
+	 * @var int
+	 */
+	private int $next_session_id = 1;
+
+	/**
 	 * Transaction snapshot of identity periods.
 	 *
 	 * @var array<int,array{id:int,visitor_id:int,user_id:int|null,started_at:string,linked_at:string|null,ended_at:string|null}>|null
@@ -215,11 +275,25 @@ final class Shurloc_Test_WPDB {
 	private ?array $snapshot = null;
 
 	/**
+	 * Transaction snapshot of sessions.
+	 *
+	 * @var array<int,SessionRow>|null
+	 */
+	private ?array $snapshot_sessions = null;
+
+	/**
 	 * Next period ID before transaction start.
 	 *
 	 * @var int
 	 */
 	private int $snapshot_next_period_id = 1;
+
+	/**
+	 * Next session ID before transaction start.
+	 *
+	 * @var int
+	 */
+	private int $snapshot_next_session_id = 1;
 
 	/**
 	 * Prepare a SQL query.
@@ -338,6 +412,35 @@ final class Shurloc_Test_WPDB {
 			return array_slice( $rows, 0, 2 );
 		}
 
+		if ( str_starts_with( $query, 'SELECT id, started_at, last_activity_at FROM %i' ) ) {
+			if ( $this->fail_session_select ) {
+				return null;
+			}
+
+			$visitor_id = (int) $this->last_args[1];
+			$rows       = array();
+			foreach ( $this->sessions as $session ) {
+				if ( $visitor_id === $session['visitor_id'] && null === $session['ended_at'] ) {
+					$rows[] = (object) array(
+						'id'               => (string) $session['id'],
+						'started_at'       => $session['started_at'],
+						'last_activity_at' => $session['last_activity_at'],
+					);
+				}
+			}
+
+			usort(
+				$rows,
+				static function ( object $first, object $second ): int {
+					$by_start = $second->started_at <=> $first->started_at;
+
+					return 0 !== $by_start ? $by_start : $second->id <=> $first->id;
+				}
+			);
+
+			return array_slice( $rows, 0, 2 );
+		}
+
 		return $this->results;
 	}
 
@@ -409,6 +512,32 @@ final class Shurloc_Test_WPDB {
 			return 1;
 		}
 
+		if ( str_ends_with( $table, 'shurloc_journey_sessions' ) ) {
+			if ( $this->fail_session_insert ) {
+				return false;
+			}
+
+			$this->insert_id                    = $this->next_session_id++;
+			$this->sessions[ $this->insert_id ] = array(
+				'id'                  => $this->insert_id,
+				'visitor_id'          => (int) $data['visitor_id'],
+				'identity_period_id'  => (int) $data['identity_period_id'],
+				'user_id_at_start'    => null === $data['user_id_at_start'] ? null : (int) $data['user_id_at_start'],
+				'began_authenticated' => (int) $data['began_authenticated'],
+				'started_at'          => (string) $data['started_at'],
+				'last_activity_at'    => (string) $data['last_activity_at'],
+				'ended_at'            => null,
+				'landing_path'        => null === $data['landing_path'] ? null : (string) $data['landing_path'],
+				'referrer_host'       => null === $data['referrer_host'] ? null : (string) $data['referrer_host'],
+				'utm_source'          => null === $data['utm_source'] ? null : (string) $data['utm_source'],
+				'utm_medium'          => null === $data['utm_medium'] ? null : (string) $data['utm_medium'],
+				'utm_campaign'        => null === $data['utm_campaign'] ? null : (string) $data['utm_campaign'],
+				'utm_term'            => null === $data['utm_term'] ? null : (string) $data['utm_term'],
+				'utm_content'         => null === $data['utm_content'] ? null : (string) $data['utm_content'],
+			);
+			return 1;
+		}
+
 		return false;
 	}
 
@@ -455,8 +584,10 @@ final class Shurloc_Test_WPDB {
 				return false;
 			}
 
-			$this->snapshot                = $this->periods;
-			$this->snapshot_next_period_id = $this->next_period_id;
+			$this->snapshot                 = $this->periods;
+			$this->snapshot_sessions        = $this->sessions;
+			$this->snapshot_next_period_id  = $this->next_period_id;
+			$this->snapshot_next_session_id = $this->next_session_id;
 			return 0;
 		}
 
@@ -465,7 +596,8 @@ final class Shurloc_Test_WPDB {
 				return false;
 			}
 
-			$this->snapshot = null;
+			$this->snapshot          = null;
+			$this->snapshot_sessions = null;
 			return 0;
 		}
 
@@ -474,6 +606,11 @@ final class Shurloc_Test_WPDB {
 				$this->periods        = $this->snapshot;
 				$this->next_period_id = $this->snapshot_next_period_id;
 				$this->snapshot       = null;
+			}
+			if ( null !== $this->snapshot_sessions ) {
+				$this->sessions          = $this->snapshot_sessions;
+				$this->next_session_id   = $this->snapshot_next_session_id;
+				$this->snapshot_sessions = null;
 			}
 
 			return 0;
@@ -497,6 +634,43 @@ final class Shurloc_Test_WPDB {
 			}
 
 			return 0;
+		}
+
+		if ( str_starts_with( $query, 'UPDATE %i SET last_activity_at = %s' ) ) {
+			if ( $this->fail_session_update ) {
+				return false;
+			}
+
+			$session_id = (int) $this->last_args[2];
+			$visitor_id = (int) $this->last_args[3];
+			$observed   = (string) $this->last_args[1];
+			if ( ! isset( $this->sessions[ $session_id ] ) ||
+				$visitor_id !== $this->sessions[ $session_id ]['visitor_id'] ||
+				null !== $this->sessions[ $session_id ]['ended_at'] ||
+				$observed <= $this->sessions[ $session_id ]['last_activity_at'] ) {
+				return 0;
+			}
+
+			$this->sessions[ $session_id ]['last_activity_at'] = $observed;
+			return 1;
+		}
+
+		if ( str_starts_with( $query, 'UPDATE %i SET ended_at = %s' ) &&
+			str_ends_with( (string) $this->last_args[0], 'shurloc_journey_sessions' ) ) {
+			if ( $this->fail_session_close ) {
+				return false;
+			}
+
+			$session_id = (int) $this->last_args[2];
+			$visitor_id = (int) $this->last_args[3];
+			if ( ! isset( $this->sessions[ $session_id ] ) ||
+				$visitor_id !== $this->sessions[ $session_id ]['visitor_id'] ||
+				null !== $this->sessions[ $session_id ]['ended_at'] ) {
+				return 0;
+			}
+
+			$this->sessions[ $session_id ]['ended_at'] = (string) $this->last_args[1];
+			return 1;
 		}
 
 		if ( $this->fail_close ) {
