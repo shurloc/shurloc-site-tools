@@ -53,23 +53,33 @@ final class Journey_Event_Service {
 	private Journey_Event_Field_Validator $field_validator;
 
 	/**
+	 * Current visitor resolution for duration updates.
+	 *
+	 * @var Journey_Visitor_Service
+	 */
+	private Journey_Visitor_Service $visitors;
+
+	/**
 	 * Constructor.
 	 *
 	 * @param Journey_Session_Service|null       $sessions        Current session resolver.
 	 * @param Journey_Event_Repository|null      $events          Event storage.
 	 * @param Journey_Attribution_Sanitizer|null $attribution     Page-path sanitizer.
 	 * @param Journey_Event_Field_Validator|null $field_validator Event field rules.
+	 * @param Journey_Visitor_Service|null       $visitors        Current visitor resolver.
 	 */
 	public function __construct(
 		?Journey_Session_Service $sessions = null,
 		?Journey_Event_Repository $events = null,
 		?Journey_Attribution_Sanitizer $attribution = null,
-		?Journey_Event_Field_Validator $field_validator = null
+		?Journey_Event_Field_Validator $field_validator = null,
+		?Journey_Visitor_Service $visitors = null
 	) {
 		$this->sessions        = $sessions ?? new Journey_Session_Service();
 		$this->events          = $events ?? new Journey_Event_Repository();
 		$this->attribution     = $attribution ?? new Journey_Attribution_Sanitizer();
 		$this->field_validator = $field_validator ?? new Journey_Event_Field_Validator();
+		$this->visitors        = $visitors ?? new Journey_Visitor_Service();
 	}
 
 	/**
@@ -160,6 +170,35 @@ final class Journey_Event_Service {
 				),
 				$fields
 			),
+		);
+	}
+
+	/**
+	 * Add a view's cumulative visible time using the current visitor identity.
+	 *
+	 * The repository verifies event ownership and applies only an increase to
+	 * the original session. This does not resolve or extend a session. A later
+	 * browser-ingestion controller must validate the submitted duration.
+	 *
+	 * @param int $event_id        Existing page or product view event ID.
+	 * @param int $total_active_ms Cumulative visible time for that view.
+	 * @return bool Whether the duration was accepted or already recorded.
+	 * @phpstan-impure
+	 */
+	public function record_view_duration( int $event_id, int $total_active_ms ): bool {
+		if ( 0 >= $event_id || 0 > $total_active_ms ) {
+			return false;
+		}
+
+		$identity = $this->visitors->resolve();
+		if ( null === $identity ) {
+			return false;
+		}
+
+		return $this->events->record_view_duration(
+			event_id: $event_id,
+			visitor_id: $identity['visitor_id'],
+			total_active_ms: $total_active_ms
 		);
 	}
 }

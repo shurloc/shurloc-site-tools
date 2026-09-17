@@ -14,6 +14,7 @@ use Shurloc\SiteTools\Customer\Journey\Journey_Collection_Policy;
 use Shurloc\SiteTools\Customer\Journey\Journey_Collection_Test_User;
 use Shurloc\SiteTools\Customer\Journey\Journey_Event_Type;
 use Shurloc\SiteTools\Customer\Journey\Journey_Visitor_Cookie;
+use Shurloc\SiteTools\Customer\Journey\Journey_Visitor_UUID;
 use Shurloc\SiteTools\Customer\Journey\Migrations\Journey_Schema_Migrator;
 use Shurloc_Test_WPDB;
 
@@ -403,5 +404,94 @@ final class JourneyEventServiceTest extends TestCase {
 		$this->database->fail_event_insert = true;
 		self::assertNull( $service->record( event_type: Journey_Event_Type::PAGE_VIEW, page_uri: '/page' ) );
 		self::assertSame( array(), $this->database->events );
+	}
+
+	/**
+	 * Visible time belongs to the original view and never extends its session.
+	 *
+	 * @return void
+	 */
+	public function test_view_duration_uses_same_request_visitor_and_cumulative_totals(): void {
+		$view = ( new Journey_Event_Service() )->record(
+			event_type: Journey_Event_Type::PAGE_VIEW,
+			page_uri: '/article',
+		);
+		self::assertSame( 1, $view['id'] ?? null );
+
+		$last_activity = $this->database->sessions[1]['last_activity_at'];
+		$service       = new Journey_Event_Service();
+
+		self::assertTrue( $service->record_view_duration( event_id: 1, total_active_ms: 1200 ) );
+		self::assertTrue( $service->record_view_duration( event_id: 1, total_active_ms: 1200 ) );
+		self::assertTrue( $service->record_view_duration( event_id: 1, total_active_ms: 900 ) );
+		self::assertSame( 1200, $this->database->events[1]['active_ms'] );
+		self::assertSame( 1200, $this->database->sessions[1]['active_ms'] );
+
+		self::assertTrue( $service->record_view_duration( event_id: 1, total_active_ms: 2000 ) );
+		self::assertSame( 2000, $this->database->events[1]['active_ms'] );
+		self::assertSame( 2000, $this->database->sessions[1]['active_ms'] );
+		self::assertSame( 1, $this->database->sessions[1]['page_view_count'] );
+		self::assertSame( $last_activity, $this->database->sessions[1]['last_activity_at'] );
+		self::assertCount( 1, $this->database->visitor_rows );
+		self::assertCount( 1, $this->database->sessions );
+		self::assertCount( 1, $GLOBALS['shurloc_journey_cookie_test_calls'] );
+	}
+
+	/**
+	 * A different browser cannot add time to another visitor's view.
+	 *
+	 * @return void
+	 */
+	public function test_view_duration_requires_current_visitor_to_own_the_view(): void {
+		self::assertNotNull(
+			( new Journey_Event_Service() )->record(
+				event_type: Journey_Event_Type::PRODUCT_VIEW,
+				page_uri: '/product/widget',
+				product_id: 9,
+			)
+		);
+
+		$_COOKIE[ Journey_Visitor_Cookie::NAME ] = Journey_Visitor_UUID::generate();
+		self::assertFalse( ( new Journey_Event_Service() )->record_view_duration( event_id: 1, total_active_ms: 500 ) );
+		self::assertSame( 0, $this->database->events[1]['active_ms'] );
+		self::assertSame( 0, $this->database->sessions[1]['active_ms'] );
+		self::assertCount( 1, $this->database->sessions );
+	}
+
+	/**
+	 * Current consent and schema readiness gate duration writes.
+	 *
+	 * @return void
+	 */
+	public function test_view_duration_respects_collection_policy_and_schema_readiness(): void {
+		self::assertNotNull(
+			( new Journey_Event_Service() )->record(
+				event_type: Journey_Event_Type::PAGE_VIEW,
+				page_uri: '/article',
+			)
+		);
+
+		$service = new Journey_Event_Service();
+		add_filter( Journey_Collection_Policy::COLLECTION_ALLOWED_FILTER, static fn (): bool => false );
+		self::assertFalse( $service->record_view_duration( event_id: 1, total_active_ms: 500 ) );
+
+		$GLOBALS['shurloc_test_filters'] = array();
+		$GLOBALS['shurloc_test_options'] = array();
+		self::assertFalse( $service->record_view_duration( event_id: 1, total_active_ms: 500 ) );
+		self::assertSame( 0, $this->database->events[1]['active_ms'] );
+		self::assertSame( 0, $this->database->sessions[1]['active_ms'] );
+	}
+
+	/**
+	 * Malformed duration input is rejected before issuing a visitor cookie.
+	 *
+	 * @return void
+	 */
+	public function test_invalid_view_duration_is_rejected_before_identity_resolution(): void {
+		$service = new Journey_Event_Service();
+		self::assertFalse( $service->record_view_duration( event_id: 0, total_active_ms: 500 ) );
+		self::assertFalse( $service->record_view_duration( event_id: 1, total_active_ms: -1 ) );
+		self::assertSame( array(), $this->database->insert_calls );
+		self::assertSame( array(), $GLOBALS['shurloc_journey_cookie_test_calls'] );
 	}
 }
