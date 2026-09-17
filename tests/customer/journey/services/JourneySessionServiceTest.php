@@ -124,6 +124,12 @@ final class JourneySessionServiceTest extends TestCase {
 		self::assertSame( 'example.org', $this->database->sessions[1]['referrer_host'] );
 		self::assertSame( 'newsletter', $this->database->sessions[1]['utm_source'] );
 		self::assertSame( 'email', $this->database->sessions[1]['utm_medium'] );
+		$visitor = $this->database->visitor_rows[ $context['visitor_uuid'] ];
+		self::assertSame( $this->database->sessions[1]['started_at'], $visitor['first_touch_at'] ?? null );
+		self::assertSame( '/product/widget', $visitor['first_landing_path'] ?? null );
+		self::assertSame( 'example.org', $visitor['first_referrer_host'] ?? null );
+		self::assertSame( 'newsletter', $visitor['first_utm_source'] ?? null );
+		self::assertSame( 'email', $visitor['first_utm_medium'] ?? null );
 		self::assertGreaterThanOrEqual( $before, $this->database->sessions[1]['started_at'] );
 		self::assertLessThanOrEqual( $after, $this->database->sessions[1]['started_at'] );
 		self::assertNotContains( 'private@example.org', array_values( $this->database->sessions[1] ) );
@@ -154,6 +160,8 @@ final class JourneySessionServiceTest extends TestCase {
 		self::assertNull( $this->database->sessions[1]['user_id_at_start'] );
 		self::assertSame( '/first', $this->database->sessions[1]['landing_path'] );
 		self::assertSame( 'initial', $this->database->sessions[1]['utm_source'] );
+		self::assertSame( '/first', $this->database->visitor_rows[ $first['visitor_uuid'] ]['first_landing_path'] ?? null );
+		self::assertSame( 'initial', $this->database->visitor_rows[ $first['visitor_uuid'] ]['first_utm_source'] ?? null );
 	}
 
 	/**
@@ -180,6 +188,7 @@ final class JourneySessionServiceTest extends TestCase {
 		self::assertSame( 2, $second['session_id'] );
 		self::assertSame( $past, $this->database->sessions[1]['ended_at'] );
 		self::assertSame( '/return', $this->database->sessions[2]['landing_path'] );
+		self::assertSame( '/first', $this->database->visitor_rows[ $first['visitor_uuid'] ]['first_landing_path'] ?? null );
 	}
 
 	/**
@@ -206,6 +215,50 @@ final class JourneySessionServiceTest extends TestCase {
 		self::assertSame( 1, $second['session_id'] );
 		self::assertCount( 1, $this->database->sessions );
 		self::assertNull( $this->database->sessions[1]['landing_path'] );
+		self::assertArrayNotHasKey( 'first_touch_at', $this->database->visitor_rows[ $first['visitor_uuid'] ] );
+	}
+
+	/**
+	 * A missing page path leaves first touch open for the first known page.
+	 *
+	 * @return void
+	 */
+	public function test_first_known_page_after_contextless_activity_sets_first_touch(): void {
+		$service = new Journey_Session_Service();
+		$first   = $service->resolve_for_activity();
+		self::assertIsArray( $first );
+		self::assertArrayNotHasKey( 'first_touch_at', $this->database->visitor_rows[ $first['visitor_uuid'] ] );
+
+		$_COOKIE[ Journey_Visitor_Cookie::NAME ] = $first['visitor_uuid'];
+		$second                                  = $service->resolve_for_activity( '/first-known?utm_source=search' );
+
+		self::assertIsArray( $second );
+		self::assertSame( $first['session_id'], $second['session_id'] );
+		self::assertSame( '/first-known', $this->database->visitor_rows[ $first['visitor_uuid'] ]['first_landing_path'] ?? null );
+		self::assertSame( 'search', $this->database->visitor_rows[ $first['visitor_uuid'] ]['first_utm_source'] ?? null );
+	}
+
+	/**
+	 * A failed attribution update keeps the session usable and can be retried.
+	 *
+	 * @return void
+	 */
+	public function test_first_touch_failure_does_not_discard_session(): void {
+		$this->database->fail_update = true;
+		$service                     = new Journey_Session_Service();
+		$first                       = $service->resolve_for_activity( '/first' );
+
+		self::assertIsArray( $first );
+		self::assertSame( 1, $first['session_id'] );
+		self::assertArrayNotHasKey( 'first_touch_at', $this->database->visitor_rows[ $first['visitor_uuid'] ] );
+
+		$_COOKIE[ Journey_Visitor_Cookie::NAME ] = $first['visitor_uuid'];
+		$this->database->fail_update             = false;
+		$second                                  = $service->resolve_for_activity( '/retry' );
+
+		self::assertIsArray( $second );
+		self::assertSame( 1, $second['session_id'] );
+		self::assertSame( '/retry', $this->database->visitor_rows[ $first['visitor_uuid'] ]['first_landing_path'] ?? null );
 	}
 
 	/**
@@ -217,6 +270,7 @@ final class JourneySessionServiceTest extends TestCase {
 		add_filter( Journey_Collection_Policy::COLLECTION_ALLOWED_FILTER, static fn (): bool => false );
 		self::assertNull( ( new Journey_Session_Service() )->resolve_for_activity( '/private' ) );
 		self::assertSame( array(), $this->database->sessions );
+		self::assertSame( array(), $this->database->visitor_rows );
 		self::assertSame( array(), $GLOBALS['shurloc_journey_cookie_test_calls'] );
 
 		$GLOBALS['shurloc_test_filters'] = array();
@@ -237,6 +291,7 @@ final class JourneySessionServiceTest extends TestCase {
 		self::assertNull( ( new Journey_Session_Service() )->resolve_for_activity( '/product' ) );
 		self::assertCount( 1, $this->database->visitor_rows );
 		self::assertSame( array(), $this->database->sessions );
+		self::assertArrayNotHasKey( 'first_touch_at', array_values( $this->database->visitor_rows )[0] );
 		self::assertSame( 'ROLLBACK', $this->database->queries[ count( $this->database->queries ) - 1 ] );
 	}
 }
