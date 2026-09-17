@@ -408,6 +408,20 @@ if ( ! function_exists( 'wp_doing_ajax' ) ) {
 	}
 }
 
+if ( ! function_exists( 'wp_parse_url' ) ) {
+	/**
+	 * Parse a URL for tests without loading WordPress.
+	 *
+	 * @param string $url       URL to parse.
+	 * @param int    $component Component to return, or -1 for all parts.
+	 * @return array<string,int|string>|false|int|string|null Parsed component.
+	 */
+	function wp_parse_url( string $url, int $component = -1 ): array|false|int|string|null {
+		// phpcs:ignore WordPress.WP.AlternativeFunctions.parse_url_parse_url -- Test stub delegates to PHP's parser.
+		return parse_url( $url, $component );
+	}
+}
+
 if ( ! function_exists( 'wp_doing_cron' ) ) {
 	/**
 	 * Determine whether the current Journey test request runs from cron.
