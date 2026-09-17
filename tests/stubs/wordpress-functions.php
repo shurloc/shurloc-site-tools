@@ -16,6 +16,10 @@ if ( ! defined( 'MINUTE_IN_SECONDS' ) ) {
 	define( 'MINUTE_IN_SECONDS', 60 );
 }
 
+if ( ! defined( 'LOGGED_IN_COOKIE' ) ) {
+	define( 'LOGGED_IN_COOKIE', 'wordpress_logged_in_test' );
+}
+
 /**
  * Test post meta values.
  */
@@ -25,6 +29,11 @@ $GLOBALS['shurloc_test_post_meta'] = array();
  * Registered test actions.
  */
 $GLOBALS['shurloc_test_actions'] = array();
+
+/**
+ * Registered REST routes.
+ */
+$GLOBALS['shurloc_test_rest_routes'] = array();
 
 /**
  * Registered test action metadata.
@@ -336,6 +345,27 @@ if ( ! function_exists( 'add_action' ) ) {
 				'accepted_args' => $accepted_args,
 			);
 
+		return true;
+	}
+}
+
+if ( ! function_exists( 'register_rest_route' ) ) {
+	/**
+	 * Record REST route registration for tests.
+	 *
+	 * @param string              $route_namespace Route namespace.
+	 * @param string              $route     Route path.
+	 * @param array<string,mixed> $args      Route arguments.
+	 * @param bool                $override  Whether to override a route.
+	 * @return bool Whether registration succeeded.
+	 */
+	function register_rest_route( string $route_namespace, string $route, array $args = array(), bool $override = false ): bool {
+		$GLOBALS['shurloc_test_rest_routes'][ $route_namespace . $route ] = array(
+			'namespace' => $route_namespace,
+			'route'     => $route,
+			'args'      => $args,
+			'override'  => $override,
+		);
 		return true;
 	}
 }

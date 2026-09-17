@@ -16,6 +16,7 @@ use Shurloc\SiteTools\Customer\Admin\User_Cart_Column;
 use Shurloc\SiteTools\Customer\Admin\User_Filters;
 use Shurloc\SiteTools\Customer\Journey\Admin\Journey_Schema_Admin;
 use Shurloc\SiteTools\Customer\Journey\Migrations\Journey_Schema_Migrator;
+use Shurloc\SiteTools\Customer\Journey\Rest\Journey_Browser_Ingestion_Controller;
 use Shurloc_Test_WPDB;
 
 /**
@@ -33,6 +34,7 @@ final class BootstrapTest extends TestCase {
 		parent::setUp();
 
 		$GLOBALS['shurloc_test_actions']               = array();
+		$GLOBALS['shurloc_test_rest_routes']           = array();
 		$GLOBALS['shurloc_test_action_metadata']       = array();
 		$GLOBALS['shurloc_test_filters']               = array();
 		$GLOBALS['shurloc_test_filter_metadata']       = array();
@@ -52,6 +54,7 @@ final class BootstrapTest extends TestCase {
 	protected function tearDown(): void {
 
 		$GLOBALS['shurloc_test_actions']               = array();
+		$GLOBALS['shurloc_test_rest_routes']           = array();
 		$GLOBALS['shurloc_test_action_metadata']       = array();
 		$GLOBALS['shurloc_test_filters']               = array();
 		$GLOBALS['shurloc_test_filter_metadata']       = array();
@@ -259,6 +262,36 @@ final class BootstrapTest extends TestCase {
 			5,
 			$GLOBALS['shurloc_test_action_metadata']['admin_init'][ $upgrade_index ]['priority']
 		);
+	}
+
+	/**
+	 * Verify the browser routes are registered when WordPress initializes REST.
+	 *
+	 * @return void
+	 */
+	public function test_register_adds_journey_browser_ingestion_routes(): void {
+		$GLOBALS['shurloc_test_is_admin'] = false;
+		$bootstrap                        = new Bootstrap();
+		$bootstrap->register();
+
+		self::assertCount( 1, $GLOBALS['shurloc_test_actions']['rest_api_init'] );
+		self::assertSame( array(), $GLOBALS['shurloc_test_rest_routes'] );
+		self::assertSame( array(), $GLOBALS['shurloc_test_options'] );
+
+		$callback = $GLOBALS['shurloc_test_actions']['rest_api_init'][0];
+		self::assertIsArray( $callback );
+		self::assertInstanceOf( Journey_Browser_Ingestion_Controller::class, $callback[0] );
+		self::assertIsCallable( $callback );
+		$callback();
+
+		foreach ( array( '/journey/view', '/journey/duration' ) as $path ) {
+			$route = $GLOBALS['shurloc_test_rest_routes'][ Journey_Browser_Ingestion_Controller::ROUTE_NAMESPACE . $path ];
+			self::assertSame( 'POST', $route['args']['methods'] );
+			self::assertIsCallable( $route['args']['callback'] );
+			self::assertIsCallable( $route['args']['permission_callback'] );
+		}
+		self::assertCount( 2, $GLOBALS['shurloc_test_rest_routes'] );
+		self::assertSame( array(), $GLOBALS['shurloc_test_options'] );
 	}
 
 	/**

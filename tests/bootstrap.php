@@ -50,6 +50,8 @@ require_once __DIR__ . '/stubs/woocommerce-functions.php';
 
 require_once __DIR__ . '/doubles/class-wp-query.php';
 require_once __DIR__ . '/doubles/class-wp-post.php';
+require_once __DIR__ . '/doubles/class-wp-error.php';
+require_once __DIR__ . '/doubles/class-wp-rest-request.php';
 require_once __DIR__ . '/doubles/class-wp-screen.php';
 require_once __DIR__ . '/doubles/class-wp-user.php';
 require_once __DIR__ . '/doubles/class-journey-collection-test-user.php';
