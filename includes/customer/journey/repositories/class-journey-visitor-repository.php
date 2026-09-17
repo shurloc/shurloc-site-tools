@@ -11,11 +11,14 @@ namespace Shurloc\SiteTools\Customer\Journey\Repositories;
 
 defined( 'ABSPATH' ) || exit;
 
+use Shurloc\SiteTools\Customer\Journey\Journey_Attribution_Sanitizer;
 use Shurloc\SiteTools\Customer\Journey\Journey_Visitor_UUID;
 use Shurloc\SiteTools\Customer\Journey\Migrations\Journey_Schema_Migrator;
 
 /**
- * Resolves opaque UUIDs to visitor rows without creating identity periods.
+ * Resolves opaque UUIDs and first-touch attribution without creating identity periods.
+ *
+ * @phpstan-import-type Attribution from Journey_Attribution_Sanitizer
  */
 final class Journey_Visitor_Repository {
 	/**
@@ -51,7 +54,8 @@ final class Journey_Visitor_Repository {
 	/**
 	 * Find or insert one visitor, including a concurrent unique-key winner.
 	 *
-	 * First-touch attribution and identity periods belong to later units.
+	 * First-touch attribution is recorded separately once sanitized page context
+	 * is available. Identity periods belong to their own repository.
 	 * The timestamp must be a server-generated UTC MySQL datetime.
 	 *
 	 * @param string $uuid    Canonical visitor UUID.
@@ -116,6 +120,51 @@ final class Journey_Visitor_Repository {
 				$seen_at,
 				$visitor_id,
 				$seen_at
+			)
+		);
+	}
+
+	/**
+	 * Store the earliest known page attribution for a visitor atomically.
+	 *
+	 * The caller supplies a server-generated UTC timestamp and sanitizer output.
+	 * A visit without a valid landing path cannot establish first touch. A zero
+	 * row update is successful when an earlier or simultaneous touch already won.
+	 * Empty strings for nullable values become SQL NULL through NULLIF.
+	 *
+	 * @param int                       $visitor_id  Visitor row ID.
+	 * @param string                    $observed_at Server-generated UTC datetime.
+	 * @param array<string,string|null> $attribution Sanitized page and campaign fields.
+	 * @return bool Whether the database accepted the update query.
+	 * @phpstan-param Attribution $attribution
+	 */
+	public function record_first_touch( int $visitor_id, string $observed_at, array $attribution ): bool {
+		if (
+			0 >= $visitor_id ||
+			'' === $observed_at ||
+			null === $attribution['landing_path'] ||
+			'' === $attribution['landing_path'] ||
+			! $this->schema_migrator->is_ready()
+		) {
+			return false;
+		}
+
+		global $wpdb;
+
+		return false !== $wpdb->query(
+			$wpdb->prepare(
+				"UPDATE %i SET first_touch_at = %s, first_landing_path = %s, first_referrer_host = NULLIF(%s, ''), first_utm_source = NULLIF(%s, ''), first_utm_medium = NULLIF(%s, ''), first_utm_campaign = NULLIF(%s, ''), first_utm_term = NULLIF(%s, ''), first_utm_content = NULLIF(%s, '') WHERE id = %d AND (first_touch_at IS NULL OR first_touch_at > %s)",
+				$this->table_name(),
+				$observed_at,
+				$attribution['landing_path'],
+				$attribution['referrer_host'] ?? '',
+				$attribution['utm_source'] ?? '',
+				$attribution['utm_medium'] ?? '',
+				$attribution['utm_campaign'] ?? '',
+				$attribution['utm_term'] ?? '',
+				$attribution['utm_content'] ?? '',
+				$visitor_id,
+				$observed_at
 			)
 		);
 	}

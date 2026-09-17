@@ -30,6 +30,19 @@ use Shurloc\SiteTools\Customer\Journey\Migrations\Journey_Schema_V1;
  *     utm_term:string|null,
  *     utm_content:string|null
  * }
+ * @phpstan-type VisitorRow array{
+ *     id:int,
+ *     created_at:string,
+ *     last_seen_at:string,
+ *     first_touch_at?:string,
+ *     first_landing_path?:string,
+ *     first_referrer_host?:string|null,
+ *     first_utm_source?:string|null,
+ *     first_utm_medium?:string|null,
+ *     first_utm_campaign?:string|null,
+ *     first_utm_term?:string|null,
+ *     first_utm_content?:string|null
+ * }
  */
 final class Shurloc_Test_WPDB {
 
@@ -109,14 +122,14 @@ final class Shurloc_Test_WPDB {
 	/**
 	 * Visitor fixtures: UUID rows and existing IDs by integer key.
 	 *
-	 * @var array<int|string,bool|array{id:int,created_at:string,last_seen_at:string}>
+	 * @var array<int|string,bool|VisitorRow>
 	 */
 	public array $visitors = array();
 
 	/**
 	 * Visitor rows inspected by Journey service tests.
 	 *
-	 * @var array<string,array{id:int,created_at:string,last_seen_at:string}>
+	 * @var array<string,VisitorRow>
 	 */
 	public array $visitor_rows = array();
 
@@ -544,9 +557,10 @@ final class Shurloc_Test_WPDB {
 	/**
 	 * Keep both visitor fixture views in sync after an insert.
 	 *
-	 * @param string                                              $uuid Visitor UUID.
-	 * @param array{id:int,created_at:string,last_seen_at:string} $row Visitor row.
+	 * @param string              $uuid Visitor UUID.
+	 * @param array<string,mixed> $row  Visitor row.
 	 * @return void
+	 * @phpstan-param VisitorRow $row
 	 */
 	private function store_visitor( string $uuid, array $row ): void {
 		$this->visitors[ $uuid ]     = $row;
@@ -631,6 +645,36 @@ final class Shurloc_Test_WPDB {
 					$this->visitor_rows[ $uuid ] = $row;
 					return 1;
 				}
+			}
+
+			return 0;
+		}
+
+		if ( str_starts_with( $query, 'UPDATE %i SET first_touch_at = %s' ) ) {
+			if ( $this->fail_update ) {
+				return false;
+			}
+
+			$visitor_id = (int) $this->last_args[9];
+			$observed   = (string) $this->last_args[1];
+			foreach ( $this->visitors as $uuid => $row ) {
+				if ( ! is_string( $uuid ) || ! is_array( $row ) ||
+					$visitor_id !== $row['id'] ||
+					( isset( $row['first_touch_at'] ) && $row['first_touch_at'] <= $observed ) ) {
+					continue;
+				}
+
+				$row['first_touch_at']       = $observed;
+				$row['first_landing_path']   = (string) $this->last_args[2];
+				$row['first_referrer_host']  = '' === $this->last_args[3] ? null : (string) $this->last_args[3];
+				$row['first_utm_source']     = '' === $this->last_args[4] ? null : (string) $this->last_args[4];
+				$row['first_utm_medium']     = '' === $this->last_args[5] ? null : (string) $this->last_args[5];
+				$row['first_utm_campaign']   = '' === $this->last_args[6] ? null : (string) $this->last_args[6];
+				$row['first_utm_term']       = '' === $this->last_args[7] ? null : (string) $this->last_args[7];
+				$row['first_utm_content']    = '' === $this->last_args[8] ? null : (string) $this->last_args[8];
+				$this->visitors[ $uuid ]     = $row;
+				$this->visitor_rows[ $uuid ] = $row;
+				return 1;
 			}
 
 			return 0;

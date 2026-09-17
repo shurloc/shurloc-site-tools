@@ -10,6 +10,7 @@ declare( strict_types=1 );
 namespace Shurloc\SiteTools\Customer\Journey\Repositories;
 
 use PHPUnit\Framework\TestCase;
+use Shurloc\SiteTools\Customer\Journey\Journey_Attribution_Sanitizer;
 use Shurloc\SiteTools\Customer\Journey\Migrations\Journey_Schema_Migrator;
 use Shurloc_Test_WPDB;
 
@@ -216,5 +217,101 @@ final class JourneyVisitorRepositoryTest extends TestCase {
 
 		$this->database->fail_update = true;
 		self::assertFalse( $repository->mark_seen( visitor_id: 7, seen_at: '2026-09-16 12:10:00' ) );
+	}
+
+	/**
+	 * Store only sanitized first-touch fields using the current table prefix.
+	 *
+	 * @return void
+	 */
+	public function test_record_first_touch_stores_sanitized_attribution_once(): void {
+		$this->database->prefix = 'shop_';
+		$repository             = new Journey_Visitor_Repository();
+		$uuid                   = '123e4567-e89b-42d3-a456-426614174000';
+		$visitor_id             = $repository->find_or_create( uuid: $uuid, seen_at: '2026-09-16 12:00:00' );
+		self::assertSame( 1, $visitor_id );
+
+		$attribution = ( new Journey_Attribution_Sanitizer() )->sanitize(
+			request_uri: '/product/widget?utm_source=newsletter&email=private%40example.org',
+			referrer_url: 'https://Example.org/article?token=secret',
+		);
+		self::assertTrue(
+			$repository->record_first_touch(
+				visitor_id: 1,
+				observed_at: '2026-09-16 12:00:01',
+				attribution: $attribution
+			)
+		);
+
+		$row = $this->database->visitor_rows[ $uuid ];
+		self::assertSame( '2026-09-16 12:00:01', $row['first_touch_at'] ?? null );
+		self::assertSame( '/product/widget', $row['first_landing_path'] ?? null );
+		self::assertSame( 'example.org', $row['first_referrer_host'] ?? null );
+		self::assertSame( 'newsletter', $row['first_utm_source'] ?? null );
+		self::assertNull( $row['first_utm_medium'] ?? null );
+		self::assertSame( 'shop_shurloc_journey_visitors', $this->database->prepared_queries[1]['args'][0] );
+		self::assertSame( 1, $this->database->prepared_queries[1]['args'][9] );
+		self::assertStringContainsString( 'first_touch_at IS NULL OR first_touch_at > %s', $this->database->prepared_queries[1]['query'] );
+		self::assertNotContains( 'private@example.org', $this->database->prepared_queries[1]['args'] );
+		self::assertNotContains( 'https://Example.org/article?token=secret', $this->database->prepared_queries[1]['args'] );
+		self::assertSame( '', $this->database->prepared_queries[1]['args'][5] );
+		self::assertStringContainsString( "first_utm_medium = NULLIF(%s, '')", $this->database->prepared_queries[1]['query'] );
+	}
+
+	/**
+	 * A later direct visit cannot erase the earliest known acquisition.
+	 *
+	 * @return void
+	 */
+	public function test_record_first_touch_preserves_earliest_timestamp(): void {
+		$repository = new Journey_Visitor_Repository();
+		$uuid       = '123e4567-e89b-42d3-a456-426614174000';
+		self::assertSame( 1, $repository->find_or_create( uuid: $uuid, seen_at: '2026-09-16 12:00:00' ) );
+
+		$sanitizer = new Journey_Attribution_Sanitizer();
+		$original  = $sanitizer->sanitize( '/first?utm_source=newsletter', null );
+		$later     = $sanitizer->sanitize( '/later', null );
+		$earlier   = $sanitizer->sanitize( '/earlier?utm_source=search', null );
+
+		self::assertTrue( $repository->record_first_touch( 1, '2026-09-16 12:00:00', $original ) );
+		self::assertTrue( $repository->record_first_touch( 1, '2026-09-16 13:00:00', $later ) );
+		self::assertSame( '/first', $this->database->visitor_rows[ $uuid ]['first_landing_path'] ?? null );
+		self::assertSame( 'newsletter', $this->database->visitor_rows[ $uuid ]['first_utm_source'] ?? null );
+
+		self::assertTrue( $repository->record_first_touch( 1, '2026-09-16 11:00:00', $earlier ) );
+		self::assertSame( '2026-09-16 11:00:00', $this->database->visitor_rows[ $uuid ]['first_touch_at'] ?? null );
+		self::assertSame( '/earlier', $this->database->visitor_rows[ $uuid ]['first_landing_path'] ?? null );
+		self::assertSame( 'search', $this->database->visitor_rows[ $uuid ]['first_utm_source'] ?? null );
+	}
+
+	/**
+	 * Invalid page context and schema failure must not reach the visitor table.
+	 *
+	 * @return void
+	 */
+	public function test_record_first_touch_rejects_invalid_context_and_unready_schema(): void {
+		$repository   = new Journey_Visitor_Repository();
+		$sanitizer    = new Journey_Attribution_Sanitizer();
+		$attribution  = $sanitizer->sanitize( '/first', null );
+		$invalid_page = $sanitizer->sanitize( 'https://example.org/first', null );
+
+		self::assertFalse( $repository->record_first_touch( 0, '2026-09-16 12:00:00', $attribution ) );
+		self::assertFalse( $repository->record_first_touch( 1, '', $attribution ) );
+		self::assertFalse( $repository->record_first_touch( 1, '2026-09-16 12:00:00', $invalid_page ) );
+		$GLOBALS['shurloc_test_options'] = array();
+		self::assertFalse( $repository->record_first_touch( 1, '2026-09-16 12:00:00', $attribution ) );
+		self::assertSame( array(), $this->database->prepared_queries );
+	}
+
+	/**
+	 * A failed first-touch update reports the storage failure.
+	 *
+	 * @return void
+	 */
+	public function test_record_first_touch_reports_database_failure(): void {
+		$this->database->fail_update = true;
+		$attribution                 = ( new Journey_Attribution_Sanitizer() )->sanitize( '/first', null );
+
+		self::assertFalse( ( new Journey_Visitor_Repository() )->record_first_touch( 1, '2026-09-16 12:00:00', $attribution ) );
 	}
 }
