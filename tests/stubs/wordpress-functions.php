@@ -226,6 +226,11 @@ $GLOBALS['shurloc_test_enqueued_styles'] = array();
 $GLOBALS['shurloc_test_enqueued_scripts'] = array();
 
 /**
+ * Inline scripts registered during tests.
+ */
+$GLOBALS['shurloc_test_inline_scripts'] = array();
+
+/**
  * Localized scripts.
  */
 $GLOBALS['shurloc_test_localized_scripts'] = array();
@@ -815,6 +820,21 @@ if ( ! function_exists( 'home_url' ) ) {
 	function home_url( string $path = '' ): string {
 
 		return ( $GLOBALS['shurloc_test_home_url'] ?? 'https://example.com' ) . $path;
+	}
+}
+
+if ( ! function_exists( 'rest_url' ) ) {
+	/**
+	 * Build a test REST URL from the configurable site endpoint.
+	 *
+	 * @param string $path   REST route path.
+	 * @param string $scheme URL scheme context.
+	 * @return string Full REST URL.
+	 */
+	function rest_url( string $path = '', string $scheme = 'rest' ): string {
+		unset( $scheme );
+		$base = $GLOBALS['shurloc_test_rest_url'] ?? home_url( '/wp-json/' );
+		return trailingslashit( $base ) . ltrim( $path, '/' );
 	}
 }
 
@@ -1622,6 +1642,25 @@ if ( ! function_exists( 'wp_enqueue_script' ) ) {
 			'ver'       => $ver,
 			'in_footer' => $in_footer,
 		);
+	}
+}
+
+if ( ! function_exists( 'wp_add_inline_script' ) ) {
+	/**
+	 * Record inline script data for tests.
+	 *
+	 * @param string $handle   Registered script handle.
+	 * @param string $data     JavaScript source.
+	 * @param string $position Before or after the script.
+	 * @return bool Whether inline data was recorded.
+	 */
+	function wp_add_inline_script( string $handle, string $data, string $position = 'after' ): bool {
+		$GLOBALS['shurloc_test_inline_scripts'][] = array(
+			'handle'   => $handle,
+			'data'     => $data,
+			'position' => $position,
+		);
+		return true;
 	}
 }
 
