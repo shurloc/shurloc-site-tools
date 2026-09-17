@@ -7,7 +7,6 @@
     "files.eol": "\n",
     "intelephense.files.maxSize": 10000000,
     "intelephense.environment.includePaths": [
-        "../shurloc-tools/includes/interfaces",
         "./vendor/php-stubs/woocommerce-stubs"
     ]
 }
