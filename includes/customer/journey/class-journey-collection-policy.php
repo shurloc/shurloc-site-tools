@@ -18,6 +18,11 @@ use WP_User;
  */
 final class Journey_Collection_Policy {
 	/**
+	 * Common crawler and non-browser client tokens, without a maintained bot list.
+	 */
+	private const AUTOMATED_USER_AGENT_PATTERN = '/(?:^|[\s(;])(?:[a-z0-9_-]*(?:bot|crawler|spider)(?:[-_][a-z0-9]+)*|slurp|facebookexternalhit|headlesschrome|curl|wget|python-requests)(?=\/|[\s;)]|$)/i';
+
+	/**
 	 * Filter for site consent and other request-level collection rules.
 	 *
 	 * Receives the default decision and the current WP_User. A consent
@@ -50,6 +55,11 @@ final class Journey_Collection_Policy {
 	 */
 	public function allows_collection( ?WP_User $user = null ): bool {
 		if ( wp_doing_cron() || ( is_admin() && ! wp_doing_ajax() ) ) {
+			return false;
+		}
+
+		$user_agent = $_SERVER['HTTP_USER_AGENT'] ?? '';
+		if ( ! is_string( $user_agent ) || 1 === preg_match( self::AUTOMATED_USER_AGENT_PATTERN, $user_agent ) ) {
 			return false;
 		}
 

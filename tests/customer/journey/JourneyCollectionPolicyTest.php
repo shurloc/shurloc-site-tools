@@ -23,12 +23,22 @@ final class JourneyCollectionPolicyTest extends TestCase {
 	private Journey_Collection_Policy $policy;
 
 	/**
+	 * Original server request context.
+	 *
+	 * @var array<string,mixed>
+	 */
+	private array $original_server = array();
+
+	/**
 	 * Reset request and filter state before each test.
 	 *
 	 * @return void
 	 */
 	protected function setUp(): void {
 		parent::setUp();
+
+		$this->original_server = $_SERVER;
+		unset( $_SERVER['HTTP_USER_AGENT'] );
 
 		$GLOBALS['shurloc_test_filters']                 = array();
 		$GLOBALS['shurloc_test_filter_metadata']         = array();
@@ -47,6 +57,8 @@ final class JourneyCollectionPolicyTest extends TestCase {
 	 * @return void
 	 */
 	protected function tearDown(): void {
+		$_SERVER = $this->original_server;
+
 		$GLOBALS['shurloc_test_filters']                 = array();
 		$GLOBALS['shurloc_test_filter_metadata']         = array();
 		$GLOBALS['shurloc_test_is_admin']                = true;
@@ -65,6 +77,58 @@ final class JourneyCollectionPolicyTest extends TestCase {
 	 */
 	public function test_anonymous_frontend_request_is_allowed_by_default(): void {
 		self::assertTrue( $this->policy->allows_collection() );
+	}
+
+	/**
+	 * Standard browser requests remain eligible for collection.
+	 *
+	 * @return void
+	 */
+	public function test_browser_user_agents_are_allowed(): void {
+		foreach (
+			array(
+				'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/120.0 Safari/537.36',
+				'Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 Mobile/15E148 Safari/604.1',
+			) as $user_agent
+		) {
+			$_SERVER['HTTP_USER_AGENT'] = $user_agent;
+			self::assertTrue( $this->policy->allows_collection(), $user_agent );
+		}
+	}
+
+	/**
+	 * Known crawlers and command-line clients are not customer journeys.
+	 *
+	 * @return void
+	 */
+	public function test_automated_user_agents_are_excluded(): void {
+		foreach (
+			array(
+				'Mozilla/5.0 (compatible; Googlebot/2.1; +https://www.google.com/bot.html)',
+				'Mozilla/5.0 (compatible; bingbot/2.0; +https://www.bing.com/bingbot.htm)',
+				'DuckDuckBot/1.1',
+				'Mozilla/5.0 (compatible; Googlebot-Image/1.0)',
+				'facebookexternalhit/1.1',
+				'Mozilla/5.0 HeadlessChrome/120.0',
+				'curl/8.4.0',
+				'python-requests/2.31.0',
+			) as $user_agent
+		) {
+			$_SERVER['HTTP_USER_AGENT'] = $user_agent;
+			self::assertFalse( $this->policy->allows_collection(), $user_agent );
+		}
+	}
+
+	/**
+	 * Missing headers remain eligible; malformed header values fail closed.
+	 *
+	 * @return void
+	 */
+	public function test_missing_and_malformed_user_agents(): void {
+		self::assertTrue( $this->policy->allows_collection() );
+
+		$_SERVER['HTTP_USER_AGENT'] = array( 'Googlebot' );
+		self::assertFalse( $this->policy->allows_collection() );
 	}
 
 	/**
