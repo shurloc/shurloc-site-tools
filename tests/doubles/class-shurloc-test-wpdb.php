@@ -290,11 +290,18 @@ final class Shurloc_Test_WPDB {
 	public bool $fail_event_insert = false;
 
 	/**
-	 * Simulate an event duplicate lookup failure.
+	 * Simulate an event lookup failure.
 	 *
 	 * @var bool
 	 */
 	public bool $fail_event_select = false;
+
+	/**
+	 * Simulate a view-duration event update failure.
+	 *
+	 * @var bool
+	 */
+	public bool $fail_event_duration_update = false;
 
 	/**
 	 * Simulate a session summary update failure.
@@ -560,6 +567,27 @@ final class Shurloc_Test_WPDB {
 			}
 
 			return array();
+		}
+
+		if ( str_starts_with( $query, 'SELECT session_id, event_type, active_ms FROM %i WHERE id = %d AND visitor_id = %d' ) ) {
+			if ( $this->fail_event_select ) {
+				return null;
+			}
+
+			$event_id   = (int) $this->last_args[1];
+			$visitor_id = (int) $this->last_args[2];
+			$event      = $this->events[ $event_id ] ?? null;
+			if ( null === $event || $visitor_id !== $event['visitor_id'] ) {
+				return array();
+			}
+
+			return array(
+				(object) array(
+					'session_id' => (string) $event['session_id'],
+					'event_type' => $event['event_type'],
+					'active_ms'  => (string) $event['active_ms'],
+				),
+			);
 		}
 
 		return $this->results;
@@ -838,6 +866,24 @@ final class Shurloc_Test_WPDB {
 				}
 			}
 
+			return 1;
+		}
+
+		if ( 'UPDATE %i SET active_ms = %d WHERE id = %d AND visitor_id = %d AND active_ms = %d' === $query ) {
+			if ( $this->fail_event_duration_update ) {
+				return false;
+			}
+
+			$event_id   = (int) $this->last_args[2];
+			$visitor_id = (int) $this->last_args[3];
+			$stored_ms  = (int) $this->last_args[4];
+			if ( ! isset( $this->events[ $event_id ] ) ||
+				$visitor_id !== $this->events[ $event_id ]['visitor_id'] ||
+				$stored_ms !== $this->events[ $event_id ]['active_ms'] ) {
+				return 0;
+			}
+
+			$this->events[ $event_id ]['active_ms'] = (int) $this->last_args[1];
 			return 1;
 		}
 

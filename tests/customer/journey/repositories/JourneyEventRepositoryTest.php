@@ -500,6 +500,115 @@ final class JourneyEventRepositoryTest extends TestCase {
 	}
 
 	/**
+	 * Cumulative duration updates count only new visible time for the original view.
+	 *
+	 * @return void
+	 */
+	public function test_view_duration_is_cumulative_and_does_not_extend_session_activity(): void {
+		$repository         = new Journey_Event_Repository();
+		$event              = $this->event();
+		$event['active_ms'] = 500;
+		self::assertNotNull( $repository->record( $event ) );
+
+		self::assertTrue( $repository->record_view_duration( event_id: 1, visitor_id: 12, total_active_ms: 1200 ) );
+		self::assertSame( 1200, $this->database->events[1]['active_ms'] );
+		self::assertSame( 1200, $this->database->sessions[20]['active_ms'] );
+		self::assertSame( 1, $this->database->sessions[20]['page_view_count'] );
+		self::assertSame( '2026-09-16 12:00:00', $this->database->sessions[20]['last_activity_at'] );
+
+		self::assertTrue( $repository->record_view_duration( event_id: 1, visitor_id: 12, total_active_ms: 1200 ) );
+		self::assertTrue( $repository->record_view_duration( event_id: 1, visitor_id: 12, total_active_ms: 900 ) );
+		self::assertSame( 1200, $this->database->sessions[20]['active_ms'] );
+		self::assertTrue( $repository->record_view_duration( event_id: 1, visitor_id: 12, total_active_ms: 2000 ) );
+		self::assertSame( 2000, $this->database->events[1]['active_ms'] );
+		self::assertSame( 2000, $this->database->sessions[20]['active_ms'] );
+		self::assertSame( 1, $this->database->sessions[20]['page_view_count'] );
+	}
+
+	/**
+	 * Product views retain the specialized view count and use the site prefix.
+	 *
+	 * @return void
+	 */
+	public function test_product_view_duration_updates_both_rows_without_recounting(): void {
+		$this->database->prefix = 'shop_';
+		$repository             = new Journey_Event_Repository();
+		$event                  = $this->event();
+		$event['event_type']    = Journey_Event_Type::PRODUCT_VIEW;
+		$event['product_id']    = 9;
+		self::assertNotNull( $repository->record( $event ) );
+
+		self::assertTrue( $repository->record_view_duration( event_id: 1, visitor_id: 12, total_active_ms: 750 ) );
+		self::assertSame( 750, $this->database->events[1]['active_ms'] );
+		self::assertSame( 750, $this->database->sessions[20]['active_ms'] );
+		self::assertSame( 1, $this->database->sessions[20]['page_view_count'] );
+		self::assertSame( 1, $this->database->sessions[20]['product_view_count'] );
+		self::assertSame( 'shop_shurloc_journey_events', $this->database->prepared_queries[1]['args'][0] );
+		self::assertSame( array( 'shop_shurloc_journey_events', 1, 12 ), $this->database->prepared_queries[1]['args'] );
+	}
+
+	/**
+	 * Reject unrelated visitors, non-view events, invalid IDs, and unavailable schema.
+	 *
+	 * @return void
+	 */
+	public function test_view_duration_rejects_unowned_or_non_view_events(): void {
+		$repository = new Journey_Event_Repository();
+		self::assertNotNull( $repository->record( $this->event() ) );
+
+		self::assertFalse( $repository->record_view_duration( event_id: 0, visitor_id: 12, total_active_ms: 100 ) );
+		self::assertFalse( $repository->record_view_duration( event_id: 1, visitor_id: 0, total_active_ms: 100 ) );
+		self::assertFalse( $repository->record_view_duration( event_id: 1, visitor_id: 12, total_active_ms: -1 ) );
+		self::assertFalse( $repository->record_view_duration( event_id: 99, visitor_id: 12, total_active_ms: 100 ) );
+		self::assertFalse( $repository->record_view_duration( event_id: 1, visitor_id: 13, total_active_ms: 100 ) );
+		self::assertSame( 0, $this->database->events[1]['active_ms'] );
+
+		$cart = array_replace(
+			$this->event(),
+			array(
+				'event_type' => Journey_Event_Type::ADD_TO_CART,
+				'product_id' => 9,
+				'quantity'   => '1',
+			)
+		);
+		self::assertNotNull( $repository->record( $cart ) );
+		self::assertFalse( $repository->record_view_duration( event_id: 2, visitor_id: 12, total_active_ms: 100 ) );
+		self::assertSame( 0, $this->database->sessions[20]['active_ms'] );
+
+		$GLOBALS['shurloc_test_options'] = array();
+		$queries_before                  = $this->database->queries;
+		self::assertFalse( $repository->record_view_duration( event_id: 1, visitor_id: 12, total_active_ms: 100 ) );
+		self::assertSame( $queries_before, $this->database->queries );
+	}
+
+	/**
+	 * Failed reads, writes, and commits never leave a partial duration update.
+	 *
+	 * @return void
+	 */
+	public function test_view_duration_failures_roll_back_both_rows(): void {
+		$repository = new Journey_Event_Repository();
+		self::assertNotNull( $repository->record( $this->event() ) );
+
+		foreach ( array( 'fail_start', 'fail_event_select', 'fail_event_duration_update', 'fail_event_summary_update', 'fail_commit' ) as $failure ) {
+			$this->database->$failure = true;
+			self::assertFalse( $repository->record_view_duration( event_id: 1, visitor_id: 12, total_active_ms: 500 ) );
+			self::assertSame( 0, $this->database->events[1]['active_ms'] );
+			self::assertSame( 0, $this->database->sessions[20]['active_ms'] );
+			$this->database->$failure = false;
+		}
+
+		$session = $this->database->sessions[20];
+		unset( $this->database->sessions[20] );
+		self::assertFalse( $repository->record_view_duration( event_id: 1, visitor_id: 12, total_active_ms: 500 ) );
+		self::assertSame( 0, $this->database->events[1]['active_ms'] );
+		$this->database->sessions[20] = $session;
+		self::assertTrue( $repository->record_view_duration( event_id: 1, visitor_id: 12, total_active_ms: 500 ) );
+		self::assertSame( 500, $this->database->events[1]['active_ms'] );
+		self::assertSame( 500, $this->database->sessions[20]['active_ms'] );
+	}
+
+	/**
 	 * Build one valid anonymous page view.
 	 *
 	 * @return array{session_id:int,visitor_id:int,user_id_at_event:int|null,event_type:string,occurred_at:string,page_path?:string|null,post_id?:int|null,product_id?:int|null,variation_id?:int|null,quantity?:string|null,order_id?:int|null,active_ms?:int,source?:string|null,idempotency_key?:string|null} Event input.

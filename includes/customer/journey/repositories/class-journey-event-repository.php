@@ -165,6 +165,94 @@ final class Journey_Event_Repository {
 	}
 
 	/**
+	 * Store a view's cumulative visible duration without recounting the view.
+	 *
+	 * The caller must resolve the visitor from the current server request. A
+	 * cumulative total makes duplicate and out-of-order browser deliveries safe.
+	 * The event row is locked while the increase is applied to both the event
+	 * and its original session. Duration updates do not extend session activity.
+	 *
+	 * @param int $event_id        Existing page or product view event ID.
+	 * @param int $visitor_id      Server-resolved visitor ID.
+	 * @param int $total_active_ms Cumulative visible time for this view.
+	 * @return bool Whether the total was accepted or was already recorded.
+	 */
+	public function record_view_duration( int $event_id, int $visitor_id, int $total_active_ms ): bool {
+		if (
+			0 >= $event_id ||
+			0 >= $visitor_id ||
+			0 > $total_active_ms ||
+			! $this->schema_migrator->is_ready()
+		) {
+			return false;
+		}
+
+		global $wpdb;
+
+		if ( false === $wpdb->query( 'START TRANSACTION' ) ) {
+			return false;
+		}
+
+		$rows = $wpdb->get_results(
+			$wpdb->prepare(
+				'SELECT session_id, event_type, active_ms FROM %i WHERE id = %d AND visitor_id = %d LIMIT 2 FOR UPDATE',
+				$this->table_name(),
+				$event_id,
+				$visitor_id
+			)
+		);
+
+		if ( ! is_array( $rows ) || 1 !== count( $rows ) || ! is_object( $rows[0] ) ||
+			! isset( $rows[0]->session_id, $rows[0]->event_type, $rows[0]->active_ms ) ||
+			! Journey_Event_Type::counts_as_page_view( value: $rows[0]->event_type ) ) {
+			$wpdb->query( 'ROLLBACK' );
+			return false;
+		}
+
+		$session_id = filter_var( $rows[0]->session_id, FILTER_VALIDATE_INT, array( 'options' => array( 'min_range' => 1 ) ) );
+		$stored_ms  = filter_var( $rows[0]->active_ms, FILTER_VALIDATE_INT, array( 'options' => array( 'min_range' => 0 ) ) );
+		if ( false === $session_id || false === $stored_ms ) {
+			$wpdb->query( 'ROLLBACK' );
+			return false;
+		}
+
+		if ( $total_active_ms > $stored_ms ) {
+			$delta = Journey_Event_Summary_Delta::for_view_duration( active_ms: $total_active_ms - $stored_ms );
+			if ( null === $delta ) {
+				$wpdb->query( 'ROLLBACK' );
+				return false;
+			}
+
+			$updated = $wpdb->query(
+				$wpdb->prepare(
+					'UPDATE %i SET active_ms = %d WHERE id = %d AND visitor_id = %d AND active_ms = %d',
+					$this->table_name(),
+					$total_active_ms,
+					$event_id,
+					$visitor_id,
+					$stored_ms
+				)
+			);
+
+			if ( 1 !== $updated || ! $this->increment_session_summary(
+				session_id: $session_id,
+				visitor_id: $visitor_id,
+				delta: $delta
+			) ) {
+				$wpdb->query( 'ROLLBACK' );
+				return false;
+			}
+		}
+
+		if ( false === $wpdb->query( 'COMMIT' ) ) {
+			$wpdb->query( 'ROLLBACK' );
+			return false;
+		}
+
+		return true;
+	}
+
+	/**
 	 * Apply one safe, sparse counter delta to the owning session.
 	 *
 	 * Each identifier comes from the fixed internal delta map and is prepared
