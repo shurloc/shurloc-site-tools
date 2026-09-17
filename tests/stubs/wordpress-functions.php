@@ -784,7 +784,32 @@ if ( ! function_exists( 'home_url' ) ) {
 	 */
 	function home_url( string $path = '' ): string {
 
-		return 'https://example.com' . $path;
+		return ( $GLOBALS['shurloc_test_home_url'] ?? 'https://example.com' ) . $path;
+	}
+}
+
+if ( ! function_exists( 'url_to_postid' ) ) {
+	/**
+	 * Resolve a test URL through a configured post ID map.
+	 *
+	 * @param string $url URL to resolve.
+	 * @return int Mapped post ID, or zero.
+	 */
+	function url_to_postid( string $url ): int {
+		$GLOBALS['shurloc_test_url_to_postid_calls'][] = $url;
+		return $GLOBALS['shurloc_test_url_post_ids'][ $url ] ?? 0;
+	}
+}
+
+if ( ! function_exists( 'get_post_status' ) ) {
+	/**
+	 * Return the configured test post status.
+	 *
+	 * @param int $post_id Post ID.
+	 * @return string|false Post status or false.
+	 */
+	function get_post_status( int $post_id ): string|false {
+		return $GLOBALS['shurloc_test_post_statuses'][ $post_id ] ?? false;
 	}
 }
 
