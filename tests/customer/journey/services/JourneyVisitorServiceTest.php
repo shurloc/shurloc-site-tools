@@ -134,6 +134,24 @@ final class JourneyVisitorServiceTest extends TestCase {
 	}
 
 	/**
+	 * A newly issued cookie is reused across resolvers before the next request.
+	 *
+	 * @return void
+	 */
+	public function test_new_visitor_is_reused_in_same_request_without_mutating_cookie_input(): void {
+		$first = ( new Journey_Visitor_Service() )->resolve();
+		self::assertIsArray( $first );
+
+		$second = ( new Journey_Visitor_Service() )->resolve();
+
+		self::assertSame( $first, $second );
+		self::assertArrayNotHasKey( Journey_Visitor_Cookie::NAME, $_COOKIE );
+		self::assertCount( 1, $GLOBALS['shurloc_journey_cookie_test_calls'] );
+		self::assertCount( 1, $this->database->visitor_rows );
+		self::assertCount( 1, $this->database->periods );
+	}
+
+	/**
 	 * Login keeps the UUID while linking earlier anonymous activity.
 	 *
 	 * @return void
@@ -159,7 +177,28 @@ final class JourneyVisitorServiceTest extends TestCase {
 	}
 
 	/**
-	 * One account can be associated with more than one browser UUID.
+	 * Login during the issuing request links the same visitor without a cookie echo.
+	 *
+	 * @return void
+	 */
+	public function test_same_request_login_reuses_issued_uuid(): void {
+		$anonymous = ( new Journey_Visitor_Service() )->resolve();
+		self::assertIsArray( $anonymous );
+		$GLOBALS['shurloc_journey_test_current_user'] = new Journey_Collection_Test_User( 37 );
+
+		$authenticated = ( new Journey_Visitor_Service() )->resolve();
+
+		self::assertIsArray( $authenticated );
+		self::assertSame( $anonymous['visitor_uuid'], $authenticated['visitor_uuid'] );
+		self::assertSame( $anonymous['visitor_id'], $authenticated['visitor_id'] );
+		self::assertSame( 37, $authenticated['user_id_at_event'] );
+		self::assertSame( 2, $authenticated['identity_period_id'] );
+		self::assertCount( 1, $GLOBALS['shurloc_journey_cookie_test_calls'] );
+		self::assertArrayNotHasKey( Journey_Visitor_Cookie::NAME, $_COOKIE );
+	}
+
+	/**
+	 * An explicit cookie from another browser takes precedence over the issued UUID.
 	 *
 	 * @return void
 	 */
@@ -169,6 +208,8 @@ final class JourneyVisitorServiceTest extends TestCase {
 
 		$first = $service->resolve();
 		self::assertIsArray( $first );
+		$_COOKIE[ Journey_Visitor_Cookie::NAME ] = Journey_Visitor_UUID::generate();
+
 		$second = $service->resolve();
 		self::assertIsArray( $second );
 
@@ -176,6 +217,23 @@ final class JourneyVisitorServiceTest extends TestCase {
 		self::assertNotSame( $first['visitor_id'], $second['visitor_id'] );
 		self::assertSame( 37, $this->database->periods[1]['user_id'] );
 		self::assertSame( 37, $this->database->periods[2]['user_id'] );
+	}
+
+	/**
+	 * Changing the active blog prefix does not issue a different browser UUID.
+	 *
+	 * @return void
+	 */
+	public function test_same_request_blog_switch_reuses_issued_cookie(): void {
+		$first = ( new Journey_Visitor_Service() )->resolve();
+		self::assertIsArray( $first );
+		$this->database->prefix = 'site_2_';
+
+		$second = ( new Journey_Visitor_Service() )->resolve();
+
+		self::assertIsArray( $second );
+		self::assertSame( $first['visitor_uuid'], $second['visitor_uuid'] );
+		self::assertCount( 1, $GLOBALS['shurloc_journey_cookie_test_calls'] );
 	}
 
 	/**
@@ -190,6 +248,22 @@ final class JourneyVisitorServiceTest extends TestCase {
 		self::assertSame( array(), $GLOBALS['shurloc_journey_cookie_test_calls'] );
 		self::assertSame( array(), $this->database->visitor_rows );
 		self::assertSame( array(), $this->database->queries );
+	}
+
+	/**
+	 * A cached issued UUID never bypasses a later collection-policy denial.
+	 *
+	 * @return void
+	 */
+	public function test_same_request_policy_denial_blocks_cached_identity(): void {
+		$first = ( new Journey_Visitor_Service() )->resolve();
+		self::assertIsArray( $first );
+		$insert_calls = $this->database->insert_calls;
+		add_filter( Journey_Collection_Policy::COLLECTION_ALLOWED_FILTER, static fn (): bool => false );
+
+		self::assertNull( ( new Journey_Visitor_Service() )->resolve() );
+		self::assertSame( $insert_calls, $this->database->insert_calls );
+		self::assertCount( 1, $GLOBALS['shurloc_journey_cookie_test_calls'] );
 	}
 
 	/**
@@ -239,6 +313,25 @@ final class JourneyVisitorServiceTest extends TestCase {
 	}
 
 	/**
+	 * A rejected cookie header is never cached as an issued identity.
+	 *
+	 * @return void
+	 */
+	public function test_failed_cookie_write_is_not_reused_on_retry(): void {
+		$GLOBALS['shurloc_journey_cookie_test_result'] = false;
+		self::assertNull( ( new Journey_Visitor_Service() )->resolve() );
+
+		$GLOBALS['shurloc_journey_cookie_test_result'] = true;
+
+		$identity = ( new Journey_Visitor_Service() )->resolve();
+
+		self::assertIsArray( $identity );
+		self::assertCount( 2, $GLOBALS['shurloc_journey_cookie_test_calls'] );
+		self::assertSame( $GLOBALS['shurloc_journey_cookie_test_calls'][1]['value'], $identity['visitor_uuid'] );
+		self::assertCount( 1, $this->database->visitor_rows );
+	}
+
+	/**
 	 * A transient visitor insert error leaves a cookie that can retry later.
 	 *
 	 * @return void
@@ -256,6 +349,26 @@ final class JourneyVisitorServiceTest extends TestCase {
 		$identity = ( new Journey_Visitor_Service() )->resolve();
 		self::assertIsArray( $identity );
 		self::assertSame( $uuid, $identity['visitor_uuid'] );
+		self::assertCount( 1, $this->database->visitor_rows );
+	}
+
+	/**
+	 * A failed insert can retry in the same request without another cookie write.
+	 *
+	 * @return void
+	 */
+	public function test_same_request_insert_retry_reuses_issued_uuid(): void {
+		$this->database->fail_visitor_insert = true;
+		self::assertNull( ( new Journey_Visitor_Service() )->resolve() );
+		$uuid = $GLOBALS['shurloc_journey_cookie_test_calls'][0]['value'];
+
+		$this->database->fail_visitor_insert = false;
+
+		$identity = ( new Journey_Visitor_Service() )->resolve();
+
+		self::assertIsArray( $identity );
+		self::assertSame( $uuid, $identity['visitor_uuid'] );
+		self::assertCount( 1, $GLOBALS['shurloc_journey_cookie_test_calls'] );
 		self::assertCount( 1, $this->database->visitor_rows );
 	}
 

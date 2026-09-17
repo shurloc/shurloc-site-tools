@@ -214,6 +214,30 @@ final class JourneyEventServiceTest extends TestCase {
 	}
 
 	/**
+	 * Separate event services share a newly issued identity in one PHP request.
+	 *
+	 * @return void
+	 */
+	public function test_multiple_events_in_one_request_keep_one_visitor_and_session(): void {
+		$first  = ( new Journey_Event_Service() )->record(
+			event_type: Journey_Event_Type::PAGE_VIEW,
+			page_uri: '/first',
+		);
+		$second = ( new Journey_Event_Service() )->record(
+			event_type: Journey_Event_Type::CHECKOUT_STARTED,
+			page_uri: '/checkout',
+		);
+
+		self::assertSame( 1, $first['id'] ?? null );
+		self::assertSame( 2, $second['id'] ?? null );
+		self::assertSame( $this->database->events[1]['visitor_id'], $this->database->events[2]['visitor_id'] );
+		self::assertSame( $this->database->events[1]['session_id'], $this->database->events[2]['session_id'] );
+		self::assertCount( 1, $GLOBALS['shurloc_journey_cookie_test_calls'] );
+		self::assertCount( 1, $this->database->visitor_rows );
+		self::assertCount( 1, $this->database->sessions );
+	}
+
+	/**
 	 * Later authenticated events retain the original anonymous session start.
 	 *
 	 * @return void

@@ -18,6 +18,7 @@ use Shurloc\SiteTools\Customer\Journey\Journey_Visitor_UUID;
 use Shurloc\SiteTools\Customer\Journey\Migrations\Journey_Schema_Migrator;
 use Shurloc\SiteTools\Customer\Journey\Repositories\Journey_Identity_Period_Repository;
 use Shurloc\SiteTools\Customer\Journey\Repositories\Journey_Visitor_Repository;
+use WeakMap;
 
 /**
  * Resolve the current browser and WordPress user to one Journey identity.
@@ -30,6 +31,16 @@ use Shurloc\SiteTools\Customer\Journey\Repositories\Journey_Visitor_Repository;
  * }
  */
 final class Journey_Visitor_Service {
+	/**
+	 * UUIDs issued in this PHP request, keyed by database connection.
+	 *
+	 * A newly sent cookie is absent from $_COOKIE until the next request. Weak
+	 * keys keep test and long-running process database replacements isolated.
+	 *
+	 * @var WeakMap<object,string>|null
+	 */
+	private static ?WeakMap $issued_uuids = null;
+
 	/**
 	 * Central request and consent policy.
 	 *
@@ -92,8 +103,9 @@ final class Journey_Visitor_Service {
 	 * Resolve the current request without accepting a browser-supplied user ID.
 	 *
 	 * Policy and schema checks precede cookie access and database work. A new
-	 * UUID is sent to the browser before database insertion, so a temporary
-	 * storage failure can be retried under the same browser identifier.
+	 * UUID is sent to the browser before database insertion. Later resolutions
+	 * in the same request reuse it even though $_COOKIE has not changed, so a
+	 * temporary storage failure can retry under the same browser identifier.
 	 *
 	 * The caller may record an event only when this method returns an identity.
 	 *
@@ -113,15 +125,21 @@ final class Journey_Visitor_Service {
 		$uuid = $this->cookie->read();
 
 		if ( null === $uuid ) {
-			try {
-				$uuid = Journey_Visitor_UUID::generate();
-			} catch ( RandomException $error ) {
-				unset( $error );
-				return null;
-			}
+			$uuid = self::issued_uuid_for_request();
 
-			if ( ! $this->cookie->write( uuid: $uuid ) ) {
-				return null;
+			if ( null === $uuid ) {
+				try {
+					$uuid = Journey_Visitor_UUID::generate();
+				} catch ( RandomException $error ) {
+					unset( $error );
+					return null;
+				}
+
+				if ( ! $this->cookie->write( uuid: $uuid ) ) {
+					return null;
+				}
+
+				self::remember_issued_uuid( uuid: $uuid );
 			}
 		}
 
@@ -152,5 +170,34 @@ final class Journey_Visitor_Service {
 			'identity_period_id' => $period_id,
 			'user_id_at_event'   => $user_id,
 		);
+	}
+
+	/**
+	 * Read the UUID already issued for this database in this request.
+	 *
+	 * @return string|null Issued UUID, or null before a cookie write.
+	 */
+	private static function issued_uuid_for_request(): ?string {
+		global $wpdb;
+
+		if ( null === self::$issued_uuids ) {
+			return null;
+		}
+
+		return self::$issued_uuids[ $wpdb ] ?? null;
+	}
+
+	/**
+	 * Retain a successfully issued UUID until the current PHP request ends.
+	 *
+	 * @param string $uuid Canonical visitor UUID sent in the response cookie.
+	 * @return void
+	 */
+	private static function remember_issued_uuid( string $uuid ): void {
+		global $wpdb;
+
+		self::$issued_uuids ??= new WeakMap();
+
+		self::$issued_uuids[ $wpdb ] = $uuid;
 	}
 }
