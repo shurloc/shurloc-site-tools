@@ -33,6 +33,7 @@ final class JourneyEventRepositoryTest extends TestCase {
 	protected function setUp(): void {
 		parent::setUp();
 
+		$GLOBALS['shurloc_test_filters'] = array();
 		$GLOBALS['shurloc_test_options'] = array(
 			Journey_Schema_Migrator::VERSION_OPTION => Journey_Schema_Migrator::CURRENT_VERSION,
 		);
@@ -74,6 +75,7 @@ final class JourneyEventRepositoryTest extends TestCase {
 	 * @return void
 	 */
 	protected function tearDown(): void {
+		$GLOBALS['shurloc_test_filters'] = array();
 		$GLOBALS['shurloc_test_options'] = array();
 
 		// phpcs:ignore WordPress.WP.GlobalVariablesOverride.Prohibited -- Test-only wpdb replacement.
@@ -545,6 +547,69 @@ final class JourneyEventRepositoryTest extends TestCase {
 		self::assertSame( 1, $this->database->sessions[20]['product_view_count'] );
 		self::assertSame( 'shop_shurloc_journey_events', $this->database->prepared_queries[1]['args'][0] );
 		self::assertSame( array( 'shop_shurloc_journey_events', 1, 12 ), $this->database->prepared_queries[1]['args'] );
+	}
+
+	/**
+	 * A new view cannot immediately claim more visible time than it has existed.
+	 *
+	 * @return void
+	 */
+	public function test_view_duration_rejects_implausible_total_and_filters_delivery_allowance(): void {
+		$repository           = new Journey_Event_Repository();
+		$event                = $this->event();
+		$event['occurred_at'] = gmdate( 'Y-m-d H:i:s' );
+		self::assertNotNull( $repository->record( $event ) );
+
+		self::assertFalse( $repository->record_view_duration( event_id: 1, visitor_id: 12, total_active_ms: 120000 ) );
+		self::assertSame( 0, $this->database->events[1]['active_ms'] );
+		self::assertSame( 0, $this->database->sessions[20]['active_ms'] );
+		self::assertSame( 'ROLLBACK', $this->database->queries[ count( $this->database->queries ) - 1 ] );
+
+		add_filter( Journey_Event_Repository::DURATION_GRACE_FILTER, static fn (): string => '300' );
+		self::assertFalse( $repository->record_view_duration( event_id: 1, visitor_id: 12, total_active_ms: 120000 ) );
+
+		$GLOBALS['shurloc_test_filters'] = array();
+		add_filter( Journey_Event_Repository::DURATION_GRACE_FILTER, static fn (): int => 300 );
+		self::assertTrue( $repository->record_view_duration( event_id: 1, visitor_id: 12, total_active_ms: 120000 ) );
+		self::assertSame( 120000, $this->database->events[1]['active_ms'] );
+		self::assertSame( 120000, $this->database->sessions[20]['active_ms'] );
+	}
+
+	/**
+	 * Continuous visible reading can exceed the normal session inactivity gap.
+	 *
+	 * @return void
+	 */
+	public function test_long_visible_reading_is_not_cut_off_by_session_inactivity(): void {
+		$repository           = new Journey_Event_Repository();
+		$event                = $this->event();
+		$event['occurred_at'] = gmdate( 'Y-m-d H:i:s', time() - 1800 );
+		self::assertNotNull( $repository->record( $event ) );
+
+		self::assertTrue( $repository->record_view_duration( event_id: 1, visitor_id: 12, total_active_ms: 1800000 ) );
+		self::assertSame( 1800000, $this->database->events[1]['active_ms'] );
+		self::assertSame( 1800000, $this->database->sessions[20]['active_ms'] );
+		self::assertSame( '2026-09-16 12:00:00', $this->database->sessions[20]['last_activity_at'] );
+	}
+
+	/**
+	 * Invalid or far-future event timestamps cannot authorize duration updates.
+	 *
+	 * @return void
+	 */
+	public function test_view_duration_rejects_malformed_and_far_future_event_times(): void {
+		$repository = new Journey_Event_Repository();
+		self::assertNotNull( $repository->record( $this->event() ) );
+
+		$this->database->events[1]['occurred_at'] = 'invalid';
+		self::assertFalse( $repository->record_view_duration( event_id: 1, visitor_id: 12, total_active_ms: 1000 ) );
+		$this->database->events[1]['occurred_at'] = gmdate( 'Y-m-d H:i:s', time() + 120 );
+		self::assertFalse( $repository->record_view_duration( event_id: 1, visitor_id: 12, total_active_ms: 1000 ) );
+		self::assertSame( 0, $this->database->events[1]['active_ms'] );
+		self::assertSame( 0, $this->database->sessions[20]['active_ms'] );
+
+		$this->database->events[1]['occurred_at'] = gmdate( 'Y-m-d H:i:s' );
+		self::assertTrue( $repository->record_view_duration( event_id: 1, visitor_id: 12, total_active_ms: 1000 ) );
 	}
 
 	/**

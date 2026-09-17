@@ -45,6 +45,15 @@ use Shurloc\SiteTools\Customer\Journey\Migrations\Journey_Schema_Migrator;
  * @phpstan-import-type SummaryDelta from Journey_Event_Summary_Delta
  */
 final class Journey_Event_Repository {
+	/** Allow for request latency and second-resolution event timestamps. */
+	public const DEFAULT_DURATION_GRACE_SECONDS = 60;
+
+	/** Filter the duration plausibility allowance in seconds. */
+	public const DURATION_GRACE_FILTER = 'shurloc_site_tools_journey_duration_grace_seconds';
+
+	/** Maximum accepted filtered allowance in seconds. */
+	private const MAX_DURATION_GRACE_SECONDS = 3600;
+
 	/**
 	 * Type-specific field rules.
 	 *
@@ -170,7 +179,9 @@ final class Journey_Event_Repository {
 	 * The caller must resolve the visitor from the current server request. A
 	 * cumulative total makes duplicate and out-of-order browser deliveries safe.
 	 * The event row is locked while the increase is applied to both the event
-	 * and its original session. Duration updates do not extend session activity.
+	 * and its original session. The total cannot exceed elapsed server time since
+	 * the view plus a filtered delivery allowance. This is a plausibility bound,
+	 * not an inactivity cutoff. Duration updates do not extend session activity.
 	 *
 	 * @param int $event_id        Existing page or product view event ID.
 	 * @param int $visitor_id      Server-resolved visitor ID.
@@ -195,7 +206,7 @@ final class Journey_Event_Repository {
 
 		$rows = $wpdb->get_results(
 			$wpdb->prepare(
-				'SELECT session_id, event_type, active_ms FROM %i WHERE id = %d AND visitor_id = %d LIMIT 2 FOR UPDATE',
+				'SELECT session_id, event_type, occurred_at, active_ms FROM %i WHERE id = %d AND visitor_id = %d LIMIT 2 FOR UPDATE',
 				$this->table_name(),
 				$event_id,
 				$visitor_id
@@ -203,20 +214,36 @@ final class Journey_Event_Repository {
 		);
 
 		if ( ! is_array( $rows ) || 1 !== count( $rows ) || ! is_object( $rows[0] ) ||
-			! isset( $rows[0]->session_id, $rows[0]->event_type, $rows[0]->active_ms ) ||
+			! isset( $rows[0]->session_id, $rows[0]->event_type, $rows[0]->occurred_at, $rows[0]->active_ms ) ||
 			! Journey_Event_Type::counts_as_page_view( value: $rows[0]->event_type ) ) {
 			$wpdb->query( 'ROLLBACK' );
 			return false;
 		}
 
-		$session_id = filter_var( $rows[0]->session_id, FILTER_VALIDATE_INT, array( 'options' => array( 'min_range' => 1 ) ) );
-		$stored_ms  = filter_var( $rows[0]->active_ms, FILTER_VALIDATE_INT, array( 'options' => array( 'min_range' => 0 ) ) );
-		if ( false === $session_id || false === $stored_ms ) {
+		$session_id  = filter_var( $rows[0]->session_id, FILTER_VALIDATE_INT, array( 'options' => array( 'min_range' => 1 ) ) );
+		$stored_ms   = filter_var( $rows[0]->active_ms, FILTER_VALIDATE_INT, array( 'options' => array( 'min_range' => 0 ) ) );
+		$occurred_at = is_string( $rows[0]->occurred_at )
+			? DateTimeImmutable::createFromFormat( '!Y-m-d H:i:s', $rows[0]->occurred_at, new DateTimeZone( 'UTC' ) )
+			: false;
+		if ( false === $session_id || false === $stored_ms || false === $occurred_at ||
+			$occurred_at->format( 'Y-m-d H:i:s' ) !== $rows[0]->occurred_at ) {
 			$wpdb->query( 'ROLLBACK' );
 			return false;
 		}
 
 		if ( $total_active_ms > $stored_ms ) {
+			$grace_seconds = apply_filters( self::DURATION_GRACE_FILTER, self::DEFAULT_DURATION_GRACE_SECONDS );
+			if ( ! is_int( $grace_seconds ) || 0 > $grace_seconds || self::MAX_DURATION_GRACE_SECONDS < $grace_seconds ) {
+				$grace_seconds = self::DEFAULT_DURATION_GRACE_SECONDS;
+			}
+
+			$elapsed_seconds = time() - $occurred_at->getTimestamp();
+			if ( -$grace_seconds > $elapsed_seconds ||
+				$total_active_ms > ( max( 0, $elapsed_seconds ) + $grace_seconds ) * 1000 ) {
+				$wpdb->query( 'ROLLBACK' );
+				return false;
+			}
+
 			$delta = Journey_Event_Summary_Delta::for_view_duration( active_ms: $total_active_ms - $stored_ms );
 			if ( null === $delta ) {
 				$wpdb->query( 'ROLLBACK' );

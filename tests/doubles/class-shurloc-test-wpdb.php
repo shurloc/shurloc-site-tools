@@ -569,7 +569,7 @@ final class Shurloc_Test_WPDB {
 			return array();
 		}
 
-		if ( str_starts_with( $query, 'SELECT session_id, event_type, active_ms FROM %i WHERE id = %d AND visitor_id = %d' ) ) {
+		if ( str_starts_with( $query, 'SELECT session_id, event_type, occurred_at, active_ms FROM %i WHERE id = %d AND visitor_id = %d' ) ) {
 			if ( $this->fail_event_select ) {
 				return null;
 			}
@@ -583,9 +583,10 @@ final class Shurloc_Test_WPDB {
 
 			return array(
 				(object) array(
-					'session_id' => (string) $event['session_id'],
-					'event_type' => $event['event_type'],
-					'active_ms'  => (string) $event['active_ms'],
+					'session_id'  => (string) $event['session_id'],
+					'event_type'  => $event['event_type'],
+					'occurred_at' => $event['occurred_at'],
+					'active_ms'   => (string) $event['active_ms'],
 				),
 			);
 		}
