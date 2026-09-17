@@ -225,7 +225,7 @@ final class Journey_Schema_V1 {
 
 			$table_name                = $table_prefix . $suffix;
 			$statements[ $table_name ] = 'CREATE TABLE ' . $table_name . " (\n"
-				. implode( ",\n", $lines ) . "\n) " . $charset_collate . ';';
+				. implode( ",\n", $lines ) . "\n) ENGINE=InnoDB " . $charset_collate . ';';
 		}
 
 		return $statements;

@@ -95,6 +95,9 @@ final class JourneySchemaMigratorTest extends TestCase {
 			),
 			array_keys( $this->database->tables )
 		);
+		foreach ( $this->database->tables as $table ) {
+			self::assertSame( 'InnoDB', $table['engine'] );
+		}
 		self::assertArrayNotHasKey(
 			Journey_Schema_Migrator::LOCK_OPTION,
 			$GLOBALS['shurloc_test_options']
@@ -224,6 +227,42 @@ final class JourneySchemaMigratorTest extends TestCase {
 	}
 
 	/**
+	 * Verify a nontransactional table blocks the migration after dbDelta runs.
+	 *
+	 * @return void
+	 */
+	public function test_nontransactional_table_does_not_advance_version(): void {
+		$this->database->table_engine_overrides['wp_shurloc_journey_events'] = 'MyISAM';
+		$migrator = $this->create_migrator();
+
+		self::assertFalse( $migrator->migrate() );
+		self::assertCount( 4, $this->database->tables );
+		self::assertSame( 0, $migrator->get_installed_version() );
+		self::assertFalse( $migrator->is_ready() );
+		self::assertSame( 'migration_failed', $migrator->get_failure_code() );
+		self::assertArrayNotHasKey(
+			Journey_Schema_Migrator::LOCK_OPTION,
+			$GLOBALS['shurloc_test_options']
+		);
+	}
+
+	/**
+	 * Verify a failed engine inspection also leaves the schema unavailable.
+	 *
+	 * @return void
+	 */
+	public function test_missing_table_status_does_not_advance_version(): void {
+		$this->database->fail_table_status = true;
+
+		$migrator = $this->create_migrator();
+
+		self::assertFalse( $migrator->migrate() );
+		self::assertSame( 0, $migrator->get_installed_version() );
+		self::assertFalse( $migrator->is_ready() );
+		self::assertSame( 'migration_failed', $migrator->get_failure_code() );
+	}
+
+	/**
 	 * Verify a required unique key cannot silently become a regular index.
 	 *
 	 * @return void
@@ -255,6 +294,13 @@ final class JourneySchemaMigratorTest extends TestCase {
 		self::assertStringStartsWith(
 			'CREATE TABLE store_42_shurloc_journey_visitors',
 			$GLOBALS['shurloc_journey_dbdelta_calls'][0]
+		);
+		self::assertContains(
+			array(
+				'query' => 'SHOW TABLE STATUS WHERE Name = %s',
+				'args'  => array( 'store_42_shurloc_journey_events' ),
+			),
+			$this->database->prepared_queries
 		);
 	}
 

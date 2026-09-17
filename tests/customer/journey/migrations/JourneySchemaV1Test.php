@@ -17,7 +17,7 @@ use PHPUnit\Framework\TestCase;
 final class JourneySchemaV1Test extends TestCase {
 
 	/**
-	 * Verify all four tables use the supplied WordPress prefix and collation.
+	 * Verify all four tables require InnoDB and use the supplied prefix and collation.
 	 *
 	 * @return void
 	 */
@@ -43,7 +43,7 @@ final class JourneySchemaV1Test extends TestCase {
 				$statement
 			);
 			self::assertStringEndsWith(
-				') DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;',
+				') ENGINE=InnoDB DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;',
 				$statement
 			);
 			self::assertStringNotContainsString( 'wp_shurloc_', $statement );

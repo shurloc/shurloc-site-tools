@@ -286,7 +286,7 @@ final class Journey_Schema_Migrator {
 	}
 
 	/**
-	 * Verify every required column, type, index order, and uniqueness property.
+	 * Verify every required column, type, index, and transactional storage engine.
 	 *
 	 * @param string              $table_prefix WordPress database prefix.
 	 * @param array<string,mixed> $definitions  Schema definitions.
@@ -305,10 +305,24 @@ final class Journey_Schema_Migrator {
 			}
 
 			$table_name = $table_prefix . $suffix;
-			$columns    = $wpdb->get_results(
+			$status     = $wpdb->get_results(
+				$wpdb->prepare( 'SHOW TABLE STATUS WHERE Name = %s', $table_name )
+			);
+
+			if (
+				! is_array( $status ) ||
+				1 !== count( $status ) ||
+				! isset( $status[0]->Name, $status[0]->Engine ) ||
+				$table_name !== $status[0]->Name ||
+				'InnoDB' !== $status[0]->Engine
+			) {
+				throw new RuntimeException( 'Journey schema table must use InnoDB.' );
+			}
+
+			$columns = $wpdb->get_results(
 				$wpdb->prepare( 'SHOW COLUMNS FROM %i', $table_name )
 			);
-			$indexes    = $wpdb->get_results(
+			$indexes = $wpdb->get_results(
 				$wpdb->prepare( 'SHOW INDEX FROM %i', $table_name )
 			);
 

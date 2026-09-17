@@ -94,6 +94,20 @@ final class Shurloc_Test_WPDB {
 	public array $tables = array();
 
 	/**
+	 * Storage engine substitutions to simulate a database that did not use InnoDB.
+	 *
+	 * @var array<string,string>
+	 */
+	public array $table_engine_overrides = array();
+
+	/**
+	 * Simulate an unavailable table status query.
+	 *
+	 * @var bool
+	 */
+	public bool $fail_table_status = false;
+
+	/**
 	 * Schema index omitted from SHOW INDEX results.
 	 *
 	 * @var string
@@ -435,6 +449,20 @@ final class Shurloc_Test_WPDB {
 	public function get_results(
 		string $query
 	): ?array {
+		if ( 'SHOW TABLE STATUS WHERE Name = %s' === $query ) {
+			$table_name = (string) $this->last_args[0];
+			if ( $this->fail_table_status || ! isset( $this->tables[ $table_name ] ) ) {
+				return null;
+			}
+
+			return array(
+				(object) array(
+					'Name'   => $table_name,
+					'Engine' => $this->tables[ $table_name ]['engine'] ?? null,
+				),
+			);
+		}
+
 		if ( preg_match( '/^SHOW (COLUMNS|INDEX) FROM `([a-zA-Z0-9_]+)`$/', $query, $matches ) ) {
 			$table_name = $matches[2];
 			if ( ! isset( $this->tables[ $table_name ] ) ) {
@@ -968,7 +996,14 @@ final class Shurloc_Test_WPDB {
 		$table_suffix = substr( $table_name, strlen( $this->prefix ) );
 		$definitions  = Journey_Schema_V1::get_table_definitions();
 		if ( isset( $definitions[ $table_suffix ] ) ) {
-			$this->tables[ $table_name ] = $definitions[ $table_suffix ];
+			$definition = $definitions[ $table_suffix ];
+
+			$definition['engine'] = preg_match( '/\bENGINE=([a-zA-Z0-9_]+)/', $sql, $engine_matches )
+				? $engine_matches[1]
+				: '';
+			$definition['engine'] = $this->table_engine_overrides[ $table_name ] ?? $definition['engine'];
+
+			$this->tables[ $table_name ] = $definition;
 		}
 	}
 
