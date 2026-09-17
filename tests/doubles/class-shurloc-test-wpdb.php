@@ -148,6 +148,13 @@ final class Shurloc_Test_WPDB {
 	public array $sessions = array();
 
 	/**
+	 * Journey events keyed by their ID.
+	 *
+	 * @var array<int,array<string,mixed>>
+	 */
+	public array $events = array();
+
+	/**
 	 * Insert calls and their arguments.
 	 *
 	 * @var list<array{table:string,data:array<string,mixed>,formats:array<int,string>}>
@@ -253,6 +260,20 @@ final class Shurloc_Test_WPDB {
 	public bool $fail_session_close = false;
 
 	/**
+	 * Simulate an event insertion failure.
+	 *
+	 * @var bool
+	 */
+	public bool $fail_event_insert = false;
+
+	/**
+	 * Simulate an event duplicate lookup failure.
+	 *
+	 * @var bool
+	 */
+	public bool $fail_event_select = false;
+
+	/**
 	 * Arguments of the latest prepared query.
 	 *
 	 * @var list<mixed>
@@ -279,6 +300,13 @@ final class Shurloc_Test_WPDB {
 	 * @var int
 	 */
 	private int $next_session_id = 1;
+
+	/**
+	 * Next Journey event ID.
+	 *
+	 * @var int
+	 */
+	private int $next_event_id = 1;
 
 	/**
 	 * Transaction snapshot of identity periods.
@@ -454,6 +482,35 @@ final class Shurloc_Test_WPDB {
 			return array_slice( $rows, 0, 2 );
 		}
 
+		if ( str_starts_with( $query, 'SELECT id, visitor_id, event_type, order_id, page_path, post_id, product_id, variation_id, quantity, active_ms, source FROM %i WHERE idempotency_key = %s' ) ) {
+			if ( $this->fail_event_select ) {
+				return null;
+			}
+
+			$key = (string) $this->last_args[1];
+			foreach ( $this->events as $event ) {
+				if ( $key === $event['idempotency_key'] ) {
+					return array(
+						(object) array(
+							'id'           => (string) $event['id'],
+							'visitor_id'   => (string) $event['visitor_id'],
+							'event_type'   => $event['event_type'],
+							'order_id'     => null === $event['order_id'] ? null : (string) $event['order_id'],
+							'page_path'    => $event['page_path'],
+							'post_id'      => null === $event['post_id'] ? null : (string) $event['post_id'],
+							'product_id'   => null === $event['product_id'] ? null : (string) $event['product_id'],
+							'variation_id' => null === $event['variation_id'] ? null : (string) $event['variation_id'],
+							'quantity'     => $event['quantity'],
+							'active_ms'    => (string) $event['active_ms'],
+							'source'       => $event['source'],
+						),
+					);
+				}
+			}
+
+			return array();
+		}
+
 		return $this->results;
 	}
 
@@ -548,6 +605,25 @@ final class Shurloc_Test_WPDB {
 				'utm_term'            => null === $data['utm_term'] ? null : (string) $data['utm_term'],
 				'utm_content'         => null === $data['utm_content'] ? null : (string) $data['utm_content'],
 			);
+			return 1;
+		}
+
+		if ( str_ends_with( $table, 'shurloc_journey_events' ) ) {
+			if ( $this->fail_event_insert ) {
+				return false;
+			}
+
+			$key = $data['idempotency_key'];
+			if ( null !== $key ) {
+				foreach ( $this->events as $event ) {
+					if ( $key === $event['idempotency_key'] ) {
+						return false;
+					}
+				}
+			}
+
+			$this->insert_id                  = $this->next_event_id++;
+			$this->events[ $this->insert_id ] = array_merge( array( 'id' => $this->insert_id ), $data );
 			return 1;
 		}
 
