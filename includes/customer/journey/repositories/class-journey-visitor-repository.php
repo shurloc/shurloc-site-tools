@@ -55,8 +55,9 @@ final class Journey_Visitor_Repository {
 	 * Find or insert one visitor, including a concurrent unique-key winner.
 	 *
 	 * First-touch attribution is recorded separately once sanitized page context
-	 * is available. Identity periods belong to their own repository.
-	 * The timestamp must be a server-generated UTC MySQL datetime.
+	 * is available. Identity periods belong to their own repository. Returning
+	 * visitors advance last_seen_at before their ID is returned. The timestamp
+	 * must be a server-generated UTC MySQL datetime.
 	 *
 	 * @param string $uuid    Canonical visitor UUID.
 	 * @param string $seen_at Server-generated UTC datetime.
@@ -73,7 +74,7 @@ final class Journey_Visitor_Repository {
 
 		$visitor_id = $this->lookup_id( uuid: $uuid );
 		if ( null !== $visitor_id ) {
-			return $visitor_id;
+			return $this->mark_seen( visitor_id: $visitor_id, seen_at: $seen_at ) ? $visitor_id : null;
 		}
 
 		global $wpdb;
@@ -93,7 +94,10 @@ final class Journey_Visitor_Repository {
 		}
 
 		// A different request may have inserted the same unique UUID first.
-		return $this->lookup_id( uuid: $uuid );
+		$visitor_id = $this->lookup_id( uuid: $uuid );
+		return null !== $visitor_id && $this->mark_seen( visitor_id: $visitor_id, seen_at: $seen_at )
+			? $visitor_id
+			: null;
 	}
 
 	/**

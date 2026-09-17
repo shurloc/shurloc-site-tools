@@ -113,6 +113,8 @@ final class JourneyVisitorRepositoryTest extends TestCase {
 		$seen_at    = '2026-09-16 12:00:00';
 
 		self::assertSame( 1, $repository->find_or_create( uuid: $uuid, seen_at: $seen_at ) );
+		self::assertCount( 1, $this->database->prepared_queries );
+		self::assertSame( array(), $this->database->queries );
 		self::assertSame( 1, $repository->find_or_create( uuid: $uuid, seen_at: $seen_at ) );
 		self::assertSame(
 			array(
@@ -129,6 +131,39 @@ final class JourneyVisitorRepositoryTest extends TestCase {
 			$this->database->insert_calls
 		);
 		self::assertCount( 1, $this->database->visitors );
+		self::assertCount( 3, $this->database->prepared_queries );
+		self::assertSame( 'UPDATE %i SET last_seen_at = %s WHERE id = %d AND last_seen_at < %s', $this->database->prepared_queries[2]['query'] );
+	}
+
+	/**
+	 * Returning visitors advance last_seen without allowing older requests to regress it.
+	 *
+	 * @return void
+	 */
+	public function test_find_or_create_updates_returning_visitor_last_seen(): void {
+		$repository = new Journey_Visitor_Repository();
+		$uuid       = '123e4567-e89b-42d3-a456-426614174000';
+
+		self::assertSame( 1, $repository->find_or_create( uuid: $uuid, seen_at: '2026-09-16 12:00:00' ) );
+		self::assertSame( 1, $repository->find_or_create( uuid: $uuid, seen_at: '2026-09-16 12:05:00' ) );
+		self::assertSame( 1, $repository->find_or_create( uuid: $uuid, seen_at: '2026-09-16 12:03:00' ) );
+		self::assertSame( '2026-09-16 12:05:00', $this->database->visitor_rows[ $uuid ]['last_seen_at'] );
+		self::assertCount( 1, $this->database->insert_calls );
+	}
+
+	/**
+	 * Failed activity updates cannot return an apparently resolved visitor.
+	 *
+	 * @return void
+	 */
+	public function test_find_or_create_returns_null_when_returning_update_fails(): void {
+		$repository = new Journey_Visitor_Repository();
+		$uuid       = '123e4567-e89b-42d3-a456-426614174000';
+		self::assertSame( 1, $repository->find_or_create( uuid: $uuid, seen_at: '2026-09-16 12:00:00' ) );
+
+		$this->database->fail_update = true;
+		self::assertNull( $repository->find_or_create( uuid: $uuid, seen_at: '2026-09-16 12:10:00' ) );
+		self::assertSame( '2026-09-16 12:00:00', $this->database->visitor_rows[ $uuid ]['last_seen_at'] );
 	}
 
 	/**
@@ -147,7 +182,27 @@ final class JourneyVisitorRepositoryTest extends TestCase {
 				seen_at: '2026-09-16 12:00:00'
 			)
 		);
-		self::assertCount( 2, $this->database->prepared_queries );
+		self::assertCount( 3, $this->database->prepared_queries );
+		self::assertSame( 'UPDATE %i SET last_seen_at = %s WHERE id = %d AND last_seen_at < %s', $this->database->prepared_queries[2]['query'] );
+	}
+
+	/**
+	 * A concurrent insert winner also requires a successful last-seen update.
+	 *
+	 * @return void
+	 */
+	public function test_concurrent_insert_winner_update_failure_returns_null(): void {
+		$this->database->race_on_insert = true;
+		$this->database->fail_update    = true;
+		$uuid                           = '123e4567-e89b-42d3-a456-426614174000';
+
+		self::assertNull(
+			( new Journey_Visitor_Repository() )->find_or_create(
+				uuid: $uuid,
+				seen_at: '2026-09-16 12:00:00'
+			)
+		);
+		self::assertSame( 42, $this->database->visitor_rows[ $uuid ]['id'] );
 	}
 
 	/**

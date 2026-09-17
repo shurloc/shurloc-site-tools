@@ -260,6 +260,39 @@ final class JourneyVisitorServiceTest extends TestCase {
 	}
 
 	/**
+	 * A failed returning-visitor timestamp update blocks identity until retry.
+	 *
+	 * @return void
+	 */
+	public function test_returning_visitor_seen_update_failure_blocks_identity_and_retries(): void {
+		$service = new Journey_Visitor_Service();
+		$first   = $service->resolve();
+		self::assertIsArray( $first );
+
+		$uuid                                    = $first['visitor_uuid'];
+		$_COOKIE[ Journey_Visitor_Cookie::NAME ] = $uuid;
+		$old                                     = gmdate( 'Y-m-d H:i:s', time() - 3600 );
+		$row                                     = $this->database->visitor_rows[ $uuid ];
+		$row['last_seen_at']                     = $old;
+		$this->database->visitor_rows[ $uuid ]   = $row;
+		$this->database->visitors[ $uuid ]       = $row;
+		$this->database->fail_update             = true;
+
+		self::assertNull( $service->resolve() );
+		self::assertSame( $old, $this->database->visitor_rows[ $uuid ]['last_seen_at'] );
+		self::assertCount( 1, $this->database->periods );
+
+		$this->database->fail_update = false;
+		$before                      = gmdate( 'Y-m-d H:i:s' );
+		$returned                    = $service->resolve();
+		$after                       = gmdate( 'Y-m-d H:i:s' );
+
+		self::assertSame( $first, $returned );
+		self::assertGreaterThanOrEqual( $before, $this->database->visitor_rows[ $uuid ]['last_seen_at'] );
+		self::assertLessThanOrEqual( $after, $this->database->visitor_rows[ $uuid ]['last_seen_at'] );
+	}
+
+	/**
 	 * A failed period insert can recover on the next request with the same ID.
 	 *
 	 * @return void
