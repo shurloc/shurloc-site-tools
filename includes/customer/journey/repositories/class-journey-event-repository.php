@@ -13,14 +13,17 @@ defined( 'ABSPATH' ) || exit;
 
 use DateTimeImmutable;
 use DateTimeZone;
+use Shurloc\SiteTools\Customer\Journey\Journey_Event_Field_Validator;
+use Shurloc\SiteTools\Customer\Journey\Journey_Event_Summary_Delta;
 use Shurloc\SiteTools\Customer\Journey\Journey_Event_Type;
 use Shurloc\SiteTools\Customer\Journey\Migrations\Journey_Schema_Migrator;
 
 /**
- * Inserts fixed-shape events and recognizes retries by a unique event key.
+ * Atomically inserts events and their session summary increments.
  *
- * Trusted server code supplies visitor and session IDs. Event-specific input
- * validation and session summary updates belong to later collection units.
+ * Trusted server code supplies visitor and session IDs. Browser claims must be
+ * checked by a later collection layer before reaching this repository. Both
+ * Journey tables must use a transactional storage engine for rollback safety.
  *
  * @phpstan-type EventInput array{
  *     session_id:int,
@@ -39,8 +42,16 @@ use Shurloc\SiteTools\Customer\Journey\Migrations\Journey_Schema_Migrator;
  *     idempotency_key?:string|null
  * }
  * @phpstan-type RecordResult array{id:int,created:bool}
+ * @phpstan-import-type SummaryDelta from Journey_Event_Summary_Delta
  */
 final class Journey_Event_Repository {
+	/**
+	 * Type-specific field rules.
+	 *
+	 * @var Journey_Event_Field_Validator
+	 */
+	private Journey_Event_Field_Validator $field_validator;
+
 	/**
 	 * Journey schema readiness check.
 	 *
@@ -51,10 +62,15 @@ final class Journey_Event_Repository {
 	/**
 	 * Constructor.
 	 *
-	 * @param Journey_Schema_Migrator|null $schema_migrator Journey schema check.
+	 * @param Journey_Schema_Migrator|null       $schema_migrator Journey schema check.
+	 * @param Journey_Event_Field_Validator|null $field_validator Type-specific rules.
 	 */
-	public function __construct( ?Journey_Schema_Migrator $schema_migrator = null ) {
+	public function __construct(
+		?Journey_Schema_Migrator $schema_migrator = null,
+		?Journey_Event_Field_Validator $field_validator = null
+	) {
 		$this->schema_migrator = $schema_migrator ?? new Journey_Schema_Migrator();
+		$this->field_validator = $field_validator ?? new Journey_Event_Field_Validator();
 	}
 
 	/**
@@ -62,18 +78,36 @@ final class Journey_Event_Repository {
 	 *
 	 * An event key is optional except for ORDER_CREATED. The caller generates
 	 * keys for logical events; the database unique index resolves races. A key
-	 * collision with a different logical event fails closed.
+	 * collision with a different logical event fails closed. Event insertion and
+	 * the matching session's counter increments share one database transaction.
 	 *
 	 * @param array<string,mixed> $event Validated, server-owned event fields.
 	 * @return RecordResult|null Insert result, matching retry, or null on failure.
 	 * @phpstan-param EventInput $event
 	 */
 	public function record( array $event ): ?array {
-		if ( ! $this->is_valid( event: $event ) || ! $this->schema_migrator->is_ready() ) {
+		if (
+			! $this->field_validator->is_valid( event: $event ) ||
+			! $this->is_valid( event: $event ) ||
+			! $this->schema_migrator->is_ready()
+		) {
+			return null;
+		}
+
+		$delta = Journey_Event_Summary_Delta::for_event(
+			event_type: $event['event_type'],
+			quantity: $event['quantity'] ?? null,
+			active_ms: $event['active_ms'] ?? 0,
+		);
+		if ( null === $delta ) {
 			return null;
 		}
 
 		global $wpdb;
+
+		if ( false === $wpdb->query( 'START TRANSACTION' ) ) {
+			return null;
+		}
 
 		$key      = $event['idempotency_key'] ?? null;
 		$inserted = $wpdb->insert(
@@ -99,12 +133,26 @@ final class Journey_Event_Repository {
 		);
 
 		if ( 1 === $inserted && 0 < $wpdb->insert_id ) {
+			$id = (int) $wpdb->insert_id;
+			if (
+				! $this->increment_session_summary(
+					session_id: $event['session_id'],
+					visitor_id: $event['visitor_id'],
+					delta: $delta
+				) ||
+				false === $wpdb->query( 'COMMIT' )
+			) {
+				$wpdb->query( 'ROLLBACK' );
+				return null;
+			}
+
 			return array(
-				'id'      => (int) $wpdb->insert_id,
+				'id'      => $id,
 				'created' => true,
 			);
 		}
 
+		$wpdb->query( 'ROLLBACK' );
 		if ( null === $key ) {
 			return null;
 		}
@@ -114,6 +162,39 @@ final class Journey_Event_Repository {
 			'id'      => $id,
 			'created' => false,
 		);
+	}
+
+	/**
+	 * Apply one safe, sparse counter delta to the owning session.
+	 *
+	 * Each identifier comes from the fixed internal delta map and is prepared
+	 * as a database identifier. Decimal quantities are cast explicitly, so
+	 * arithmetic does not go through PHP floating point values.
+	 *
+	 * @param int                 $session_id Session ID.
+	 * @param int                 $visitor_id Visitor ID.
+	 * @param array<string,mixed> $delta      Counter increments.
+	 * @return bool Whether exactly one session row was updated.
+	 * @phpstan-param SummaryDelta $delta
+	 */
+	private function increment_session_summary( int $session_id, int $visitor_id, array $delta ): bool {
+		global $wpdb;
+
+		$assignments = array();
+		$args        = array( $wpdb->prefix . 'shurloc_journey_sessions' );
+		foreach ( $delta as $column => $increment ) {
+			$assignments[] = '%i = %i + ' . ( is_int( $increment ) ? '%d' : 'CAST(%s AS DECIMAL(16,4))' );
+			$args[]        = $column;
+			$args[]        = $column;
+			$args[]        = $increment;
+		}
+
+		$args[] = $session_id;
+		$args[] = $visitor_id;
+		$sql    = 'UPDATE %i SET ' . implode( ', ', $assignments ) . ' WHERE id = %d AND visitor_id = %d';
+
+		// phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared -- Internal delta keys are identifier placeholders; every value is prepared.
+		return 1 === $wpdb->query( $wpdb->prepare( $sql, ...$args ) );
 	}
 
 	/**
@@ -217,7 +298,8 @@ final class Journey_Event_Repository {
 			$this->optional_id( $row->variation_id ?? null ) !== ( $event['variation_id'] ?? null ) ||
 			$this->optional_id( $row->order_id ?? null ) !== ( $event['order_id'] ?? null ) ||
 			$this->normalize_quantity( $row->quantity ?? null ) !== $this->normalize_quantity( $event['quantity'] ?? null ) ||
-			filter_var( $row->active_ms ?? null, FILTER_VALIDATE_INT, array( 'options' => array( 'min_range' => 0 ) ) ) !== ( $event['active_ms'] ?? 0 ) ||
+			( ! Journey_Event_Type::counts_as_page_view( value: $event['event_type'] ) &&
+				filter_var( $row->active_ms ?? null, FILTER_VALIDATE_INT, array( 'options' => array( 'min_range' => 0 ) ) ) !== ( $event['active_ms'] ?? 0 ) ) ||
 			( $row->source ?? null ) !== ( $event['source'] ?? null )
 		) {
 			return null;

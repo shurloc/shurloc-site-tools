@@ -28,7 +28,16 @@ use Shurloc\SiteTools\Customer\Journey\Migrations\Journey_Schema_V1;
  *     utm_medium:string|null,
  *     utm_campaign:string|null,
  *     utm_term:string|null,
- *     utm_content:string|null
+ *     utm_content:string|null,
+ *     page_view_count:int,
+ *     product_view_count:int,
+ *     cart_add_count:int,
+ *     cart_remove_count:int,
+ *     added_quantity:string,
+ *     removed_quantity:string,
+ *     checkout_started_count:int,
+ *     order_created_count:int,
+ *     active_ms:int
  * }
  * @phpstan-type VisitorRow array{
  *     id:int,
@@ -274,6 +283,13 @@ final class Shurloc_Test_WPDB {
 	public bool $fail_event_select = false;
 
 	/**
+	 * Simulate a session summary update failure.
+	 *
+	 * @var bool
+	 */
+	public bool $fail_event_summary_update = false;
+
+	/**
 	 * Arguments of the latest prepared query.
 	 *
 	 * @var list<mixed>
@@ -321,6 +337,13 @@ final class Shurloc_Test_WPDB {
 	 * @var array<int,SessionRow>|null
 	 */
 	private ?array $snapshot_sessions = null;
+
+	/**
+	 * Transaction snapshot of Journey events.
+	 *
+	 * @var array<int,array<string,mixed>>|null
+	 */
+	private ?array $snapshot_events = null;
 
 	/**
 	 * Next period ID before transaction start.
@@ -589,21 +612,30 @@ final class Shurloc_Test_WPDB {
 
 			$this->insert_id                    = $this->next_session_id++;
 			$this->sessions[ $this->insert_id ] = array(
-				'id'                  => $this->insert_id,
-				'visitor_id'          => (int) $data['visitor_id'],
-				'identity_period_id'  => (int) $data['identity_period_id'],
-				'user_id_at_start'    => null === $data['user_id_at_start'] ? null : (int) $data['user_id_at_start'],
-				'began_authenticated' => (int) $data['began_authenticated'],
-				'started_at'          => (string) $data['started_at'],
-				'last_activity_at'    => (string) $data['last_activity_at'],
-				'ended_at'            => null,
-				'landing_path'        => null === $data['landing_path'] ? null : (string) $data['landing_path'],
-				'referrer_host'       => null === $data['referrer_host'] ? null : (string) $data['referrer_host'],
-				'utm_source'          => null === $data['utm_source'] ? null : (string) $data['utm_source'],
-				'utm_medium'          => null === $data['utm_medium'] ? null : (string) $data['utm_medium'],
-				'utm_campaign'        => null === $data['utm_campaign'] ? null : (string) $data['utm_campaign'],
-				'utm_term'            => null === $data['utm_term'] ? null : (string) $data['utm_term'],
-				'utm_content'         => null === $data['utm_content'] ? null : (string) $data['utm_content'],
+				'id'                     => $this->insert_id,
+				'visitor_id'             => (int) $data['visitor_id'],
+				'identity_period_id'     => (int) $data['identity_period_id'],
+				'user_id_at_start'       => null === $data['user_id_at_start'] ? null : (int) $data['user_id_at_start'],
+				'began_authenticated'    => (int) $data['began_authenticated'],
+				'started_at'             => (string) $data['started_at'],
+				'last_activity_at'       => (string) $data['last_activity_at'],
+				'ended_at'               => null,
+				'landing_path'           => null === $data['landing_path'] ? null : (string) $data['landing_path'],
+				'referrer_host'          => null === $data['referrer_host'] ? null : (string) $data['referrer_host'],
+				'utm_source'             => null === $data['utm_source'] ? null : (string) $data['utm_source'],
+				'utm_medium'             => null === $data['utm_medium'] ? null : (string) $data['utm_medium'],
+				'utm_campaign'           => null === $data['utm_campaign'] ? null : (string) $data['utm_campaign'],
+				'utm_term'               => null === $data['utm_term'] ? null : (string) $data['utm_term'],
+				'utm_content'            => null === $data['utm_content'] ? null : (string) $data['utm_content'],
+				'page_view_count'        => 0,
+				'product_view_count'     => 0,
+				'cart_add_count'         => 0,
+				'cart_remove_count'      => 0,
+				'added_quantity'         => '0.0000',
+				'removed_quantity'       => '0.0000',
+				'checkout_started_count' => 0,
+				'order_created_count'    => 0,
+				'active_ms'              => 0,
 			);
 			return 1;
 		}
@@ -676,6 +708,7 @@ final class Shurloc_Test_WPDB {
 
 			$this->snapshot                 = $this->periods;
 			$this->snapshot_sessions        = $this->sessions;
+			$this->snapshot_events          = $this->events;
 			$this->snapshot_next_period_id  = $this->next_period_id;
 			$this->snapshot_next_session_id = $this->next_session_id;
 			return 0;
@@ -688,6 +721,7 @@ final class Shurloc_Test_WPDB {
 
 			$this->snapshot          = null;
 			$this->snapshot_sessions = null;
+			$this->snapshot_events   = null;
 			return 0;
 		}
 
@@ -702,8 +736,81 @@ final class Shurloc_Test_WPDB {
 				$this->next_session_id   = $this->snapshot_next_session_id;
 				$this->snapshot_sessions = null;
 			}
+			if ( null !== $this->snapshot_events ) {
+				$this->events          = $this->snapshot_events;
+				$this->snapshot_events = null;
+			}
 
 			return 0;
+		}
+
+		if ( str_starts_with( $query, 'UPDATE %i SET %i = %i + ' ) &&
+			str_ends_with( $query, ' WHERE id = %d AND visitor_id = %d' ) &&
+			str_ends_with( (string) $this->last_args[0], 'shurloc_journey_sessions' ) ) {
+			if ( $this->fail_event_summary_update ) {
+				return false;
+			}
+
+			$session_id = (int) $this->last_args[ count( $this->last_args ) - 2 ];
+			$visitor_id = (int) $this->last_args[ count( $this->last_args ) - 1 ];
+			if ( ! isset( $this->sessions[ $session_id ] ) || $visitor_id !== $this->sessions[ $session_id ]['visitor_id'] ) {
+				return 0;
+			}
+
+			preg_match_all( '/%i = %i \+ (?:%d|CAST\(%s AS DECIMAL\(16,4\)\))/', $query, $assignments );
+			if ( 1 + 3 * count( $assignments[0] ) + 2 !== count( $this->last_args ) ) {
+				return false;
+			}
+
+			foreach ( $assignments[0] as $index => $assignment ) {
+				$column    = (string) $this->last_args[ 1 + 3 * $index ];
+				$increment = $this->last_args[ 3 + 3 * $index ];
+				if ( $column !== $this->last_args[ 2 + 3 * $index ] ) {
+					return false;
+				}
+
+				if ( str_contains( $assignment, 'CAST' ) ) {
+					switch ( $column ) {
+						case 'added_quantity':
+							$this->sessions[ $session_id ]['added_quantity'] = $this->add_decimal( $this->sessions[ $session_id ]['added_quantity'], (string) $increment );
+							break;
+						case 'removed_quantity':
+							$this->sessions[ $session_id ]['removed_quantity'] = $this->add_decimal( $this->sessions[ $session_id ]['removed_quantity'], (string) $increment );
+							break;
+						default:
+							return false;
+					}
+					continue;
+				}
+
+				switch ( $column ) {
+					case 'page_view_count':
+						$this->sessions[ $session_id ]['page_view_count'] += (int) $increment;
+						break;
+					case 'product_view_count':
+						$this->sessions[ $session_id ]['product_view_count'] += (int) $increment;
+						break;
+					case 'cart_add_count':
+						$this->sessions[ $session_id ]['cart_add_count'] += (int) $increment;
+						break;
+					case 'cart_remove_count':
+						$this->sessions[ $session_id ]['cart_remove_count'] += (int) $increment;
+						break;
+					case 'checkout_started_count':
+						$this->sessions[ $session_id ]['checkout_started_count'] += (int) $increment;
+						break;
+					case 'order_created_count':
+						$this->sessions[ $session_id ]['order_created_count'] += (int) $increment;
+						break;
+					case 'active_ms':
+						$this->sessions[ $session_id ]['active_ms'] += (int) $increment;
+						break;
+					default:
+						return false;
+				}
+			}
+
+			return 1;
 		}
 
 		if ( str_starts_with( $query, 'UPDATE %i SET last_seen_at = %s' ) ) {
@@ -827,6 +934,23 @@ final class Shurloc_Test_WPDB {
 		}
 
 		return false;
+	}
+
+	/**
+	 * Add DECIMAL(16,4) fixture values without floating point conversion.
+	 *
+	 * @param string $current Current decimal value.
+	 * @param string $increment Decimal increment.
+	 * @return string Exact four-place decimal sum.
+	 */
+	private function add_decimal( string $current, string $increment ): string {
+		$current_parts   = explode( '.', $current, 2 );
+		$increment_parts = explode( '.', $increment, 2 );
+		$current_units   = (int) $current_parts[0] * 10000 + (int) str_pad( $current_parts[1] ?? '', 4, '0' );
+		$increment_units = (int) $increment_parts[0] * 10000 + (int) str_pad( $increment_parts[1] ?? '', 4, '0' );
+		$sum             = $current_units + $increment_units;
+
+		return intdiv( $sum, 10000 ) . '.' . str_pad( (string) ( $sum % 10000 ), 4, '0', STR_PAD_LEFT );
 	}
 
 	/**
