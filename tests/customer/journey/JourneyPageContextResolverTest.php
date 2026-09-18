@@ -29,6 +29,7 @@ final class JourneyPageContextResolverTest extends TestCase {
 		'shurloc_test_post_types',
 		'shurloc_test_permalinks',
 		'shurloc_test_products',
+		'shurloc_test_wc_page_ids',
 	);
 
 	/**
@@ -60,6 +61,7 @@ final class JourneyPageContextResolverTest extends TestCase {
 		$GLOBALS['shurloc_test_post_types']          = array();
 		$GLOBALS['shurloc_test_permalinks']          = array();
 		$GLOBALS['shurloc_test_products']            = array();
+		$GLOBALS['shurloc_test_wc_page_ids']         = array();
 	}
 
 	/**
@@ -229,5 +231,55 @@ final class JourneyPageContextResolverTest extends TestCase {
 		}
 
 		self::assertSame( array(), $GLOBALS['shurloc_test_url_to_postid_calls'] );
+	}
+
+	/**
+	 * Only the configured public checkout page qualifies for checkout entry.
+	 *
+	 * @return void
+	 */
+	public function test_checkout_page_requires_configured_canonical_public_page(): void {
+		$checkout_url                                    = 'https://example.com/checkout?utm_source=email';
+		$GLOBALS['shurloc_test_wc_page_ids']['checkout'] = 15;
+		$GLOBALS['shurloc_test_url_post_ids'][ $checkout_url ] = 15;
+		$GLOBALS['shurloc_test_post_statuses'][15]             = 'publish';
+		$GLOBALS['shurloc_test_post_types'][15]                = 'page';
+		$GLOBALS['shurloc_test_permalinks'][15]                = 'https://example.com/checkout/';
+		foreach ( array( '/checkout/order-received/81', '/checkout/order-pay/81' ) as $endpoint ) {
+			$GLOBALS['shurloc_test_url_post_ids'][ 'https://example.com' . $endpoint ] = 15;
+		}
+		$resolver = new Journey_Page_Context_Resolver();
+
+		self::assertTrue( $resolver->is_checkout_page( page_uri: '/checkout?utm_source=email' ) );
+		self::assertFalse( $resolver->is_checkout_page( page_uri: '/checkout/order-received/81' ) );
+		self::assertFalse( $resolver->is_checkout_page( page_uri: '/checkout/order-pay/81' ) );
+		self::assertFalse( $resolver->is_checkout_page( page_uri: '/cart' ) );
+
+		$GLOBALS['shurloc_test_wc_page_ids']['checkout'] = 16;
+		self::assertFalse( $resolver->is_checkout_page( page_uri: '/checkout?utm_source=email' ) );
+		$GLOBALS['shurloc_test_wc_page_ids']['checkout'] = 15;
+		$GLOBALS['shurloc_test_post_statuses'][15]       = 'draft';
+		self::assertFalse( $resolver->is_checkout_page( page_uri: '/checkout?utm_source=email' ) );
+		$GLOBALS['shurloc_test_post_statuses'][15] = 'publish';
+		$GLOBALS['shurloc_test_wc_page_ids']       = array();
+		self::assertFalse( $resolver->is_checkout_page( page_uri: '/checkout?utm_source=email' ) );
+	}
+
+	/**
+	 * Checkout URLs with plain permalinks need the configured page query ID.
+	 *
+	 * @return void
+	 */
+	public function test_checkout_page_respects_plain_permalink_query(): void {
+		$GLOBALS['shurloc_test_wc_page_ids']['checkout'] = 15;
+		$GLOBALS['shurloc_test_url_post_ids']['https://example.com/?page_id=15&utm_campaign=fall'] = 15;
+		$GLOBALS['shurloc_test_url_post_ids']['https://example.com/?page_id=16']                   = 15;
+		$GLOBALS['shurloc_test_post_statuses'][15] = 'publish';
+		$GLOBALS['shurloc_test_post_types'][15]    = 'page';
+		$GLOBALS['shurloc_test_permalinks'][15]    = 'https://example.com/?page_id=15';
+
+		$resolver = new Journey_Page_Context_Resolver();
+		self::assertTrue( $resolver->is_checkout_page( page_uri: '/?page_id=15&utm_campaign=fall' ) );
+		self::assertFalse( $resolver->is_checkout_page( page_uri: '/?page_id=16' ) );
 	}
 }

@@ -108,6 +108,32 @@ final class Journey_Page_Context_Resolver {
 	}
 
 	/**
+	 * Verify a browser URI is the configured WooCommerce checkout page.
+	 *
+	 * Both classic checkout and Checkout Blocks use the configured page. The
+	 * normal page resolver checks its published status and canonical permalink,
+	 * excluding checkout subroutes such as order payment and order received.
+	 *
+	 * @param string $page_uri Browser-supplied relative page URI.
+	 * @return bool Whether the URI identifies the public checkout page.
+	 */
+	public function is_checkout_page( string $page_uri ): bool {
+		if ( ! function_exists( 'wc_get_page_id' ) ) {
+			return false;
+		}
+
+		$checkout_id = wc_get_page_id( 'checkout' );
+		if ( 0 >= $checkout_id ) {
+			return false;
+		}
+
+		$context = $this->resolve( page_uri: $page_uri );
+		return null !== $context &&
+			Journey_Event_Type::PAGE_VIEW === $context['event_type'] &&
+			$checkout_id === $context['post_id'];
+	}
+
+	/**
 	 * Check that a resolved post corresponds to the claimed local page path.
 	 *
 	 * Canonical query arguments are required for sites using plain permalinks;

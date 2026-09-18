@@ -39,6 +39,11 @@ $GLOBALS['shurloc_test_is_cart'] = false;
 $GLOBALS['shurloc_test_is_checkout'] = false;
 
 /**
+ * Configured WooCommerce page IDs during tests.
+ */
+$GLOBALS['shurloc_test_wc_page_ids'] = array();
+
+/**
  * Current WooCommerce product used during tests.
  */
 $GLOBALS['product'] = null;
@@ -87,6 +92,18 @@ if ( ! function_exists( 'is_checkout' ) ) {
 	 */
 	function is_checkout(): bool {
 		return $GLOBALS['shurloc_test_is_checkout'] ?? false;
+	}
+}
+
+if ( ! function_exists( 'wc_get_page_id' ) ) {
+	/**
+	 * Return the configured WooCommerce page ID.
+	 *
+	 * @param string $page WooCommerce page slug.
+	 * @return int Configured ID, or -1 when absent.
+	 */
+	function wc_get_page_id( string $page ): int {
+		return $GLOBALS['shurloc_test_wc_page_ids'][ $page ] ?? -1;
 	}
 }
 
