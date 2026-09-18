@@ -45,8 +45,14 @@ final class JourneyBrowserAssetsTest extends TestCase {
 		);
 		$GLOBALS['shurloc_test_is_admin']             = false;
 		$GLOBALS['shurloc_test_is_user_logged_in']    = false;
+		$GLOBALS['shurloc_test_is_checkout']          = false;
 		$GLOBALS['shurloc_journey_test_doing_cron']   = false;
 		$GLOBALS['shurloc_journey_test_current_user'] = new Journey_Collection_Test_User();
+		$GLOBALS['shurloc_test_wc_page_ids']          = array();
+		$GLOBALS['shurloc_test_url_post_ids']         = array();
+		$GLOBALS['shurloc_test_post_statuses']        = array();
+		$GLOBALS['shurloc_test_post_types']           = array();
+		$GLOBALS['shurloc_test_permalinks']           = array();
 		unset( $GLOBALS['shurloc_test_rest_url'] );
 	}
 
@@ -64,8 +70,14 @@ final class JourneyBrowserAssetsTest extends TestCase {
 		$GLOBALS['shurloc_test_options']              = array();
 		$GLOBALS['shurloc_test_is_admin']             = true;
 		$GLOBALS['shurloc_test_is_user_logged_in']    = false;
+		$GLOBALS['shurloc_test_is_checkout']          = false;
 		$GLOBALS['shurloc_journey_test_doing_cron']   = false;
 		$GLOBALS['shurloc_journey_test_current_user'] = new Journey_Collection_Test_User();
+		$GLOBALS['shurloc_test_wc_page_ids']          = array();
+		$GLOBALS['shurloc_test_url_post_ids']         = array();
+		$GLOBALS['shurloc_test_post_statuses']        = array();
+		$GLOBALS['shurloc_test_post_types']           = array();
+		$GLOBALS['shurloc_test_permalinks']           = array();
 		unset( $GLOBALS['shurloc_test_rest_url'] );
 		parent::tearDown();
 	}
@@ -108,9 +120,10 @@ final class JourneyBrowserAssetsTest extends TestCase {
 		);
 		self::assertSame(
 			array(
-				'viewUrl'     => 'https://example.com/wp-json/' . Journey_Browser_Ingestion_Controller::ROUTE_NAMESPACE . '/journey/view',
-				'durationUrl' => 'https://example.com/wp-json/' . Journey_Browser_Ingestion_Controller::ROUTE_NAMESPACE . '/journey/duration',
-				'nonce'       => '',
+				'viewUrl'        => 'https://example.com/wp-json/' . Journey_Browser_Ingestion_Controller::ROUTE_NAMESPACE . '/journey/view',
+				'durationUrl'    => 'https://example.com/wp-json/' . Journey_Browser_Ingestion_Controller::ROUTE_NAMESPACE . '/journey/duration',
+				'nonce'          => '',
+				'isCheckoutPage' => false,
 			),
 			$this->inline_config()
 		);
@@ -130,12 +143,50 @@ final class JourneyBrowserAssetsTest extends TestCase {
 
 		self::assertSame(
 			array(
-				'viewUrl'     => 'https://example.com/store/wp-json/' . Journey_Browser_Ingestion_Controller::ROUTE_NAMESPACE . '/journey/view',
-				'durationUrl' => 'https://example.com/store/wp-json/' . Journey_Browser_Ingestion_Controller::ROUTE_NAMESPACE . '/journey/duration',
-				'nonce'       => 'test-nonce-wp_rest',
+				'viewUrl'        => 'https://example.com/store/wp-json/' . Journey_Browser_Ingestion_Controller::ROUTE_NAMESPACE . '/journey/view',
+				'durationUrl'    => 'https://example.com/store/wp-json/' . Journey_Browser_Ingestion_Controller::ROUTE_NAMESPACE . '/journey/duration',
+				'nonce'          => 'test-nonce-wp_rest',
+				'isCheckoutPage' => false,
 			),
 			$this->inline_config()
 		);
+	}
+
+	/**
+	 * Only the configured public checkout page is marked for entry tracking.
+	 *
+	 * @return void
+	 */
+	public function test_checkout_flag_excludes_subroutes_and_unpublished_pages(): void {
+		$GLOBALS['shurloc_test_is_checkout']             = true;
+		$GLOBALS['shurloc_test_wc_page_ids']['checkout'] = 12;
+		$GLOBALS['shurloc_test_url_post_ids']['https://example.com/checkout?utm_source=email']  = 12;
+		$GLOBALS['shurloc_test_url_post_ids']['https://example.com/checkout/order-received/99'] = 12;
+		$GLOBALS['shurloc_test_post_statuses'][12] = 'publish';
+		$GLOBALS['shurloc_test_post_types'][12]    = 'page';
+		$GLOBALS['shurloc_test_permalinks'][12]    = 'https://example.com/checkout/';
+		$_SERVER['REQUEST_URI']                    = '/checkout?utm_source=email';
+
+		$assets = new Journey_Browser_Assets();
+		$assets->enqueue_assets();
+		self::assertTrue( $this->inline_config()['isCheckoutPage'] );
+
+		$GLOBALS['shurloc_test_inline_scripts'] = array();
+		$_SERVER['REQUEST_URI']                 = '/checkout/order-received/99';
+		$assets->enqueue_assets();
+		self::assertFalse( $this->inline_config()['isCheckoutPage'] );
+
+		$GLOBALS['shurloc_test_inline_scripts']    = array();
+		$_SERVER['REQUEST_URI']                    = '/checkout?utm_source=email';
+		$GLOBALS['shurloc_test_post_statuses'][12] = 'draft';
+		$assets->enqueue_assets();
+		self::assertFalse( $this->inline_config()['isCheckoutPage'] );
+
+		$GLOBALS['shurloc_test_inline_scripts']    = array();
+		$GLOBALS['shurloc_test_post_statuses'][12] = 'publish';
+		$GLOBALS['shurloc_test_is_checkout']       = false;
+		$assets->enqueue_assets();
+		self::assertFalse( $this->inline_config()['isCheckoutPage'] );
 	}
 
 	/**
