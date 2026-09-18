@@ -15,6 +15,7 @@ use Shurloc\SiteTools\Customer\Admin\Carts_Controller;
 use Shurloc\SiteTools\Customer\Admin\User_Cart_Column;
 use Shurloc\SiteTools\Customer\Admin\User_Filters;
 use Shurloc\SiteTools\Customer\Journey\Admin\Journey_Schema_Admin;
+use Shurloc\SiteTools\Customer\Journey\Frontend\Journey_Browser_Assets;
 use Shurloc\SiteTools\Customer\Journey\Migrations\Journey_Schema_Migrator;
 use Shurloc\SiteTools\Customer\Journey\Rest\Journey_Browser_Ingestion_Controller;
 use Shurloc_Test_WPDB;
@@ -23,6 +24,12 @@ use Shurloc_Test_WPDB;
  * Tests the Customer domain bootstrap.
  */
 final class BootstrapTest extends TestCase {
+	/**
+	 * Original server environment.
+	 *
+	 * @var array<string,mixed>
+	 */
+	private array $original_server;
 
 	/**
 	 * Prepare each test.
@@ -32,8 +39,12 @@ final class BootstrapTest extends TestCase {
 	protected function setUp(): void {
 
 		parent::setUp();
+		$this->original_server      = $_SERVER;
+		$_SERVER['HTTP_USER_AGENT'] = 'Mozilla/5.0';
 
 		$GLOBALS['shurloc_test_actions']               = array();
+		$GLOBALS['shurloc_test_enqueued_scripts']      = array();
+		$GLOBALS['shurloc_test_inline_scripts']        = array();
 		$GLOBALS['shurloc_test_rest_routes']           = array();
 		$GLOBALS['shurloc_test_action_metadata']       = array();
 		$GLOBALS['shurloc_test_filters']               = array();
@@ -52,8 +63,11 @@ final class BootstrapTest extends TestCase {
 	 * @return void
 	 */
 	protected function tearDown(): void {
+		$_SERVER = $this->original_server;
 
 		$GLOBALS['shurloc_test_actions']               = array();
+		$GLOBALS['shurloc_test_enqueued_scripts']      = array();
+		$GLOBALS['shurloc_test_inline_scripts']        = array();
 		$GLOBALS['shurloc_test_rest_routes']           = array();
 		$GLOBALS['shurloc_test_action_metadata']       = array();
 		$GLOBALS['shurloc_test_filters']               = array();
@@ -292,6 +306,38 @@ final class BootstrapTest extends TestCase {
 		}
 		self::assertCount( 2, $GLOBALS['shurloc_test_rest_routes'] );
 		self::assertSame( array(), $GLOBALS['shurloc_test_options'] );
+	}
+
+	/**
+	 * Verify bootstrap wiring enqueues the tracker only after schema readiness.
+	 *
+	 * @return void
+	 */
+	public function test_storefront_bootstrap_wires_journey_browser_assets(): void {
+		$GLOBALS['shurloc_test_is_admin']           = false;
+		$GLOBALS['shurloc_test_is_user_logged_in']  = false;
+		$GLOBALS['shurloc_journey_test_doing_cron'] = false;
+
+		$bootstrap = new Bootstrap();
+		$bootstrap->register();
+
+		self::assertArrayHasKey( 'wp_enqueue_scripts', $GLOBALS['shurloc_test_actions'] );
+		self::assertCount( 1, $GLOBALS['shurloc_test_actions']['wp_enqueue_scripts'] );
+		$callback = $GLOBALS['shurloc_test_actions']['wp_enqueue_scripts'][0];
+		self::assertIsArray( $callback );
+		self::assertInstanceOf( Journey_Browser_Assets::class, $callback[0] );
+		self::assertSame( 'enqueue_assets', $callback[1] );
+		self::assertIsCallable( $callback );
+		self::assertSame( array(), $GLOBALS['shurloc_test_enqueued_scripts'] );
+
+		$callback();
+		self::assertSame( array(), $GLOBALS['shurloc_test_enqueued_scripts'] );
+
+		$GLOBALS['shurloc_test_options'][ Journey_Schema_Migrator::VERSION_OPTION ] = Journey_Schema_Migrator::CURRENT_VERSION;
+		$callback();
+		self::assertCount( 1, $GLOBALS['shurloc_test_enqueued_scripts'] );
+		self::assertSame( Journey_Browser_Assets::SCRIPT_HANDLE, $GLOBALS['shurloc_test_enqueued_scripts'][0]['handle'] );
+		self::assertCount( 1, $GLOBALS['shurloc_test_inline_scripts'] );
 	}
 
 	/**

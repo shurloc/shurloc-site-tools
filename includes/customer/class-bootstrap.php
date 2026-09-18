@@ -26,6 +26,7 @@ use Shurloc\SiteTools\Customer\Admin\User_Purchase_Columns;
 use Shurloc\SiteTools\Customer\Admin\User_Purchase_Filters;
 use Shurloc\SiteTools\Customer\Formatters\Relative_Time_Formatter;
 use Shurloc\SiteTools\Customer\Journey\Admin\Journey_Schema_Admin;
+use Shurloc\SiteTools\Customer\Journey\Frontend\Journey_Browser_Assets;
 use Shurloc\SiteTools\Customer\Journey\Migrations\Journey_Schema_Migrator;
 use Shurloc\SiteTools\Customer\Journey\Rest\Journey_Browser_Ingestion_Controller;
 use Shurloc\SiteTools\Customer\Migrations\User_Cart_Migration;
@@ -55,6 +56,9 @@ final class Bootstrap {
 	public function register(): void {
 		$journey_browser_ingestion = new Journey_Browser_Ingestion_Controller();
 		$journey_browser_ingestion->register();
+
+		$journey_browser_assets = new Journey_Browser_Assets();
+		$journey_browser_assets->register();
 
 		if ( is_admin() ) {
 			$this->journey_schema_migrator = new Journey_Schema_Migrator();
