@@ -80,6 +80,7 @@ final class JourneyBrowserIngestionControllerTest extends TestCase {
 		$GLOBALS['shurloc_test_post_types']                  = array();
 		$GLOBALS['shurloc_test_permalinks']                  = array();
 		$GLOBALS['shurloc_test_products']                    = array();
+		$GLOBALS['shurloc_test_wc_page_ids']                 = array();
 		unset( $GLOBALS['shurloc_test_home_url'] );
 
 		$this->database = new Shurloc_Test_WPDB();
@@ -114,6 +115,7 @@ final class JourneyBrowserIngestionControllerTest extends TestCase {
 		$GLOBALS['shurloc_test_post_types']                  = array();
 		$GLOBALS['shurloc_test_permalinks']                  = array();
 		$GLOBALS['shurloc_test_products']                    = array();
+		$GLOBALS['shurloc_test_wc_page_ids']                 = array();
 		unset( $GLOBALS['shurloc_test_home_url'] );
 
 		// phpcs:ignore WordPress.WP.GlobalVariablesOverride.Prohibited -- Test-only wpdb replacement.
@@ -187,6 +189,182 @@ final class JourneyBrowserIngestionControllerTest extends TestCase {
 		);
 		self::assertCount( 1, $this->database->events );
 		self::assertSame( 1, $this->database->sessions[1]['page_view_count'] );
+	}
+
+	/**
+	 * A tokened checkout view records one start for an entry across retries and reloads.
+	 *
+	 * @return void
+	 */
+	public function test_checkout_entry_is_distinct_from_page_view_and_idempotent_per_entry(): void {
+		$this->configure_checkout_page();
+		$controller = new Journey_Browser_Ingestion_Controller();
+		$request    = $this->json_request(
+			array(
+				'page_uri'             => '/checkout?utm_source=email',
+				'view_token'           => str_repeat( 'a', 32 ),
+				'checkout_entry_token' => str_repeat( 'b', 32 ),
+			)
+		);
+
+		self::assertSame(
+			array(
+				'event_id' => 1,
+				'created'  => true,
+			),
+			$controller->record_view( $request )
+		);
+		self::assertCount( 2, $this->database->events );
+		self::assertSame( Journey_Event_Type::PAGE_VIEW, $this->database->events[1]['event_type'] );
+		self::assertSame( Journey_Event_Type::CHECKOUT_STARTED, $this->database->events[2]['event_type'] );
+		self::assertSame( 12, $this->database->events[2]['post_id'] );
+		self::assertSame( '/checkout', $this->database->events[2]['page_path'] );
+		self::assertSame( 'browser', $this->database->events[2]['source'] );
+		self::assertSame( 1, $this->database->sessions[1]['checkout_started_count'] );
+
+		$_COOKIE[ Journey_Visitor_Cookie::NAME ] = $GLOBALS['shurloc_journey_cookie_test_calls'][0]['value'];
+		self::assertSame(
+			array(
+				'event_id' => 1,
+				'created'  => false,
+			),
+			$controller->record_view( $request )
+		);
+		self::assertCount( 2, $this->database->events );
+
+		$reload = $this->json_request(
+			array(
+				'page_uri'             => '/checkout?utm_source=email',
+				'view_token'           => str_repeat( 'c', 32 ),
+				'checkout_entry_token' => str_repeat( 'b', 32 ),
+			)
+		);
+		self::assertSame(
+			array(
+				'event_id' => 3,
+				'created'  => true,
+			),
+			$controller->record_view( $reload )
+		);
+		self::assertCount( 3, $this->database->events );
+		self::assertSame( 2, $this->database->sessions[1]['page_view_count'] );
+		self::assertSame( 1, $this->database->sessions[1]['checkout_started_count'] );
+
+		$new_entry = $this->json_request(
+			array(
+				'page_uri'             => '/checkout?utm_source=email',
+				'view_token'           => str_repeat( 'd', 32 ),
+				'checkout_entry_token' => str_repeat( 'e', 32 ),
+			)
+		);
+		self::assertSame(
+			array(
+				'event_id' => 4,
+				'created'  => true,
+			),
+			$controller->record_view( $new_entry )
+		);
+		self::assertCount( 5, $this->database->events );
+		self::assertSame( Journey_Event_Type::CHECKOUT_STARTED, $this->database->events[5]['event_type'] );
+		self::assertSame( 2, $this->database->sessions[1]['checkout_started_count'] );
+	}
+
+	/**
+	 * Older view requests without a checkout token remain valid on checkout.
+	 *
+	 * @return void
+	 */
+	public function test_checkout_view_without_entry_token_records_only_page_view(): void {
+		$this->configure_checkout_page();
+		$controller = new Journey_Browser_Ingestion_Controller();
+		$request    = $this->json_request(
+			array(
+				'page_uri'   => '/checkout',
+				'view_token' => str_repeat( 'a', 32 ),
+			)
+		);
+
+		self::assertSame(
+			array(
+				'event_id' => 1,
+				'created'  => true,
+			),
+			$controller->record_view( $request )
+		);
+		self::assertCount( 1, $this->database->events );
+		self::assertSame( Journey_Event_Type::PAGE_VIEW, $this->database->events[1]['event_type'] );
+		self::assertSame( 0, $this->database->sessions[1]['checkout_started_count'] );
+	}
+
+	/**
+	 * A failed checkout write reports failure so a retry can complete the entry.
+	 *
+	 * @return void
+	 */
+	public function test_checkout_write_failure_can_retry_after_page_view_was_saved(): void {
+		$this->configure_checkout_page();
+		$controller = new Journey_Browser_Ingestion_Controller();
+		$view       = $this->json_request(
+			array(
+				'page_uri'   => '/checkout',
+				'view_token' => str_repeat( 'a', 32 ),
+			)
+		);
+		$controller->record_view( $view );
+		$_COOKIE[ Journey_Visitor_Cookie::NAME ] = $GLOBALS['shurloc_journey_cookie_test_calls'][0]['value'];
+
+		$entry                             = $this->json_request(
+			array(
+				'page_uri'             => '/checkout',
+				'view_token'           => str_repeat( 'a', 32 ),
+				'checkout_entry_token' => str_repeat( 'b', 32 ),
+			)
+		);
+		$this->database->fail_event_insert = true;
+		$this->assert_error( 'shurloc_journey_unavailable', 503, $controller->record_view( $entry ) );
+		self::assertCount( 1, $this->database->events );
+		self::assertSame( 0, $this->database->sessions[1]['checkout_started_count'] );
+
+		$this->database->fail_event_insert = false;
+		self::assertSame(
+			array(
+				'event_id' => 1,
+				'created'  => false,
+			),
+			$controller->record_view( $entry )
+		);
+		self::assertCount( 2, $this->database->events );
+		self::assertSame( 1, $this->database->sessions[1]['checkout_started_count'] );
+	}
+
+	/**
+	 * A checkout token cannot turn another local route into a checkout start.
+	 *
+	 * @return void
+	 */
+	public function test_checkout_entry_token_is_rejected_off_the_configured_checkout_page(): void {
+		$this->configure_checkout_page();
+		$GLOBALS['shurloc_test_url_post_ids']['https://example.com/checkout/order-received/99'] = 12;
+		$controller = new Journey_Browser_Ingestion_Controller();
+
+		foreach (
+			array(
+				'/about'                      => 'shurloc_journey_invalid_checkout_page',
+				'/checkout/order-received/99' => 'shurloc_journey_invalid_page',
+			) as $page_uri => $expected_error
+		) {
+			$request = $this->json_request(
+				array(
+					'page_uri'             => $page_uri,
+					'view_token'           => str_repeat( 'a', 32 ),
+					'checkout_entry_token' => str_repeat( 'b', 32 ),
+				)
+			);
+			$this->assert_error( $expected_error, 422, $controller->record_view( $request ) );
+		}
+
+		self::assertSame( array(), $this->database->insert_calls );
+		self::assertSame( array(), $GLOBALS['shurloc_journey_cookie_test_calls'] );
 	}
 
 	/**
@@ -354,6 +532,20 @@ final class JourneyBrowserIngestionControllerTest extends TestCase {
 		$this->assert_error( 'shurloc_journey_invalid_view', 400, $controller->record_view( $request ) );
 		self::assertSame( array(), $this->database->insert_calls );
 		self::assertSame( array(), $GLOBALS['shurloc_journey_cookie_test_calls'] );
+	}
+
+	/**
+	 * Configure a public canonical WooCommerce checkout page.
+	 *
+	 * @return void
+	 */
+	private function configure_checkout_page(): void {
+		$GLOBALS['shurloc_test_wc_page_ids']['checkout']                                       = 12;
+		$GLOBALS['shurloc_test_url_post_ids']['https://example.com/checkout']                  = 12;
+		$GLOBALS['shurloc_test_url_post_ids']['https://example.com/checkout?utm_source=email'] = 12;
+		$GLOBALS['shurloc_test_post_statuses'][12] = 'publish';
+		$GLOBALS['shurloc_test_post_types'][12]    = 'page';
+		$GLOBALS['shurloc_test_permalinks'][12]    = 'https://example.com/checkout/';
 	}
 
 	/**

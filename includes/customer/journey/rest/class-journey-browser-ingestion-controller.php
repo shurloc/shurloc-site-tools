@@ -14,6 +14,7 @@ defined( 'ABSPATH' ) || exit;
 use JsonException;
 use Shurloc\SiteTools\Customer\Journey\Journey_Browser_Payload_Validator;
 use Shurloc\SiteTools\Customer\Journey\Journey_Collection_Policy;
+use Shurloc\SiteTools\Customer\Journey\Journey_Event_Type;
 use Shurloc\SiteTools\Customer\Journey\Journey_Page_Context_Resolver;
 use Shurloc\SiteTools\Customer\Journey\Journey_Visitor_Cookie;
 use Shurloc\SiteTools\Customer\Journey\Migrations\Journey_Schema_Migrator;
@@ -174,7 +175,7 @@ final class Journey_Browser_Ingestion_Controller {
 	}
 
 	/**
-	 * Record one page or product view and return its server event ID.
+	 * Record a page or product view, then a tokened checkout entry if present.
 	 *
 	 * @param WP_REST_Request $request Browser request.
 	 * @return array{event_id:int,created:bool}|WP_Error View result or error.
@@ -194,6 +195,9 @@ final class Journey_Browser_Ingestion_Controller {
 		if ( null === $context ) {
 			return $this->error( code: 'shurloc_journey_invalid_page', status: 422 );
 		}
+		if ( null !== $view['checkout_entry_key'] && ! $this->pages->is_checkout_page( page_uri: $view['page_uri'] ) ) {
+			return $this->error( code: 'shurloc_journey_invalid_checkout_page', status: 422 );
+		}
 
 		$result = $this->events->record(
 			event_type: $context['event_type'],
@@ -205,6 +209,16 @@ final class Journey_Browser_Ingestion_Controller {
 			idempotency_key: $view['idempotency_key']
 		);
 		if ( null === $result ) {
+			return $this->error( code: 'shurloc_journey_unavailable', status: 503 );
+		}
+		if ( null !== $view['checkout_entry_key'] && null === $this->events->record(
+			event_type: Journey_Event_Type::CHECKOUT_STARTED,
+			page_uri: $view['page_uri'],
+			referrer_url: $view['referrer_url'],
+			post_id: $context['post_id'],
+			source: 'browser',
+			idempotency_key: $view['checkout_entry_key']
+		) ) {
 			return $this->error( code: 'shurloc_journey_unavailable', status: 503 );
 		}
 
