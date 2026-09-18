@@ -16,7 +16,7 @@ use DateTimeZone;
 use Shurloc\SiteTools\Customer\Journey\Migrations\Journey_Schema_Migrator;
 
 /**
- * Read bounded event pages for a customer's historical identity periods.
+ * Read bounded event pages for customers and anonymous visitors.
  *
  * A visitor can later be used by a different account. An anonymous event
  * belongs to a customer only when it falls inside a period linked to that
@@ -89,22 +89,7 @@ final class Journey_Report_Repository {
 		?string $before_at = null,
 		?int $before_id = null
 	): ?array {
-		$from_timestamp  = $this->timestamp( value: $from_utc );
-		$until_timestamp = $this->timestamp( value: $until_utc );
-
-		if (
-			0 >= $user_id ||
-			null === $from_timestamp ||
-			null === $until_timestamp ||
-			$from_timestamp >= $until_timestamp ||
-			$until_timestamp - $from_timestamp > self::MAX_RANGE_DAYS * 86400 ||
-			1 > $limit ||
-			self::MAX_PAGE_SIZE < $limit ||
-			( null === $before_at ) !== ( null === $before_id ) ||
-			( null !== $before_at && ( null === $this->timestamp( value: $before_at ) || $before_at < $from_utc || $before_at >= $until_utc ) ) ||
-			( null !== $before_id && 0 >= $before_id ) ||
-			! $this->schema_migrator->is_ready()
-		) {
+		if ( ! $this->valid_page( subject_id: $user_id, from_utc: $from_utc, until_utc: $until_utc, limit: $limit, before_at: $before_at, before_id: $before_id ) ) {
 			return null;
 		}
 
@@ -138,6 +123,109 @@ final class Journey_Report_Repository {
 			)
 		);
 
+		return $this->parse_rows( rows: $rows, limit: $limit );
+	}
+
+	/**
+	 * Read anonymous events only while this visitor has never had a user link.
+	 *
+	 * This report is for an internal visitor ID selected by an authorized admin
+	 * controller. Once any identity period belongs to a WordPress user, the
+	 * customer report becomes the place to view that visitor's history.
+	 *
+	 * @param int         $visitor_id Internal visitor row ID.
+	 * @param string      $from_utc   Inclusive UTC MySQL datetime.
+	 * @param string      $until_utc  Exclusive UTC MySQL datetime.
+	 * @param int         $limit      Number of events, at most MAX_PAGE_SIZE.
+	 * @param string|null $before_at  Cursor UTC datetime, paired with before_id.
+	 * @param int|null    $before_id  Cursor event ID, paired with before_at.
+	 * @return list<ReportEvent>|null Event page or null on failure.
+	 */
+	public function anonymous_visitor_events(
+		int $visitor_id,
+		string $from_utc,
+		string $until_utc,
+		int $limit = 50,
+		?string $before_at = null,
+		?int $before_id = null
+	): ?array {
+		if ( ! $this->valid_page( subject_id: $visitor_id, from_utc: $from_utc, until_utc: $until_utc, limit: $limit, before_at: $before_at, before_id: $before_id ) ) {
+			return null;
+		}
+
+		global $wpdb;
+
+		$rows = $wpdb->get_results(
+			$wpdb->prepare(
+				'SELECT e.id, e.session_id, e.visitor_id, e.user_id_at_event, e.event_type, e.occurred_at, e.page_path, e.post_id, e.product_id, e.variation_id, e.quantity, e.order_id, e.related_object_id, e.active_ms, e.source
+				FROM %i e INNER JOIN %i v ON v.id = e.visitor_id
+				WHERE e.visitor_id = %d AND e.user_id_at_event IS NULL
+				AND e.occurred_at >= %s AND e.occurred_at < %s
+				AND (e.occurred_at < %s OR (e.occurred_at = %s AND e.id < %d))
+				AND NOT EXISTS (
+					SELECT 1 FROM %i p WHERE p.visitor_id = %d AND p.user_id IS NOT NULL
+				)
+				ORDER BY e.occurred_at DESC, e.id DESC LIMIT %d',
+				$wpdb->prefix . 'shurloc_journey_events',
+				$wpdb->prefix . 'shurloc_journey_visitors',
+				$visitor_id,
+				$from_utc,
+				$until_utc,
+				$before_at ?? $until_utc,
+				$before_at ?? $until_utc,
+				$before_id ?? PHP_INT_MAX,
+				$wpdb->prefix . 'shurloc_journey_identity_periods',
+				$visitor_id,
+				$limit
+			)
+		);
+
+		return $this->parse_rows( rows: $rows, limit: $limit );
+	}
+
+	/**
+	 * Validate the shared date, pagination, and schema contract.
+	 *
+	 * @param int         $subject_id User or visitor ID.
+	 * @param string      $from_utc   Inclusive UTC timestamp.
+	 * @param string      $until_utc  Exclusive UTC timestamp.
+	 * @param int         $limit      Requested page size.
+	 * @param string|null $before_at  Cursor timestamp.
+	 * @param int|null    $before_id  Cursor event ID.
+	 * @return bool Whether the report query may run.
+	 */
+	private function valid_page(
+		int $subject_id,
+		string $from_utc,
+		string $until_utc,
+		int $limit,
+		?string $before_at,
+		?int $before_id
+	): bool {
+		$from_timestamp  = $this->timestamp( value: $from_utc );
+		$until_timestamp = $this->timestamp( value: $until_utc );
+
+		return 0 < $subject_id &&
+			null !== $from_timestamp &&
+			null !== $until_timestamp &&
+			$from_timestamp < $until_timestamp &&
+			$until_timestamp - $from_timestamp <= self::MAX_RANGE_DAYS * 86400 &&
+			1 <= $limit &&
+			self::MAX_PAGE_SIZE >= $limit &&
+			( null === $before_at ) === ( null === $before_id ) &&
+			( null === $before_at || ( null !== $this->timestamp( value: $before_at ) && $before_at >= $from_utc && $before_at < $until_utc ) ) &&
+			( null === $before_id || 0 < $before_id ) &&
+			$this->schema_migrator->is_ready();
+	}
+
+	/**
+	 * Reject unavailable or malformed database pages before returning any row.
+	 *
+	 * @param mixed $rows  Database result.
+	 * @param int   $limit Requested page size.
+	 * @return list<ReportEvent>|null Parsed page or null on failure.
+	 */
+	private function parse_rows( mixed $rows, int $limit ): ?array {
 		if ( ! is_array( $rows ) || count( $rows ) > $limit ) {
 			return null;
 		}

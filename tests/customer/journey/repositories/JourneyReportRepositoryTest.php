@@ -141,6 +141,94 @@ final class JourneyReportRepositoryTest extends TestCase {
 	}
 
 	/**
+	 * An anonymous report requires the visitor row and rejects any user link.
+	 *
+	 * @return void
+	 */
+	public function test_anonymous_visitor_query_excludes_any_linked_identity(): void {
+		$this->database->prefix  = 'shop_';
+		$this->database->results = array(
+			$this->event_row( id: '31', user_id_at_event: null, occurred_at: '2026-09-17 11:00:00' ),
+		);
+
+		$events = ( new Journey_Report_Repository() )->anonymous_visitor_events(
+			visitor_id: 3,
+			from_utc: '2026-09-01 00:00:00',
+			until_utc: '2026-10-01 00:00:00',
+		);
+
+		self::assertNotNull( $events );
+		self::assertCount( 1, $events );
+		self::assertSame( 31, $events[0]['id'] );
+		self::assertSame( 3, $events[0]['visitor_id'] );
+		self::assertNull( $events[0]['user_id_at_event'] );
+
+		$query = $this->database->prepared_queries[0];
+		self::assertSame(
+			array(
+				'shop_shurloc_journey_events',
+				'shop_shurloc_journey_visitors',
+				3,
+				'2026-09-01 00:00:00',
+				'2026-10-01 00:00:00',
+				'2026-10-01 00:00:00',
+				'2026-10-01 00:00:00',
+				PHP_INT_MAX,
+				'shop_shurloc_journey_identity_periods',
+				3,
+				50,
+			),
+			$query['args']
+		);
+		self::assertStringContainsString( 'INNER JOIN %i v ON v.id = e.visitor_id', $query['query'] );
+		self::assertStringContainsString( 'e.visitor_id = %d AND e.user_id_at_event IS NULL', $query['query'] );
+		self::assertStringContainsString( 'NOT EXISTS', $query['query'] );
+		self::assertStringContainsString( 'p.visitor_id = %d AND p.user_id IS NOT NULL', $query['query'] );
+		self::assertStringContainsString( 'ORDER BY e.occurred_at DESC, e.id DESC LIMIT %d', $query['query'] );
+	}
+
+	/**
+	 * Anonymous reads use the same bounded date and keyset pagination rules.
+	 *
+	 * @return void
+	 */
+	public function test_anonymous_visitor_query_validates_bounds_and_cursor(): void {
+		$repository = new Journey_Report_Repository();
+		$valid      = array(
+			'visitor_id' => 3,
+			'from_utc'   => '2026-09-01 00:00:00',
+			'until_utc'  => '2026-10-01 00:00:00',
+		);
+
+		self::assertNull( $repository->anonymous_visitor_events( ...array_replace( $valid, array( 'visitor_id' => 0 ) ) ) );
+		self::assertNull( $repository->anonymous_visitor_events( ...array_replace( $valid, array( 'until_utc' => '2026-10-03 00:00:00' ) ) ) );
+		self::assertNull( $repository->anonymous_visitor_events( ...array_replace( $valid, array( 'limit' => 101 ) ) ) );
+		self::assertNull( $repository->anonymous_visitor_events( ...array_replace( $valid, array( 'before_id' => 31 ) ) ) );
+		self::assertSame( array(), $this->database->prepared_queries );
+
+		self::assertSame(
+			array(),
+			$repository->anonymous_visitor_events(
+				visitor_id: 3,
+				from_utc: '2026-09-01 00:00:00',
+				until_utc: '2026-10-01 00:00:00',
+				limit: 25,
+				before_at: '2026-09-17 11:00:00',
+				before_id: 31
+			)
+		);
+		$query = $this->database->prepared_queries[0];
+		self::assertSame( '2026-09-17 11:00:00', $query['args'][5] );
+		self::assertSame( '2026-09-17 11:00:00', $query['args'][6] );
+		self::assertSame( 31, $query['args'][7] );
+		self::assertSame( 25, $query['args'][10] );
+
+		$GLOBALS['shurloc_test_options'] = array();
+		self::assertNull( $repository->anonymous_visitor_events( ...$valid ) );
+		self::assertCount( 1, $this->database->prepared_queries );
+	}
+
+	/**
 	 * Bad arguments and an unavailable schema never reach event storage.
 	 *
 	 * @return void
