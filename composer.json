@@ -20,6 +20,7 @@
     "scripts": {
         "lint": "phpcs",
         "check": "phpstan analyse --memory-limit=1G",
-        "test": "phpunit"
+        "test": "phpunit",
+        "test:js": "node tests/run-js-tests.mjs"
     }
 }
