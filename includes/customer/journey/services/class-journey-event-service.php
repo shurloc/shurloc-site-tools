@@ -87,9 +87,9 @@ final class Journey_Event_Service {
 	 *
 	 * The caller supplies only trusted event details. A product page uses one
 	 * PRODUCT_VIEW rather than a separate PAGE_VIEW. The page URI is a relative
-	 * request target; query parameters are stripped before storage. Checkout
-	 * starts are keyed once per session; order keys are independent of checkout
-	 * transport.
+	 * request target; query parameters are stripped before storage. A checkout
+	 * start requires a stable key for one entry, then scopes that key to the
+	 * resolved session. Order keys are independent of checkout transport.
 	 *
 	 * @param string      $event_type      One of the v1 event types.
 	 * @param string|null $page_uri        Viewed page URI, not the ingestion URI.
@@ -101,7 +101,7 @@ final class Journey_Event_Service {
 	 * @param int|null    $order_id        Server-verified WooCommerce order ID.
 	 * @param int         $active_ms       Initial estimated visible duration.
 	 * @param string|null $source          Server-selected event source.
-	 * @param string|null $idempotency_key Stable lowercase SHA-256 event key.
+	 * @param string|null $idempotency_key Stable lowercase SHA-256 event key; for checkout, one entry key.
 	 * @return array{id:int,created:bool}|null Stored event or null when rejected.
 	 * @phpstan-impure
 	 */
@@ -127,7 +127,7 @@ final class Journey_Event_Service {
 			return null;
 		}
 
-		if ( Journey_Event_Type::CHECKOUT_STARTED === $event_type && null !== $idempotency_key ) {
+		if ( Journey_Event_Type::CHECKOUT_STARTED === $event_type && null === $idempotency_key ) {
 			return null;
 		}
 
@@ -166,7 +166,7 @@ final class Journey_Event_Service {
 		}
 
 		if ( Journey_Event_Type::CHECKOUT_STARTED === $event_type ) {
-			$fields['idempotency_key'] = hash( 'sha256', 'shurloc_journey:CHECKOUT_STARTED:' . $session['session_id'] );
+			$fields['idempotency_key'] = hash( 'sha256', 'shurloc_journey:CHECKOUT_STARTED:' . $session['session_id'] . ':' . $idempotency_key );
 		}
 
 		return $this->events->record(
