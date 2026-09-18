@@ -19,6 +19,7 @@ use Shurloc\SiteTools\Customer\Journey\Frontend\Journey_Browser_Assets;
 use Shurloc\SiteTools\Customer\Journey\Migrations\Journey_Schema_Migrator;
 use Shurloc\SiteTools\Customer\Journey\Rest\Journey_Browser_Ingestion_Controller;
 use Shurloc\SiteTools\Customer\Journey\Tracking\Journey_Cart_Tracker;
+use Shurloc\SiteTools\Customer\Journey\Tracking\Journey_Order_Tracker;
 use Shurloc_Test_WPDB;
 
 /**
@@ -366,6 +367,35 @@ final class BootstrapTest extends TestCase {
 			self::assertInstanceOf( Journey_Cart_Tracker::class, $callback[0] );
 			self::assertSame( $expected[0], $callback[1] );
 			self::assertSame( $expected[1], $GLOBALS['shurloc_test_action_metadata'][ $hook ][0]['accepted_args'] );
+		}
+
+		self::assertSame( array(), $GLOBALS['shurloc_test_options'] );
+	}
+
+	/**
+	 * Verify storefront bootstrap activates classic and Store API order tracking.
+	 *
+	 * @return void
+	 */
+	public function test_storefront_bootstrap_wires_journey_order_tracker(): void {
+		$GLOBALS['shurloc_test_is_admin'] = false;
+
+		$bootstrap = new Bootstrap();
+		$bootstrap->register();
+
+		$order_hooks = array(
+			'woocommerce_checkout_order_created',
+			'woocommerce_store_api_checkout_order_created',
+			'woocommerce_store_api_checkout_update_order_from_request',
+		);
+
+		foreach ( $order_hooks as $hook ) {
+			self::assertCount( 1, $GLOBALS['shurloc_test_actions'][ $hook ] );
+			$callback = $GLOBALS['shurloc_test_actions'][ $hook ][0];
+			self::assertIsArray( $callback );
+			self::assertInstanceOf( Journey_Order_Tracker::class, $callback[0] );
+			self::assertSame( 'order_created', $callback[1] );
+			self::assertSame( 1, $GLOBALS['shurloc_test_action_metadata'][ $hook ][0]['accepted_args'] );
 		}
 
 		self::assertSame( array(), $GLOBALS['shurloc_test_options'] );
