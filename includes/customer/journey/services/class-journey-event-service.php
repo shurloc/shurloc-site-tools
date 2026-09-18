@@ -87,8 +87,9 @@ final class Journey_Event_Service {
 	 *
 	 * The caller supplies only trusted event details. A product page uses one
 	 * PRODUCT_VIEW rather than a separate PAGE_VIEW. The page URI is a relative
-	 * request target; query parameters are stripped before storage. Order keys
-	 * are stable for retries and independent of checkout transport.
+	 * request target; query parameters are stripped before storage. Checkout
+	 * starts are keyed once per session; order keys are independent of checkout
+	 * transport.
 	 *
 	 * @param string      $event_type      One of the v1 event types.
 	 * @param string|null $page_uri        Viewed page URI, not the ingestion URI.
@@ -126,6 +127,10 @@ final class Journey_Event_Service {
 			return null;
 		}
 
+		if ( Journey_Event_Type::CHECKOUT_STARTED === $event_type && null !== $idempotency_key ) {
+			return null;
+		}
+
 		if ( Journey_Event_Type::ORDER_CREATED === $event_type && null !== $order_id && 0 < $order_id ) {
 			$order_key = hash( 'sha256', 'shurloc_journey:ORDER_CREATED:' . $order_id );
 			if ( null !== $idempotency_key && $order_key !== $idempotency_key ) {
@@ -158,6 +163,10 @@ final class Journey_Event_Service {
 		);
 		if ( null === $session ) {
 			return null;
+		}
+
+		if ( Journey_Event_Type::CHECKOUT_STARTED === $event_type ) {
+			$fields['idempotency_key'] = hash( 'sha256', 'shurloc_journey:CHECKOUT_STARTED:' . $session['session_id'] );
 		}
 
 		return $this->events->record(

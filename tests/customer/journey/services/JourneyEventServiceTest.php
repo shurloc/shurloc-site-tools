@@ -271,6 +271,77 @@ final class JourneyEventServiceTest extends TestCase {
 	}
 
 	/**
+	 * Reloads and retries use one checkout start for the current session.
+	 *
+	 * @return void
+	 */
+	public function test_checkout_start_is_idempotent_within_one_session(): void {
+		$first                                        = ( new Journey_Event_Service() )->record(
+			event_type: Journey_Event_Type::CHECKOUT_STARTED,
+			page_uri: '/checkout?utm_source=email',
+			source: 'browser',
+		);
+		$_COOKIE[ Journey_Visitor_Cookie::NAME ]      = $GLOBALS['shurloc_journey_cookie_test_calls'][0]['value'];
+		$GLOBALS['shurloc_journey_test_current_user'] = new Journey_Collection_Test_User( 37 );
+		$retry                                        = ( new Journey_Event_Service() )->record(
+			event_type: Journey_Event_Type::CHECKOUT_STARTED,
+			page_uri: '/checkout?utm_campaign=fall',
+			source: 'browser',
+		);
+
+		self::assertSame(
+			array(
+				'id'      => 1,
+				'created' => true,
+			),
+			$first
+		);
+		self::assertSame(
+			array(
+				'id'      => 1,
+				'created' => false,
+			),
+			$retry
+		);
+		self::assertCount( 1, $this->database->events );
+		self::assertSame( '/checkout', $this->database->events[1]['page_path'] );
+		self::assertNull( $this->database->events[1]['user_id_at_event'] );
+		self::assertSame( hash( 'sha256', 'shurloc_journey:CHECKOUT_STARTED:1' ), $this->database->events[1]['idempotency_key'] );
+		self::assertSame( 1, $this->database->sessions[1]['checkout_started_count'] );
+	}
+
+	/**
+	 * A returning visitor may start checkout again in a later session.
+	 *
+	 * @return void
+	 */
+	public function test_checkout_start_is_recorded_again_after_session_timeout(): void {
+		$first = ( new Journey_Event_Service() )->record( event_type: Journey_Event_Type::CHECKOUT_STARTED, page_uri: '/checkout', source: 'browser' );
+		self::assertSame( 1, $first['id'] ?? null );
+		$_COOKIE[ Journey_Visitor_Cookie::NAME ] = $GLOBALS['shurloc_journey_cookie_test_calls'][0]['value'];
+
+		$past                        = gmdate( 'Y-m-d H:i:s', time() - Journey_Session_Service::DEFAULT_TIMEOUT_SECONDS - 5 );
+		$row                         = $this->database->sessions[1];
+		$row['started_at']           = $past;
+		$row['last_activity_at']     = $past;
+		$this->database->sessions[1] = $row;
+
+		$next = ( new Journey_Event_Service() )->record( event_type: Journey_Event_Type::CHECKOUT_STARTED, page_uri: '/checkout?utm_source=return', source: 'browser' );
+		self::assertSame(
+			array(
+				'id'      => 2,
+				'created' => true,
+			),
+			$next
+		);
+		self::assertCount( 2, $this->database->events );
+		self::assertSame( 2, $this->database->events[2]['session_id'] );
+		self::assertNotSame( $this->database->events[1]['idempotency_key'], $this->database->events[2]['idempotency_key'] );
+		self::assertSame( 1, $this->database->sessions[1]['checkout_started_count'] );
+		self::assertSame( 1, $this->database->sessions[2]['checkout_started_count'] );
+	}
+
+	/**
 	 * Cart quantities and order creation use their dedicated event semantics.
 	 *
 	 * @return void
@@ -370,6 +441,10 @@ final class JourneyEventServiceTest extends TestCase {
 			array(
 				'event_type' => Journey_Event_Type::CHECKOUT_STARTED,
 				'source'     => 'unsafe/source',
+			),
+			array(
+				'event_type'      => Journey_Event_Type::CHECKOUT_STARTED,
+				'idempotency_key' => str_repeat( 'a', 64 ),
 			),
 		);
 
