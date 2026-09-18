@@ -15,8 +15,9 @@ defined( 'ABSPATH' ) || exit;
  * Accept only bounded view context and duration from a browser request.
  *
  * The ingestion controller must establish event type, post and product IDs,
- * visitor identity, and session from trusted server state. A view token is
- * used only to make retries idempotent; it grants no access to an event.
+ * visitor identity, and session from trusted server state. Browser tokens
+ * only make views and checkout entries idempotent; they grant no access to an
+ * event.
  */
 final class Journey_Browser_Payload_Validator {
 	/** Maximum referrer bytes accepted in one browser view request. */
@@ -47,30 +48,35 @@ final class Journey_Browser_Payload_Validator {
 	 * The controller must verify the viewed page against server state before
 	 * recording PAGE_VIEW or PRODUCT_VIEW. Only a relative URI is accepted. The
 	 * original URI is retained long enough for the event and session services
-	 * to extract its path and whitelisted campaign parameters.
+	 * to extract its path and whitelisted campaign parameters. A separate
+	 * optional checkout token can survive a page reload without reusing the
+	 * view token, so each loaded document remains its own page view.
 	 *
 	 * @param mixed $payload Decoded request body.
-	 * @return array{page_uri:string,referrer_url:string|null,idempotency_key:string}|null Valid view context.
+	 * @return array{page_uri:string,referrer_url:string|null,idempotency_key:string,checkout_entry_key:string|null}|null Valid view context.
 	 */
 	public function validate_view( mixed $payload ): ?array {
-		if ( ! is_array( $payload ) || 2 > count( $payload ) || 3 < count( $payload ) ) {
+		if ( ! is_array( $payload ) || 2 > count( $payload ) || 4 < count( $payload ) ) {
 			return null;
 		}
 
 		foreach ( array_keys( $payload ) as $field ) {
-			if ( ! in_array( $field, array( 'page_uri', 'referrer_url', 'view_token' ), true ) ) {
+			if ( ! in_array( $field, array( 'page_uri', 'referrer_url', 'view_token', 'checkout_entry_token' ), true ) ) {
 				return null;
 			}
 		}
 
-		$page_uri     = $payload['page_uri'] ?? null;
-		$referrer_url = $payload['referrer_url'] ?? null;
-		$view_token   = $payload['view_token'] ?? null;
+		$page_uri             = $payload['page_uri'] ?? null;
+		$referrer_url         = $payload['referrer_url'] ?? null;
+		$view_token           = $payload['view_token'] ?? null;
+		$checkout_entry_token = $payload['checkout_entry_token'] ?? null;
 
 		if (
 			! is_string( $page_uri ) ||
 			! is_string( $view_token ) ||
 			1 !== preg_match( '/\A[0-9a-f]{32}\z/', $view_token ) ||
+			( array_key_exists( 'checkout_entry_token', $payload ) &&
+				( ! is_string( $checkout_entry_token ) || 1 !== preg_match( '/\A[0-9a-f]{32}\z/', $checkout_entry_token ) ) ) ||
 			( null !== $referrer_url && ( ! is_string( $referrer_url ) || strlen( $referrer_url ) > self::MAX_REFERRER_BYTES ) )
 		) {
 			return null;
@@ -85,9 +91,10 @@ final class Journey_Browser_Payload_Validator {
 		}
 
 		return array(
-			'page_uri'        => $page_uri,
-			'referrer_url'    => null === $attribution['referrer_host'] ? null : $referrer_url,
-			'idempotency_key' => hash( 'sha256', 'shurloc_journey:browser_view:' . $view_token ),
+			'page_uri'           => $page_uri,
+			'referrer_url'       => null === $attribution['referrer_host'] ? null : $referrer_url,
+			'idempotency_key'    => hash( 'sha256', 'shurloc_journey:browser_view:' . $view_token ),
+			'checkout_entry_key' => null === $checkout_entry_token ? null : hash( 'sha256', 'shurloc_journey:browser_checkout_entry:' . $checkout_entry_token ),
 		);
 	}
 
