@@ -29,6 +29,7 @@ use Shurloc\SiteTools\Customer\Journey\Admin\Journey_Schema_Admin;
 use Shurloc\SiteTools\Customer\Journey\Frontend\Journey_Browser_Assets;
 use Shurloc\SiteTools\Customer\Journey\Migrations\Journey_Schema_Migrator;
 use Shurloc\SiteTools\Customer\Journey\Rest\Journey_Browser_Ingestion_Controller;
+use Shurloc\SiteTools\Customer\Journey\Tracking\Journey_Cart_Tracker;
 use Shurloc\SiteTools\Customer\Migrations\User_Cart_Migration;
 use Shurloc\SiteTools\Customer\Migrations\User_Purchase_Migration;
 use Shurloc\SiteTools\Customer\Repositories\Cart_Session_Repository;
@@ -59,6 +60,9 @@ final class Bootstrap {
 
 		$journey_browser_assets = new Journey_Browser_Assets();
 		$journey_browser_assets->register();
+
+		$journey_cart_tracker = new Journey_Cart_Tracker();
+		$journey_cart_tracker->register();
 
 		if ( is_admin() ) {
 			$this->journey_schema_migrator = new Journey_Schema_Migrator();

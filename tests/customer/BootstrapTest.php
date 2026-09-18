@@ -18,6 +18,7 @@ use Shurloc\SiteTools\Customer\Journey\Admin\Journey_Schema_Admin;
 use Shurloc\SiteTools\Customer\Journey\Frontend\Journey_Browser_Assets;
 use Shurloc\SiteTools\Customer\Journey\Migrations\Journey_Schema_Migrator;
 use Shurloc\SiteTools\Customer\Journey\Rest\Journey_Browser_Ingestion_Controller;
+use Shurloc\SiteTools\Customer\Journey\Tracking\Journey_Cart_Tracker;
 use Shurloc_Test_WPDB;
 
 /**
@@ -338,6 +339,36 @@ final class BootstrapTest extends TestCase {
 		self::assertCount( 1, $GLOBALS['shurloc_test_enqueued_scripts'] );
 		self::assertSame( Journey_Browser_Assets::SCRIPT_HANDLE, $GLOBALS['shurloc_test_enqueued_scripts'][0]['handle'] );
 		self::assertCount( 1, $GLOBALS['shurloc_test_inline_scripts'] );
+	}
+
+	/**
+	 * Verify storefront bootstrap activates the approved WooCommerce cart tracker.
+	 *
+	 * @return void
+	 */
+	public function test_storefront_bootstrap_wires_journey_cart_tracker(): void {
+		$GLOBALS['shurloc_test_is_admin'] = false;
+
+		$bootstrap = new Bootstrap();
+		$bootstrap->register();
+
+		$cart_hooks = array(
+			'woocommerce_add_to_cart'                     => array( 'added_to_cart', 4 ),
+			'woocommerce_cart_item_removed'               => array( 'removed_from_cart', 2 ),
+			'woocommerce_after_cart_item_quantity_update' => array( 'quantity_updated', 4 ),
+			'woocommerce_cart_item_restored'              => array( 'restored_to_cart', 2 ),
+		);
+
+		foreach ( $cart_hooks as $hook => $expected ) {
+			self::assertCount( 1, $GLOBALS['shurloc_test_actions'][ $hook ] );
+			$callback = $GLOBALS['shurloc_test_actions'][ $hook ][0];
+			self::assertIsArray( $callback );
+			self::assertInstanceOf( Journey_Cart_Tracker::class, $callback[0] );
+			self::assertSame( $expected[0], $callback[1] );
+			self::assertSame( $expected[1], $GLOBALS['shurloc_test_action_metadata'][ $hook ][0]['accepted_args'] );
+		}
+
+		self::assertSame( array(), $GLOBALS['shurloc_test_options'] );
 	}
 
 	/**
