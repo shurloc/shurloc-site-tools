@@ -31,21 +31,67 @@
 	const MAX_DURATION_MS = 2147483647;
 	const CHECKPOINT_MS = 120000;
 	const RETRY_MS = 2000;
-	const tokenBytes = new Uint8Array( 16 );
+	const CHECKOUT_TOKEN_KEY = 'shurloc_journey_checkout_entry_token';
 
+	/**
+	 * Generate a fresh 128-bit token for a view or checkout entry.
+	 *
+	 * @return {string} Lowercase hexadecimal token.
+	 */
+	function randomToken() {
+		const bytes = new Uint8Array( 16 );
+		window.crypto.getRandomValues( bytes );
+		return Array.from( bytes, ( byte ) =>
+			byte.toString( 16 ).padStart( 2, '0' )
+		).join( '' );
+	}
+
+	let viewToken;
 	try {
-		window.crypto.getRandomValues( tokenBytes );
+		viewToken = randomToken();
 	} catch ( error ) {
 		return;
 	}
 
-	const viewToken = Array.from( tokenBytes, ( byte ) =>
-		byte.toString( 16 ).padStart( 2, '0' )
-	).join( '' );
 	const viewPayload = {
 		page_uri: window.location.pathname + window.location.search,
 		view_token: viewToken,
 	};
+
+	if ( config.isCheckoutPage === true ) {
+		let checkoutToken = null;
+		try {
+			const navigation = window.performance.getEntriesByType( 'navigation' )[ 0 ];
+			if ( navigation && navigation.type === 'reload' ) {
+				checkoutToken = window.sessionStorage.getItem( CHECKOUT_TOKEN_KEY );
+			}
+		} catch ( error ) {
+			// Storage or navigation timing may be unavailable.
+		}
+
+		if ( typeof checkoutToken !== 'string' || ! /^[0-9a-f]{32}$/.test( checkoutToken ) ) {
+			try {
+				checkoutToken = randomToken();
+			} catch ( error ) {
+				checkoutToken = null;
+			}
+		}
+
+		if ( checkoutToken !== null ) {
+			viewPayload.checkout_entry_token = checkoutToken;
+			try {
+				window.sessionStorage.setItem( CHECKOUT_TOKEN_KEY, checkoutToken );
+			} catch ( error ) {
+				// The current entry still has a token when storage is blocked.
+			}
+		}
+	} else {
+		try {
+			window.sessionStorage.removeItem( CHECKOUT_TOKEN_KEY );
+		} catch ( error ) {
+			// Tracking regular page views does not require storage.
+		}
+	}
 
 	if ( document.referrer ) {
 		try {
@@ -75,6 +121,45 @@
 	let beaconUnconfirmed = false;
 	let checkpointTimer = null;
 	let pageSuspended = false;
+	let checkoutReentryPayload = null;
+
+	/**
+	 * Post a view-shaped payload to the existing ingestion route.
+	 *
+	 * @param {object} payload View and optional checkout entry token.
+	 * @return {Promise<object>} Fetch response.
+	 */
+	function postView( payload ) {
+		return window.fetch( config.viewUrl, {
+			method: 'POST',
+			headers: headers,
+			credentials: 'same-origin',
+			keepalive: true,
+			body: JSON.stringify( payload ),
+		} );
+	}
+
+	/**
+	 * Record a checkout return from the back-forward cache with one retry.
+	 *
+	 * @param {object} payload New entry on this previously viewed document.
+	 * @param {number} attempt Current request attempt.
+	 * @return {Promise<void>} Request completion.
+	 */
+	async function sendCheckoutReentry( payload, attempt = 1 ) {
+		try {
+			const response = await postView( payload );
+			if ( response.ok || response.status < 500 ) {
+				return;
+			}
+		} catch ( error ) {
+			// Retry a transport failure once with the same entry token.
+		}
+
+		if ( attempt < 2 ) {
+			window.setTimeout( () => sendCheckoutReentry( payload, attempt + 1 ), RETRY_MS );
+		}
+	}
 
 	/**
 	 * Return the bounded cumulative visible time for this document.
@@ -102,13 +187,7 @@
 		viewAttempts++;
 
 		try {
-			const response = await window.fetch( config.viewUrl, {
-				method: 'POST',
-				headers: headers,
-				credentials: 'same-origin',
-				keepalive: true,
-				body: JSON.stringify( viewPayload ),
-			} );
+			const response = await postView( viewPayload );
 
 			if ( ! response.ok ) {
 				if ( response.status >= 500 ) {
@@ -237,6 +316,11 @@
 		if ( viewAttempts === 0 || ( ! viewPending && retryTimer === null ) ) {
 			requestView();
 		}
+		if ( checkoutReentryPayload !== null ) {
+			const payload = checkoutReentryPayload;
+			checkoutReentryPayload = null;
+			sendCheckoutReentry( payload );
+		}
 	}
 
 	/**
@@ -271,8 +355,21 @@
 		flushDuration( true );
 	} );
 
-	window.addEventListener( 'pageshow', () => {
+	window.addEventListener( 'pageshow', ( event ) => {
 		pageSuspended = false;
+		if ( event.persisted && config.isCheckoutPage === true && viewAttempts > 0 ) {
+			try {
+				const token = randomToken();
+				checkoutReentryPayload = { ...viewPayload, checkout_entry_token: token };
+				try {
+					window.sessionStorage.setItem( CHECKOUT_TOKEN_KEY, token );
+				} catch ( error ) {
+					// The current entry can still be recorded without storage.
+				}
+			} catch ( error ) {
+				// Keep duration tracking when a new token is unavailable.
+			}
+		}
 		startVisible();
 	} );
 
