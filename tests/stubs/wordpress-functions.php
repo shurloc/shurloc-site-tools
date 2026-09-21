@@ -41,6 +41,11 @@ $GLOBALS['shurloc_test_cron_events'] = array();
 $GLOBALS['shurloc_test_cron_schedule_result'] = true;
 
 /**
+ * Registered plugin deactivation callbacks.
+ */
+$GLOBALS['shurloc_test_deactivation_hooks'] = array();
+
+/**
  * Registered REST routes.
  */
 $GLOBALS['shurloc_test_rest_routes'] = array();
@@ -400,6 +405,19 @@ if ( ! function_exists( 'register_activation_hook' ) ) {
 	 */
 	function register_activation_hook( string $file, callable $callback ): void {
 		$GLOBALS['shurloc_test_activation_hooks'][ $file ] = $callback;
+	}
+}
+
+if ( ! function_exists( 'register_deactivation_hook' ) ) {
+	/**
+	 * Record a plugin deactivation callback for tests.
+	 *
+	 * @param string   $file     Main plugin file.
+	 * @param callable $callback Deactivation callback.
+	 * @return void
+	 */
+	function register_deactivation_hook( string $file, callable $callback ): void {
+		$GLOBALS['shurloc_test_deactivation_hooks'][ $file ] = $callback;
 	}
 }
 

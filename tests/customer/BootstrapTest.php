@@ -18,6 +18,7 @@ use Shurloc\SiteTools\Customer\Admin\User_Filters;
 use Shurloc\SiteTools\Customer\Journey\Admin\Journey_Report_Controller;
 use Shurloc\SiteTools\Customer\Journey\Admin\Journey_Schema_Admin;
 use Shurloc\SiteTools\Customer\Journey\Frontend\Journey_Browser_Assets;
+use Shurloc\SiteTools\Customer\Journey\Journey_Retention_Scheduler;
 use Shurloc\SiteTools\Customer\Journey\Migrations\Journey_Schema_Migrator;
 use Shurloc\SiteTools\Customer\Journey\Rest\Journey_Browser_Ingestion_Controller;
 use Shurloc\SiteTools\Customer\Journey\Tracking\Journey_Cart_Tracker;
@@ -53,6 +54,9 @@ final class BootstrapTest extends TestCase {
 		$GLOBALS['shurloc_test_submenu_pages']         = array();
 		$GLOBALS['shurloc_test_rest_routes']           = array();
 		$GLOBALS['shurloc_test_action_metadata']       = array();
+		$GLOBALS['shurloc_test_cron_events']           = array();
+		$GLOBALS['shurloc_test_cron_schedule_result']  = true;
+		$GLOBALS['shurloc_test_deactivation_hooks']    = array();
 		$GLOBALS['shurloc_test_filters']               = array();
 		$GLOBALS['shurloc_test_filter_metadata']       = array();
 		$GLOBALS['shurloc_test_options']               = array();
@@ -80,6 +84,9 @@ final class BootstrapTest extends TestCase {
 		$GLOBALS['shurloc_test_submenu_pages']         = array();
 		$GLOBALS['shurloc_test_rest_routes']           = array();
 		$GLOBALS['shurloc_test_action_metadata']       = array();
+		$GLOBALS['shurloc_test_cron_events']           = array();
+		$GLOBALS['shurloc_test_cron_schedule_result']  = true;
+		$GLOBALS['shurloc_test_deactivation_hooks']    = array();
 		$GLOBALS['shurloc_test_filters']               = array();
 		$GLOBALS['shurloc_test_filter_metadata']       = array();
 		$GLOBALS['shurloc_test_options']               = array();
@@ -470,6 +477,56 @@ final class BootstrapTest extends TestCase {
 		}
 
 		self::assertSame( array(), $GLOBALS['shurloc_test_options'] );
+	}
+
+	/**
+	 * Verify bootstrap schedules retention and deactivation removes its events.
+	 *
+	 * @return void
+	 */
+	public function test_bootstrap_wires_journey_retention_scheduler_lifecycle(): void {
+		$GLOBALS['shurloc_test_is_admin'] = false;
+
+		$bootstrap = new Bootstrap();
+		$bootstrap->register();
+
+		foreach (
+			array(
+				Journey_Retention_Scheduler::CRON_HOOK,
+				Journey_Retention_Scheduler::CONTINUATION_HOOK,
+			) as $hook
+		) {
+			self::assertCount( 1, $GLOBALS['shurloc_test_actions'][ $hook ] );
+			$callback = $GLOBALS['shurloc_test_actions'][ $hook ][0];
+			self::assertIsArray( $callback );
+			self::assertInstanceOf( Journey_Retention_Scheduler::class, $callback[0] );
+			self::assertSame( 'run', $callback[1] );
+		}
+
+		self::assertCount( 1, $GLOBALS['shurloc_test_cron_events'] );
+		self::assertSame(
+			Journey_Retention_Scheduler::CRON_HOOK,
+			$GLOBALS['shurloc_test_cron_events'][0]['hook']
+		);
+		self::assertSame( 'daily', $GLOBALS['shurloc_test_cron_events'][0]['recurrence'] );
+
+		$plugin_file = SHURLOC_SITE_TOOLS_PATH . 'shurloc-site-tools.php';
+		self::assertArrayHasKey( $plugin_file, $GLOBALS['shurloc_test_deactivation_hooks'] );
+		$deactivation_callback = $GLOBALS['shurloc_test_deactivation_hooks'][ $plugin_file ];
+		self::assertIsArray( $deactivation_callback );
+		self::assertInstanceOf( Journey_Retention_Scheduler::class, $deactivation_callback[0] );
+		self::assertSame( 'unschedule', $deactivation_callback[1] );
+
+		wp_schedule_single_event(
+			time() + Journey_Retention_Scheduler::CONTINUATION_DELAY_SECONDS,
+			Journey_Retention_Scheduler::CONTINUATION_HOOK
+		);
+		self::assertCount( 2, $GLOBALS['shurloc_test_cron_events'] );
+
+		self::assertIsCallable( $deactivation_callback );
+		$deactivation_callback();
+
+		self::assertSame( array(), $GLOBALS['shurloc_test_cron_events'] );
 	}
 
 	/**

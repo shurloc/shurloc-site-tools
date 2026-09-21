@@ -29,6 +29,7 @@ use Shurloc\SiteTools\Customer\Journey\Admin\Journey_Report_Controller;
 use Shurloc\SiteTools\Customer\Journey\Admin\Journey_Report_Renderer;
 use Shurloc\SiteTools\Customer\Journey\Admin\Journey_Schema_Admin;
 use Shurloc\SiteTools\Customer\Journey\Journey_Report_Page_Builder;
+use Shurloc\SiteTools\Customer\Journey\Journey_Retention_Scheduler;
 use Shurloc\SiteTools\Customer\Journey\Frontend\Journey_Browser_Assets;
 use Shurloc\SiteTools\Customer\Journey\Migrations\Journey_Schema_Migrator;
 use Shurloc\SiteTools\Customer\Journey\Repositories\Journey_Report_Repository;
@@ -75,6 +76,14 @@ final class Bootstrap {
 
 		$journey_order_tracker = new Journey_Order_Tracker();
 		$journey_order_tracker->register();
+
+		$journey_retention_scheduler = new Journey_Retention_Scheduler();
+		$journey_retention_scheduler->register();
+
+		register_deactivation_hook(
+			SHURLOC_SITE_TOOLS_PATH . 'shurloc-site-tools.php',
+			array( $journey_retention_scheduler, 'unschedule' )
+		);
 
 		if ( is_admin() ) {
 			$this->journey_schema_migrator = new Journey_Schema_Migrator();
