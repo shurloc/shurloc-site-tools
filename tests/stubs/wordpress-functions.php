@@ -31,6 +31,16 @@ $GLOBALS['shurloc_test_post_meta'] = array();
 $GLOBALS['shurloc_test_actions'] = array();
 
 /**
+ * Scheduled WordPress cron events.
+ */
+$GLOBALS['shurloc_test_cron_events'] = array();
+
+/**
+ * Whether test cron scheduling calls succeed.
+ */
+$GLOBALS['shurloc_test_cron_schedule_result'] = true;
+
+/**
  * Registered REST routes.
  */
 $GLOBALS['shurloc_test_rest_routes'] = array();
@@ -470,6 +480,129 @@ if ( ! function_exists( 'wp_doing_cron' ) ) {
 	 */
 	function wp_doing_cron(): bool {
 		return $GLOBALS['shurloc_journey_test_doing_cron'] ?? false;
+	}
+}
+
+if ( ! function_exists( 'wp_next_scheduled' ) ) {
+	/**
+	 * Return the next matching test cron timestamp.
+	 *
+	 * @param string           $hook Cron hook.
+	 * @param array<int,mixed> $args Cron arguments.
+	 * @return int|false Next timestamp, or false when unscheduled.
+	 */
+	function wp_next_scheduled( string $hook, array $args = array() ): int|false {
+		$timestamps = array();
+
+		foreach ( $GLOBALS['shurloc_test_cron_events'] as $event ) {
+			if ( $hook === $event['hook'] && $args === $event['args'] ) {
+				$timestamps[] = $event['timestamp'];
+			}
+		}
+
+		return array() === $timestamps ? false : min( $timestamps );
+	}
+}
+
+if ( ! function_exists( 'wp_schedule_event' ) ) {
+	/**
+	 * Store one recurring test cron event.
+	 *
+	 * @param int              $timestamp  First run timestamp.
+	 * @param string           $recurrence WordPress schedule name.
+	 * @param string           $hook       Cron hook.
+	 * @param array<int,mixed> $args       Cron arguments.
+	 * @param bool             $wp_error   Whether WordPress errors are requested.
+	 * @return bool Whether scheduling succeeded.
+	 */
+	function wp_schedule_event(
+		int $timestamp,
+		string $recurrence,
+		string $hook,
+		array $args = array(),
+		bool $wp_error = false
+	): bool {
+		unset( $wp_error );
+
+		if ( ! $GLOBALS['shurloc_test_cron_schedule_result'] ) {
+			return false;
+		}
+
+		$GLOBALS['shurloc_test_cron_events'][] = array(
+			'timestamp'  => $timestamp,
+			'recurrence' => $recurrence,
+			'hook'       => $hook,
+			'args'       => $args,
+		);
+
+		return true;
+	}
+}
+
+if ( ! function_exists( 'wp_schedule_single_event' ) ) {
+	/**
+	 * Store one single test cron event.
+	 *
+	 * @param int              $timestamp Run timestamp.
+	 * @param string           $hook      Cron hook.
+	 * @param array<int,mixed> $args      Cron arguments.
+	 * @param bool             $wp_error  Whether WordPress errors are requested.
+	 * @return bool Whether scheduling succeeded.
+	 */
+	function wp_schedule_single_event(
+		int $timestamp,
+		string $hook,
+		array $args = array(),
+		bool $wp_error = false
+	): bool {
+		unset( $wp_error );
+
+		if ( ! $GLOBALS['shurloc_test_cron_schedule_result'] ) {
+			return false;
+		}
+
+		$GLOBALS['shurloc_test_cron_events'][] = array(
+			'timestamp'  => $timestamp,
+			'recurrence' => false,
+			'hook'       => $hook,
+			'args'       => $args,
+		);
+
+		return true;
+	}
+}
+
+if ( ! function_exists( 'wp_clear_scheduled_hook' ) ) {
+	/**
+	 * Remove all matching test cron events.
+	 *
+	 * @param string           $hook     Cron hook.
+	 * @param array<int,mixed> $args     Cron arguments.
+	 * @param bool             $wp_error Whether WordPress errors are requested.
+	 * @return int Number of removed events.
+	 */
+	function wp_clear_scheduled_hook(
+		string $hook,
+		array $args = array(),
+		bool $wp_error = false
+	): int {
+		unset( $wp_error );
+
+		$remaining = array();
+		$removed   = 0;
+
+		foreach ( $GLOBALS['shurloc_test_cron_events'] as $event ) {
+			if ( $hook === $event['hook'] && $args === $event['args'] ) {
+				++$removed;
+				continue;
+			}
+
+			$remaining[] = $event;
+		}
+
+		$GLOBALS['shurloc_test_cron_events'] = $remaining;
+
+		return $removed;
 	}
 }
 

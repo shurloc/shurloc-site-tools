@@ -7,7 +7,6 @@
 
 declare( strict_types=1 );
 
-use Shurloc\SiteTools\Customer\Journey\Migrations\Journey_Schema_Migrator;
 use Shurloc\SiteTools\Customer\Journey\Migrations\Journey_Schema_V1;
 
 /**
@@ -764,13 +763,14 @@ final class Shurloc_Test_WPDB {
 		$this->queries[] = $query;
 
 		if ( 'DELETE FROM %i WHERE option_name = %s AND option_value = %s' === $query ) {
+			$option_name = (string) $this->last_args[1];
+
 			if ( $this->race_on_lock_delete ) {
-				$GLOBALS['shurloc_test_options'][ Journey_Schema_Migrator::LOCK_OPTION ] = time() . ':replacement';
-				$this->race_on_lock_delete = false;
+				$GLOBALS['shurloc_test_options'][ $option_name ] = time() . ':replacement';
+				$this->race_on_lock_delete                       = false;
 			}
 
-			$option_name = (string) $this->last_args[1];
-			$value       = (string) $this->last_args[2];
+			$value = (string) $this->last_args[2];
 			if ( ! isset( $GLOBALS['shurloc_test_options'][ $option_name ] ) ||
 				$value !== $GLOBALS['shurloc_test_options'][ $option_name ] ) {
 				return 0;
