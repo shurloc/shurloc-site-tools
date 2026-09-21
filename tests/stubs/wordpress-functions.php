@@ -1987,6 +1987,41 @@ if ( ! function_exists( 'get_userdata' ) ) {
 	}
 }
 
+if ( ! function_exists( 'get_user_by' ) ) {
+	/**
+	 * Find a test WordPress user by ID or email address.
+	 *
+	 * @param string     $field User field.
+	 * @param string|int $value Field value.
+	 * @return WP_User|false
+	 */
+	function get_user_by( string $field, string|int $value ): WP_User|false {
+		if ( 'id' === $field ) {
+			return get_userdata( (int) $value );
+		}
+
+		if ( 'email' !== $field || ! is_string( $value ) ) {
+			return false;
+		}
+
+		$user_data = $GLOBALS['shurloc_test_user_data'] ?? array();
+		foreach ( $user_data as $user_id => $data ) {
+			if (
+				! is_array( $data ) ||
+				! isset( $data['user_email'] ) ||
+				! is_string( $data['user_email'] ) ||
+				0 !== strcasecmp( $data['user_email'], $value )
+			) {
+				continue;
+			}
+
+			return get_userdata( (int) $user_id );
+		}
+
+		return false;
+	}
+}
+
 if ( ! function_exists( 'maybe_unserialize' ) ) {
 	/**
 	 * Unserialize data when appropriate.
