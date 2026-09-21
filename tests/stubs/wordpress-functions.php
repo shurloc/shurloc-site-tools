@@ -106,6 +106,11 @@ $GLOBALS['shurloc_test_filtered_content'] = null;
 $GLOBALS['shurloc_test_time'] = 0;
 
 /**
+ * Current test site timezone.
+ */
+$GLOBALS['shurloc_test_timezone'] = 'UTC';
+
+/**
  * Current test user ID.
  */
 $GLOBALS['shurloc_test_current_user_id'] = 0;
@@ -1055,6 +1060,17 @@ if ( ! function_exists( 'wp_date' ) ) {
 			$format,
 			$timestamp
 		);
+	}
+}
+
+if ( ! function_exists( 'wp_timezone' ) ) {
+	/**
+	 * Return the configured test site timezone.
+	 *
+	 * @return DateTimeZone Site timezone.
+	 */
+	function wp_timezone(): DateTimeZone {
+		return new DateTimeZone( $GLOBALS['shurloc_test_timezone'] );
 	}
 }
 

@@ -13,6 +13,7 @@ namespace Shurloc\SiteTools\Customer\Admin;
 
 defined( 'ABSPATH' ) || exit;
 
+use Shurloc\SiteTools\Customer\Journey\Admin\Journey_Report_Controller;
 use Shurloc\SiteTools\Shared\Interfaces\Admin_Page_Interface;
 
 /**
@@ -42,18 +43,28 @@ final class Admin_Page_Controller implements Admin_Page_Interface {
 	private Carts_Controller $carts_controller;
 
 	/**
+	 * Journey report controller when reporting has been wired.
+	 *
+	 * @var Journey_Report_Controller|null
+	 */
+	private ?Journey_Report_Controller $journey_report_controller;
+
+	/**
 	 * Constructor.
 	 *
-	 * @param Customer_Migrations_Controller $migrations_controller Migrations controller.
-	 * @param Carts_Controller               $carts_controller      Carts controller.
+	 * @param Customer_Migrations_Controller $migrations_controller     Migrations controller.
+	 * @param Carts_Controller               $carts_controller          Carts controller.
+	 * @param Journey_Report_Controller|null $journey_report_controller Journey report controller.
 	 */
 	public function __construct(
 		Customer_Migrations_Controller $migrations_controller,
-		Carts_Controller $carts_controller
+		Carts_Controller $carts_controller,
+		?Journey_Report_Controller $journey_report_controller = null
 	) {
 
-		$this->migrations_controller = $migrations_controller;
-		$this->carts_controller      = $carts_controller;
+		$this->migrations_controller     = $migrations_controller;
+		$this->carts_controller          = $carts_controller;
+		$this->journey_report_controller = $journey_report_controller;
 	}
 
 	/**
@@ -90,6 +101,15 @@ final class Admin_Page_Controller implements Admin_Page_Interface {
 					?>
 				</a>
 
+				<?php if ( null !== $this->journey_report_controller ) : ?>
+					<a
+						href="<?php echo esc_url( $this->get_tab_url( tab: Journey_Report_Controller::TAB_SLUG ) ); ?>"
+						class="nav-tab <?php echo Journey_Report_Controller::TAB_SLUG === $current_tab ? 'nav-tab-active' : ''; ?>"
+					>
+						<?php echo esc_html__( 'Journeys', 'shurloc-site-tools' ); ?>
+					</a>
+				<?php endif; ?>
+
 				<a
 					href="<?php echo esc_url( $this->get_tab_url( tab: 'carts' ) ); ?>"
 					class="nav-tab <?php echo 'carts' === $current_tab ? 'nav-tab-active' : ''; ?>"
@@ -124,6 +144,12 @@ final class Admin_Page_Controller implements Admin_Page_Interface {
 
 			if ( 'migrations' === $current_tab ) {
 				$this->migrations_controller->render();
+
+				return;
+			}
+
+			if ( Journey_Report_Controller::TAB_SLUG === $current_tab && null !== $this->journey_report_controller ) {
+				$this->journey_report_controller->render();
 
 				return;
 			}
@@ -177,17 +203,16 @@ final class Admin_Page_Controller implements Admin_Page_Interface {
 			wp_unslash( $_GET['tab'] )
 		);
 
-		if (
-			in_array(
-				$tab,
-				array(
-					'overview',
-					'carts',
-					'migrations',
-				),
-				true
-			)
-		) {
+		$tabs = array(
+			'overview',
+			'carts',
+			'migrations',
+		);
+		if ( null !== $this->journey_report_controller ) {
+			$tabs[] = Journey_Report_Controller::TAB_SLUG;
+		}
+
+		if ( in_array( $tab, $tabs, true ) ) {
 			return $tab;
 		}
 

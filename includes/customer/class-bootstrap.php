@@ -25,9 +25,15 @@ use Shurloc\SiteTools\Customer\Admin\User_Phone_Column;
 use Shurloc\SiteTools\Customer\Admin\User_Purchase_Columns;
 use Shurloc\SiteTools\Customer\Admin\User_Purchase_Filters;
 use Shurloc\SiteTools\Customer\Formatters\Relative_Time_Formatter;
+use Shurloc\SiteTools\Customer\Journey\Admin\Journey_Report_Controller;
+use Shurloc\SiteTools\Customer\Journey\Admin\Journey_Report_Renderer;
 use Shurloc\SiteTools\Customer\Journey\Admin\Journey_Schema_Admin;
+use Shurloc\SiteTools\Customer\Journey\Journey_Report_Page_Builder;
 use Shurloc\SiteTools\Customer\Journey\Frontend\Journey_Browser_Assets;
 use Shurloc\SiteTools\Customer\Journey\Migrations\Journey_Schema_Migrator;
+use Shurloc\SiteTools\Customer\Journey\Repositories\Journey_Report_Repository;
+use Shurloc\SiteTools\Customer\Journey\Repositories\Journey_Report_Session_Repository;
+use Shurloc\SiteTools\Customer\Journey\Repositories\Journey_Report_Visitor_Repository;
 use Shurloc\SiteTools\Customer\Journey\Rest\Journey_Browser_Ingestion_Controller;
 use Shurloc\SiteTools\Customer\Journey\Tracking\Journey_Cart_Tracker;
 use Shurloc\SiteTools\Customer\Journey\Tracking\Journey_Order_Tracker;
@@ -56,6 +62,8 @@ final class Bootstrap {
 	 * @return void
 	 */
 	public function register(): void {
+		$journey_report_controller = null;
+
 		$journey_browser_ingestion = new Journey_Browser_Ingestion_Controller();
 		$journey_browser_ingestion->register();
 
@@ -75,6 +83,22 @@ final class Bootstrap {
 				migrator: $this->journey_schema_migrator,
 			);
 			$journey_schema_admin->register();
+
+			$journey_report_controller = new Journey_Report_Controller(
+				report_repository: new Journey_Report_Repository(
+					schema_migrator: $this->journey_schema_migrator,
+				),
+				session_repository: new Journey_Report_Session_Repository(
+					schema_migrator: $this->journey_schema_migrator,
+				),
+				visitor_repository: new Journey_Report_Visitor_Repository(
+					schema_migrator: $this->journey_schema_migrator,
+				),
+				page_builder: new Journey_Report_Page_Builder(),
+				renderer: new Journey_Report_Renderer(),
+				timezone: wp_timezone(),
+			);
+			$journey_report_controller->register();
 
 			add_action(
 				'admin_init',
@@ -126,6 +150,7 @@ final class Bootstrap {
 		$customer_page = new Admin_Page_Controller(
 			migrations_controller: $migrations_controller,
 			carts_controller: $carts_controller,
+			journey_report_controller: $journey_report_controller,
 		);
 
 		$admin_menu = new Admin_Menu(

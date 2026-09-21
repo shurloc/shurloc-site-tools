@@ -9,8 +9,17 @@ declare( strict_types=1 );
 
 namespace Shurloc\SiteTools\Customer\Admin;
 
+use DateTimeImmutable;
+use DateTimeZone;
 use PHPUnit\Framework\TestCase;
 use Shurloc\SiteTools\Customer\Formatters\Relative_Time_Formatter;
+use Shurloc\SiteTools\Customer\Journey\Admin\Journey_Report_Controller;
+use Shurloc\SiteTools\Customer\Journey\Admin\Journey_Report_Renderer;
+use Shurloc\SiteTools\Customer\Journey\Journey_Report_Page_Builder;
+use Shurloc\SiteTools\Customer\Journey\Migrations\Journey_Schema_Migrator;
+use Shurloc\SiteTools\Customer\Journey\Repositories\Journey_Report_Repository;
+use Shurloc\SiteTools\Customer\Journey\Repositories\Journey_Report_Session_Repository;
+use Shurloc\SiteTools\Customer\Journey\Repositories\Journey_Report_Visitor_Repository;
 use Shurloc\SiteTools\Customer\Migrations\User_Cart_Migration;
 use Shurloc\SiteTools\Customer\Migrations\User_Purchase_Migration;
 use Shurloc\SiteTools\Customer\Repositories\Cart_Session_Repository;
@@ -90,6 +99,15 @@ final class AdminPageControllerTest extends TestCase {
 			new Admin_Page_Controller(
 				migrations_controller: $migrations_controller,
 				carts_controller: $carts_controller,
+				journey_report_controller: new Journey_Report_Controller(
+					report_repository: new Journey_Report_Repository(),
+					session_repository: new Journey_Report_Session_Repository(),
+					visitor_repository: new Journey_Report_Visitor_Repository(),
+					page_builder: new Journey_Report_Page_Builder(),
+					renderer: new Journey_Report_Renderer(),
+					timezone: new DateTimeZone( 'UTC' ),
+					now: new DateTimeImmutable( '2026-09-21 12:00:00', new DateTimeZone( 'UTC' ) )
+				),
 			);
 	}
 
@@ -222,6 +240,44 @@ final class AdminPageControllerTest extends TestCase {
 	}
 
 	/**
+	 * Verify the Journeys tab renders bounded report selectors.
+	 *
+	 * @return void
+	 */
+	public function test_render_page_displays_journeys_tab(): void {
+
+		$GLOBALS['shurloc_test_options'][ Journey_Schema_Migrator::VERSION_OPTION ] = Journey_Schema_Migrator::CURRENT_VERSION;
+		$_GET['page'] = 'shurloc-site-tools-customers';
+		$_GET['tab']  = Journey_Report_Controller::TAB_SLUG;
+
+		ob_start();
+
+		$this->controller->render_page();
+
+		$output = (string) ob_get_clean();
+
+		self::assertStringContainsString(
+			'Customer Journeys',
+			$output
+		);
+
+		self::assertStringContainsString(
+			'class="wc-customer-search"',
+			$output
+		);
+
+		self::assertStringContainsString(
+			'name="journey_visitor_id"',
+			$output
+		);
+
+		self::assertStringNotContainsString(
+			'Customer tools, listed by operational importance.',
+			$output
+		);
+	}
+
+	/**
 	 * Verify an invalid tab falls back to the overview tab.
 	 *
 	 * @return void
@@ -307,6 +363,29 @@ final class AdminPageControllerTest extends TestCase {
 
 		self::assertMatchesRegularExpression(
 			'/tab=carts[^\"]*"[^>]*class="nav-tab nav-tab-active"/',
+			$output
+		);
+	}
+
+	/**
+	 * Verify the Journeys tab is active when selected.
+	 *
+	 * @return void
+	 */
+	public function test_journeys_tab_is_active_when_selected(): void {
+
+		$GLOBALS['shurloc_test_options'][ Journey_Schema_Migrator::VERSION_OPTION ] = Journey_Schema_Migrator::CURRENT_VERSION;
+		$_GET['page'] = 'shurloc-site-tools-customers';
+		$_GET['tab']  = Journey_Report_Controller::TAB_SLUG;
+
+		ob_start();
+
+		$this->controller->render_page();
+
+		$output = (string) ob_get_clean();
+
+		self::assertMatchesRegularExpression(
+			'/tab=journeys[^\"]*"[^>]*class="nav-tab nav-tab-active"/',
 			$output
 		);
 	}

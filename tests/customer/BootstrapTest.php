@@ -11,9 +11,11 @@ namespace Shurloc\SiteTools\Customer;
 
 use PHPUnit\Framework\TestCase;
 use RuntimeException;
+use Shurloc\SiteTools\Customer\Admin\Admin_Menu;
 use Shurloc\SiteTools\Customer\Admin\Carts_Controller;
 use Shurloc\SiteTools\Customer\Admin\User_Cart_Column;
 use Shurloc\SiteTools\Customer\Admin\User_Filters;
+use Shurloc\SiteTools\Customer\Journey\Admin\Journey_Report_Controller;
 use Shurloc\SiteTools\Customer\Journey\Admin\Journey_Schema_Admin;
 use Shurloc\SiteTools\Customer\Journey\Frontend\Journey_Browser_Assets;
 use Shurloc\SiteTools\Customer\Journey\Migrations\Journey_Schema_Migrator;
@@ -47,6 +49,8 @@ final class BootstrapTest extends TestCase {
 		$GLOBALS['shurloc_test_actions']               = array();
 		$GLOBALS['shurloc_test_enqueued_scripts']      = array();
 		$GLOBALS['shurloc_test_inline_scripts']        = array();
+		$GLOBALS['shurloc_test_styles']                = array();
+		$GLOBALS['shurloc_test_submenu_pages']         = array();
 		$GLOBALS['shurloc_test_rest_routes']           = array();
 		$GLOBALS['shurloc_test_action_metadata']       = array();
 		$GLOBALS['shurloc_test_filters']               = array();
@@ -55,8 +59,10 @@ final class BootstrapTest extends TestCase {
 		$GLOBALS['shurloc_test_is_admin']              = true;
 		$GLOBALS['shurloc_test_doing_ajax']            = false;
 		$GLOBALS['shurloc_test_user_capabilities']     = array();
+		$GLOBALS['shurloc_test_timezone']              = 'UTC';
 		$GLOBALS['shurloc_journey_schema_attempts']    = 0;
 		$GLOBALS['shurloc_journey_schema_should_fail'] = true;
+		$_GET = array();
 	}
 
 	/**
@@ -70,6 +76,8 @@ final class BootstrapTest extends TestCase {
 		$GLOBALS['shurloc_test_actions']               = array();
 		$GLOBALS['shurloc_test_enqueued_scripts']      = array();
 		$GLOBALS['shurloc_test_inline_scripts']        = array();
+		$GLOBALS['shurloc_test_styles']                = array();
+		$GLOBALS['shurloc_test_submenu_pages']         = array();
 		$GLOBALS['shurloc_test_rest_routes']           = array();
 		$GLOBALS['shurloc_test_action_metadata']       = array();
 		$GLOBALS['shurloc_test_filters']               = array();
@@ -78,8 +86,10 @@ final class BootstrapTest extends TestCase {
 		$GLOBALS['shurloc_test_is_admin']              = true;
 		$GLOBALS['shurloc_test_doing_ajax']            = false;
 		$GLOBALS['shurloc_test_user_capabilities']     = array();
+		$GLOBALS['shurloc_test_timezone']              = 'UTC';
 		$GLOBALS['shurloc_journey_schema_attempts']    = 0;
 		$GLOBALS['shurloc_journey_schema_should_fail'] = true;
+		$_GET = array();
 
 		// phpcs:ignore WordPress.WP.GlobalVariablesOverride.Prohibited -- Restore the shared test-only database double.
 		$GLOBALS['wpdb'] = new Shurloc_Test_WPDB();
@@ -159,6 +169,19 @@ final class BootstrapTest extends TestCase {
 			$carts_controller_callbacks
 		);
 
+		$journey_report_callbacks = array_filter(
+			$GLOBALS['shurloc_test_actions']['admin_enqueue_scripts'],
+			static function ( mixed $callback ): bool {
+				return is_array( $callback ) &&
+					isset( $callback[0] ) &&
+					$callback[0] instanceof Journey_Report_Controller;
+			}
+		);
+
+		self::assertCount( 1, $journey_report_callbacks );
+		$journey_report_callback = array_values( $journey_report_callbacks )[0];
+		self::assertSame( 'enqueue_assets', $journey_report_callback[1] );
+
 		self::assertArrayHasKey(
 			'manage_users_columns',
 			$GLOBALS['shurloc_test_filters']
@@ -187,6 +210,54 @@ final class BootstrapTest extends TestCase {
 			'manage_users_sortable_columns',
 			$GLOBALS['shurloc_test_filters']
 		);
+	}
+
+	/**
+	 * Verify the admin bootstrap injects the Journey report into Customer Tools.
+	 *
+	 * @return void
+	 */
+	public function test_admin_bootstrap_wires_customer_journeys_tab(): void {
+		$bootstrap = new Bootstrap();
+		$bootstrap->register();
+
+		$customer_menu_callbacks = array_filter(
+			$GLOBALS['shurloc_test_actions']['admin_menu'],
+			static function ( mixed $callback ): bool {
+				return is_array( $callback ) &&
+					isset( $callback[0] ) &&
+					$callback[0] instanceof Admin_Menu;
+			}
+		);
+		self::assertCount( 1, $customer_menu_callbacks );
+		$menu_callback = array_values( $customer_menu_callbacks )[0];
+		self::assertIsCallable( $menu_callback );
+		$menu_callback();
+
+		$customer_pages = array_values(
+			array_filter(
+				$GLOBALS['shurloc_test_submenu_pages'],
+				static fn ( array $page ): bool => 'shurloc-site-tools-customers' === $page['menu_slug']
+			)
+		);
+		self::assertCount( 1, $customer_pages );
+		self::assertIsCallable( $customer_pages[0]['callback'] );
+
+		$GLOBALS['shurloc_test_options'][ Journey_Schema_Migrator::VERSION_OPTION ] = Journey_Schema_Migrator::CURRENT_VERSION;
+		// phpcs:ignore WordPress.WP.GlobalVariablesOverride.Prohibited -- Test-only report database.
+		$GLOBALS['wpdb'] = new Shurloc_Test_WPDB();
+		$_GET            = array(
+			'page' => 'shurloc-site-tools-customers',
+			'tab'  => Journey_Report_Controller::TAB_SLUG,
+		);
+
+		ob_start();
+		$customer_pages[0]['callback']();
+		$output = (string) ob_get_clean();
+
+		self::assertStringContainsString( 'class="nav-tab nav-tab-active"', $output );
+		self::assertStringContainsString( 'Customer Journeys', $output );
+		self::assertStringContainsString( 'class="wc-customer-search"', $output );
 	}
 
 	/**
@@ -424,6 +495,16 @@ final class BootstrapTest extends TestCase {
 			array( $bootstrap, 'maybe_migrate_journey_schema' ),
 			$GLOBALS['shurloc_test_actions']['admin_init']
 		);
+
+		$journey_report_callbacks = array_filter(
+			$GLOBALS['shurloc_test_actions']['admin_enqueue_scripts'],
+			static function ( mixed $callback ): bool {
+				return is_array( $callback ) &&
+					isset( $callback[0] ) &&
+					$callback[0] instanceof Journey_Report_Controller;
+			}
+		);
+		self::assertSame( array(), $journey_report_callbacks );
 	}
 
 	/**
