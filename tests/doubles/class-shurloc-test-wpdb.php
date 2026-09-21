@@ -208,6 +208,15 @@ final class Shurloc_Test_WPDB {
 	public array $queries = array();
 
 	/**
+	 * Sequential affected-row results for otherwise unhandled query calls.
+	 *
+	 * Empty queues preserve the historical query behavior.
+	 *
+	 * @var list<int|false>
+	 */
+	public array $query_result_queue = array();
+
+	/**
 	 * Simulate a concurrent visitor UUID insert.
 	 *
 	 * @var bool
@@ -754,7 +763,7 @@ final class Shurloc_Test_WPDB {
 	public function query( string $query ): int|false {
 		$this->queries[] = $query;
 
-		if ( str_starts_with( $query, 'DELETE FROM %i' ) ) {
+		if ( 'DELETE FROM %i WHERE option_name = %s AND option_value = %s' === $query ) {
 			if ( $this->race_on_lock_delete ) {
 				$GLOBALS['shurloc_test_options'][ Journey_Schema_Migrator::LOCK_OPTION ] = time() . ':replacement';
 				$this->race_on_lock_delete = false;
@@ -1019,6 +1028,10 @@ final class Shurloc_Test_WPDB {
 
 			$this->periods[ $period_id ]['ended_at'] = (string) $this->last_args[1];
 			return 1;
+		}
+
+		if ( array() !== $this->query_result_queue ) {
+			return array_shift( $this->query_result_queue );
 		}
 
 		return false;
