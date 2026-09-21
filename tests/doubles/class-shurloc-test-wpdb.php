@@ -77,6 +77,15 @@ final class Shurloc_Test_WPDB {
 	public array $results = array();
 
 	/**
+	 * Sequential results for tests that exercise multiple report reads.
+	 *
+	 * Empty queues preserve the historical results property behavior.
+	 *
+	 * @var list<array<int,object>|null>
+	 */
+	public array $result_queue = array();
+
+	/**
 	 * Prepared queries recorded during tests.
 	 *
 	 * @var array<int,array{
@@ -589,6 +598,10 @@ final class Shurloc_Test_WPDB {
 					'active_ms'   => (string) $event['active_ms'],
 				),
 			);
+		}
+
+		if ( array() !== $this->result_queue ) {
+			return array_shift( $this->result_queue );
 		}
 
 		return $this->results;
