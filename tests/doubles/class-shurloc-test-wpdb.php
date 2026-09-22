@@ -109,6 +109,20 @@ final class Shurloc_Test_WPDB {
 	public array $table_engine_overrides = array();
 
 	/**
+	 * Simulate a failure before Journey schema statements are built.
+	 *
+	 * @var bool
+	 */
+	public bool $fail_charset_collate = false;
+
+	/**
+	 * Number of Journey charset and collation requests.
+	 *
+	 * @var int
+	 */
+	public int $charset_collate_calls = 0;
+
+	/**
 	 * Simulate an unavailable table status query.
 	 *
 	 * @var bool
@@ -429,8 +443,15 @@ final class Shurloc_Test_WPDB {
 	 * Return the test collation used by Journey schema statements.
 	 *
 	 * @return string Charset and collation SQL.
+	 * @throws RuntimeException When the configured schema failure is active.
 	 */
 	public function get_charset_collate(): string {
+		++$this->charset_collate_calls;
+
+		if ( $this->fail_charset_collate ) {
+			throw new RuntimeException( 'Simulated schema failure.' );
+		}
+
 		return 'DEFAULT CHARACTER SET utf8mb4';
 	}
 

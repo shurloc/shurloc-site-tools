@@ -64,55 +64,8 @@ final class JourneySchemaAdminTest extends TestCase {
 		$GLOBALS['shurloc_journey_schema_throw_on_redirect'] = true;
 		$GLOBALS['shurloc_journey_schema_updates']           = 0;
 
-		// phpcs:ignore WordPress.WP.GlobalVariablesOverride.Prohibited -- Install a test-only database double.
-		$GLOBALS['wpdb'] = new class() {
-			/**
-			 * Table prefix.
-			 *
-			 * @var string
-			 */
-			public string $prefix = 'wp_';
-
-			/**
-			 * Options table.
-			 *
-			 * @var string
-			 */
-			public string $options = 'wp_options';
-
-			/**
-			 * Return charset SQL for the attempted migration.
-			 *
-			 * @return string Charset SQL.
-			 */
-			public function get_charset_collate(): string {
-				return 'DEFAULT CHARACTER SET utf8mb4';
-			}
-
-			/**
-			 * Return the query unchanged; only a lock release is expected.
-			 *
-			 * @param string $query SQL query.
-			 * @param mixed  ...$args Placeholder arguments.
-			 * @return string Query.
-			 */
-			public function prepare( string $query, mixed ...$args ): string {
-				unset( $args );
-				return $query;
-			}
-
-			/**
-			 * Simulate deleting the migration lock.
-			 *
-			 * @param string $query SQL query.
-			 * @return int Deleted rows.
-			 */
-			public function query( string $query ): int {
-				unset( $query );
-				unset( $GLOBALS['shurloc_test_options'][ Journey_Schema_Migrator::LOCK_OPTION ] );
-				return 1;
-			}
-		};
+		// phpcs:ignore WordPress.WP.GlobalVariablesOverride.Prohibited -- Install the shared test-only database double.
+		$GLOBALS['wpdb'] = new Shurloc_Test_WPDB();
 
 		$migrator = new Journey_Schema_Migrator(
 			schema_updater: static function ( string $statement ): void {

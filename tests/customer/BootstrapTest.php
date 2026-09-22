@@ -10,7 +10,6 @@ declare( strict_types=1 );
 namespace Shurloc\SiteTools\Customer;
 
 use PHPUnit\Framework\TestCase;
-use RuntimeException;
 use Shurloc\SiteTools\Customer\Admin\Admin_Menu;
 use Shurloc\SiteTools\Customer\Admin\Carts_Controller;
 use Shurloc\SiteTools\Customer\Admin\User_Cart_Column;
@@ -49,25 +48,23 @@ final class BootstrapTest extends TestCase {
 		$this->original_server      = $_SERVER;
 		$_SERVER['HTTP_USER_AGENT'] = 'Mozilla/5.0';
 
-		$GLOBALS['shurloc_test_actions']               = array();
-		$GLOBALS['shurloc_test_enqueued_scripts']      = array();
-		$GLOBALS['shurloc_test_inline_scripts']        = array();
-		$GLOBALS['shurloc_test_styles']                = array();
-		$GLOBALS['shurloc_test_submenu_pages']         = array();
-		$GLOBALS['shurloc_test_rest_routes']           = array();
-		$GLOBALS['shurloc_test_action_metadata']       = array();
-		$GLOBALS['shurloc_test_cron_events']           = array();
-		$GLOBALS['shurloc_test_cron_schedule_result']  = true;
-		$GLOBALS['shurloc_test_deactivation_hooks']    = array();
-		$GLOBALS['shurloc_test_filters']               = array();
-		$GLOBALS['shurloc_test_filter_metadata']       = array();
-		$GLOBALS['shurloc_test_options']               = array();
-		$GLOBALS['shurloc_test_is_admin']              = true;
-		$GLOBALS['shurloc_test_doing_ajax']            = false;
-		$GLOBALS['shurloc_test_user_capabilities']     = array();
-		$GLOBALS['shurloc_test_timezone']              = 'UTC';
-		$GLOBALS['shurloc_journey_schema_attempts']    = 0;
-		$GLOBALS['shurloc_journey_schema_should_fail'] = true;
+		$GLOBALS['shurloc_test_actions']              = array();
+		$GLOBALS['shurloc_test_enqueued_scripts']     = array();
+		$GLOBALS['shurloc_test_inline_scripts']       = array();
+		$GLOBALS['shurloc_test_styles']               = array();
+		$GLOBALS['shurloc_test_submenu_pages']        = array();
+		$GLOBALS['shurloc_test_rest_routes']          = array();
+		$GLOBALS['shurloc_test_action_metadata']      = array();
+		$GLOBALS['shurloc_test_cron_events']          = array();
+		$GLOBALS['shurloc_test_cron_schedule_result'] = true;
+		$GLOBALS['shurloc_test_deactivation_hooks']   = array();
+		$GLOBALS['shurloc_test_filters']              = array();
+		$GLOBALS['shurloc_test_filter_metadata']      = array();
+		$GLOBALS['shurloc_test_options']              = array();
+		$GLOBALS['shurloc_test_is_admin']             = true;
+		$GLOBALS['shurloc_test_doing_ajax']           = false;
+		$GLOBALS['shurloc_test_user_capabilities']    = array();
+		$GLOBALS['shurloc_test_timezone']             = 'UTC';
 		$_GET = array();
 	}
 
@@ -79,25 +76,23 @@ final class BootstrapTest extends TestCase {
 	protected function tearDown(): void {
 		$_SERVER = $this->original_server;
 
-		$GLOBALS['shurloc_test_actions']               = array();
-		$GLOBALS['shurloc_test_enqueued_scripts']      = array();
-		$GLOBALS['shurloc_test_inline_scripts']        = array();
-		$GLOBALS['shurloc_test_styles']                = array();
-		$GLOBALS['shurloc_test_submenu_pages']         = array();
-		$GLOBALS['shurloc_test_rest_routes']           = array();
-		$GLOBALS['shurloc_test_action_metadata']       = array();
-		$GLOBALS['shurloc_test_cron_events']           = array();
-		$GLOBALS['shurloc_test_cron_schedule_result']  = true;
-		$GLOBALS['shurloc_test_deactivation_hooks']    = array();
-		$GLOBALS['shurloc_test_filters']               = array();
-		$GLOBALS['shurloc_test_filter_metadata']       = array();
-		$GLOBALS['shurloc_test_options']               = array();
-		$GLOBALS['shurloc_test_is_admin']              = true;
-		$GLOBALS['shurloc_test_doing_ajax']            = false;
-		$GLOBALS['shurloc_test_user_capabilities']     = array();
-		$GLOBALS['shurloc_test_timezone']              = 'UTC';
-		$GLOBALS['shurloc_journey_schema_attempts']    = 0;
-		$GLOBALS['shurloc_journey_schema_should_fail'] = true;
+		$GLOBALS['shurloc_test_actions']              = array();
+		$GLOBALS['shurloc_test_enqueued_scripts']     = array();
+		$GLOBALS['shurloc_test_inline_scripts']       = array();
+		$GLOBALS['shurloc_test_styles']               = array();
+		$GLOBALS['shurloc_test_submenu_pages']        = array();
+		$GLOBALS['shurloc_test_rest_routes']          = array();
+		$GLOBALS['shurloc_test_action_metadata']      = array();
+		$GLOBALS['shurloc_test_cron_events']          = array();
+		$GLOBALS['shurloc_test_cron_schedule_result'] = true;
+		$GLOBALS['shurloc_test_deactivation_hooks']   = array();
+		$GLOBALS['shurloc_test_filters']              = array();
+		$GLOBALS['shurloc_test_filter_metadata']      = array();
+		$GLOBALS['shurloc_test_options']              = array();
+		$GLOBALS['shurloc_test_is_admin']             = true;
+		$GLOBALS['shurloc_test_doing_ajax']           = false;
+		$GLOBALS['shurloc_test_user_capabilities']    = array();
+		$GLOBALS['shurloc_test_timezone']             = 'UTC';
 		$_GET = array();
 
 		// phpcs:ignore WordPress.WP.GlobalVariablesOverride.Prohibited -- Restore the shared test-only database double.
@@ -618,67 +613,17 @@ final class BootstrapTest extends TestCase {
 	 * @return void
 	 */
 	public function test_pending_journey_schema_attempts_upgrade_and_waits_after_failure(): void {
+		$database                       = new Shurloc_Test_WPDB();
+		$database->fail_charset_collate = true;
+
 		// phpcs:ignore WordPress.WP.GlobalVariablesOverride.Prohibited -- Simulate a database failure before dbDelta runs.
-		$GLOBALS['wpdb'] = new class() {
-			/**
-			 * Table prefix.
-			 *
-			 * @var string
-			 */
-			public string $prefix = 'wp_';
-
-			/**
-			 * Options table for lock release.
-			 *
-			 * @var string
-			 */
-			public string $options = 'wp_options';
-
-			/**
-			 * Fail before the schema updater is called.
-			 *
-			 * @return string Charset SQL.
-			 * @throws RuntimeException Always, to simulate a database failure.
-			 */
-			public function get_charset_collate(): string {
-				++$GLOBALS['shurloc_journey_schema_attempts'];
-				if ( $GLOBALS['shurloc_journey_schema_should_fail'] ) {
-					throw new RuntimeException( 'Simulated schema failure.' );
-				}
-
-				return 'DEFAULT CHARACTER SET utf8mb4';
-			}
-
-			/**
-			 * Return the lock query for the test double.
-			 *
-			 * @param string $query SQL query.
-			 * @param mixed  ...$args Placeholder arguments.
-			 * @return string Query.
-			 */
-			public function prepare( string $query, mixed ...$args ): string {
-				unset( $args );
-				return $query;
-			}
-
-			/**
-			 * Release the simulated migration lock.
-			 *
-			 * @param string $query SQL query.
-			 * @return int Deleted rows.
-			 */
-			public function query( string $query ): int {
-				unset( $query );
-				unset( $GLOBALS['shurloc_test_options'][ Journey_Schema_Migrator::LOCK_OPTION ] );
-				return 1;
-			}
-		};
+		$GLOBALS['wpdb'] = $database;
 
 		$bootstrap = new Bootstrap();
 		$bootstrap->register();
 		$bootstrap->maybe_migrate_journey_schema();
 
-		self::assertSame( 1, $GLOBALS['shurloc_journey_schema_attempts'] );
+		self::assertSame( 1, $database->charset_collate_calls );
 		self::assertSame(
 			'migration_failed',
 			$GLOBALS['shurloc_test_options'][ Journey_Schema_Migrator::FAILURE_OPTION ]
@@ -689,7 +634,7 @@ final class BootstrapTest extends TestCase {
 		);
 
 		$bootstrap->maybe_migrate_journey_schema();
-		self::assertSame( 1, $GLOBALS['shurloc_journey_schema_attempts'] );
+		self::assertSame( 1, $database->charset_collate_calls );
 	}
 
 	/**
