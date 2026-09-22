@@ -29,6 +29,7 @@ use Shurloc\SiteTools\Customer\Journey\Admin\Journey_Report_Controller;
 use Shurloc\SiteTools\Customer\Journey\Admin\Journey_Report_Renderer;
 use Shurloc\SiteTools\Customer\Journey\Admin\Journey_Schema_Admin;
 use Shurloc\SiteTools\Customer\Journey\Journey_Privacy_Eraser;
+use Shurloc\SiteTools\Customer\Journey\Journey_Privacy_Exporter;
 use Shurloc\SiteTools\Customer\Journey\Journey_Report_Page_Builder;
 use Shurloc\SiteTools\Customer\Journey\Journey_Retention_Scheduler;
 use Shurloc\SiteTools\Customer\Journey\Frontend\Journey_Browser_Assets;
@@ -77,6 +78,9 @@ final class Bootstrap {
 
 		$journey_order_tracker = new Journey_Order_Tracker();
 		$journey_order_tracker->register();
+
+		$journey_privacy_exporter = new Journey_Privacy_Exporter();
+		$journey_privacy_exporter->register();
 
 		$journey_privacy_eraser = new Journey_Privacy_Eraser();
 		$journey_privacy_eraser->register();
