@@ -180,6 +180,10 @@ final class JourneyRetentionSchedulerTest extends TestCase {
 	 * @return void
 	 */
 	public function test_stale_lock_is_reclaimed(): void {
+		add_filter(
+			Journey_Retention_Policy::RETENTION_DAYS_FILTER,
+			static fn (): array => array()
+		);
 		$GLOBALS['shurloc_test_options'][ Journey_Retention_Scheduler::LOCK_OPTION ] =
 			( time() - Journey_Retention_Scheduler::LOCK_TIMEOUT_SECONDS - 1 ) . ':abandoned';
 
@@ -235,7 +239,9 @@ final class JourneyRetentionSchedulerTest extends TestCase {
 		add_filter(
 			Journey_Retention_Policy::RETENTION_DAYS_FILTER,
 			static function ( array $days ): array {
-				$days[ Journey_Retention_Policy::RAW_EVENTS ] = 30;
+				$days[ Journey_Retention_Policy::ANONYMOUS_HISTORY ]  = null;
+				$days[ Journey_Retention_Policy::RAW_EVENTS ]         = 30;
+				$days[ Journey_Retention_Policy::IDENTIFIED_HISTORY ] = null;
 
 				return $days;
 			}

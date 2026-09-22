@@ -305,9 +305,11 @@ account, its history is available through the customer report.
 ### Retention
 
 The retention policy has separate scopes for raw events, anonymous history,
-and identified history. All three periods default to `null`, so scheduled
-cleanup deletes no Journey data until the site supplies approved positive day
-values through `shurloc_site_tools_journey_retention_days`.
+and identified history. Anonymous history defaults to 365 days, raw events to
+730 days, and identified history to 1,095 days. The site can replace one or
+more periods with positive day values through
+`shurloc_site_tools_journey_retention_days`. A missing or invalid filtered
+value disables cleanup for that scope.
 
 Cleanup is scheduled daily and processes bounded batches of 100 roots by
 default. A lock serializes cleanup. When more expired data remains, a single
@@ -338,7 +340,7 @@ that data may remain instead of claiming success.
 | `shurloc_site_tools_journey_visitor_cookie_lifetime` | `31536000` | Positive visitor-cookie lifetime in seconds. |
 | `shurloc_site_tools_journey_session_timeout_seconds` | `1800` | Positive gap between accepted activities before a new session. |
 | `shurloc_site_tools_journey_duration_grace_seconds` | `60` | Server allowance for duration request latency and timestamp precision; maximum 3600. |
-| `shurloc_site_tools_journey_retention_days` | all scopes `null` | Positive retention days for `raw_events`, `anonymous_history`, and `identified_history`. |
+| `shurloc_site_tools_journey_retention_days` | anonymous `365`; raw events `730`; identified `1095` | Positive retention days for `anonymous_history`, `raw_events`, and `identified_history`. Missing or invalid filtered scopes are disabled. |
 | `shurloc_site_tools_journey_retention_batch_size` | `100` | Roots handled by each retention operation; maximum 1000. |
 | `shurloc_site_tools_journey_privacy_erasure_batch_size` | `100` | Maximum dependent rows removed per privacy operation; maximum 1000. |
 | `shurloc_site_tools_journey_privacy_export_page_size` | `50` | Records returned by each privacy exporter call; maximum 100. |

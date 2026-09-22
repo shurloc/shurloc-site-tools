@@ -49,16 +49,16 @@ final class JourneyRetentionPolicyTest extends TestCase {
 	}
 
 	/**
-	 * Unapproved retention periods remain unset by default.
+	 * Approved retention periods are supplied centrally by default.
 	 *
 	 * @return void
 	 */
-	public function test_all_retention_periods_are_unset_by_default(): void {
+	public function test_approved_retention_periods_are_used_by_default(): void {
 		self::assertSame(
 			array(
-				Journey_Retention_Policy::ANONYMOUS_HISTORY => null,
-				Journey_Retention_Policy::RAW_EVENTS => null,
-				Journey_Retention_Policy::IDENTIFIED_HISTORY => null,
+				Journey_Retention_Policy::ANONYMOUS_HISTORY => 365,
+				Journey_Retention_Policy::RAW_EVENTS => 730,
+				Journey_Retention_Policy::IDENTIFIED_HISTORY => 1095,
 			),
 			$this->policy->get_retention_days()
 		);

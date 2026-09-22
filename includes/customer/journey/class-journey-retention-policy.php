@@ -14,8 +14,8 @@ defined( 'ABSPATH' ) || exit;
 /**
  * Supplies centrally configured retention periods for Journey cleanup.
  *
- * A null period means that no retention cutoff has been approved for that
- * scope. Cleanup code must skip a scope whose configured period is null.
+ * A null filtered period disables cleanup for that scope. Cleanup code must
+ * skip a scope whose configured period is null.
  *
  * @phpstan-type RetentionDays array{
  *     anonymous_history: int|null,
@@ -46,11 +46,22 @@ final class Journey_Retention_Policy {
 		'shurloc_site_tools_journey_retention_days';
 
 	/**
-	 * Retention periods pending approval.
+	 * Approved default retention periods.
 	 *
 	 * @var RetentionDays
 	 */
 	private const DEFAULT_RETENTION_DAYS = array(
+		self::ANONYMOUS_HISTORY  => 365,
+		self::RAW_EVENTS         => 730,
+		self::IDENTIFIED_HISTORY => 1095,
+	);
+
+	/**
+	 * Fail-closed periods used after malformed filter configuration.
+	 *
+	 * @var RetentionDays
+	 */
+	private const DISABLED_RETENTION_DAYS = array(
 		self::ANONYMOUS_HISTORY  => null,
 		self::RAW_EVENTS         => null,
 		self::IDENTIFIED_HISTORY => null,
@@ -72,10 +83,10 @@ final class Journey_Retention_Policy {
 		);
 
 		if ( ! is_array( $filtered ) ) {
-			return self::DEFAULT_RETENTION_DAYS;
+			return self::DISABLED_RETENTION_DAYS;
 		}
 
-		$retention_days = self::DEFAULT_RETENTION_DAYS;
+		$retention_days = self::DISABLED_RETENTION_DAYS;
 
 		foreach ( array_keys( self::DEFAULT_RETENTION_DAYS ) as $scope ) {
 			$value = $filtered[ $scope ] ?? null;

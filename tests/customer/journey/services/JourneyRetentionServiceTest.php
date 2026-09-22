@@ -73,11 +73,16 @@ final class JourneyRetentionServiceTest extends TestCase {
 	}
 
 	/**
-	 * Unapproved default periods result in no database cleanup.
+	 * Malformed period configuration results in no database cleanup.
 	 *
 	 * @return void
 	 */
-	public function test_unset_retention_periods_skip_every_operation(): void {
+	public function test_malformed_retention_periods_skip_every_operation(): void {
+		add_filter(
+			Journey_Retention_Policy::RETENTION_DAYS_FILTER,
+			static fn (): string => 'invalid'
+		);
+
 		self::assertSame(
 			$this->empty_result(),
 			$this->service->run_batch( now: $this->now() )
