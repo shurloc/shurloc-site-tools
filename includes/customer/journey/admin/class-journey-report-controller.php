@@ -21,6 +21,8 @@ use WP_User;
 
 /**
  * Coordinate bounded customer and never-linked visitor journey reports.
+ *
+ * @phpstan-import-type RecentSubject from Journey_Report_Visitor_Repository
  */
 final class Journey_Report_Controller {
 	/** Customer Tools page slug. */
@@ -34,6 +36,9 @@ final class Journey_Report_Controller {
 
 	/** Events loaded in one report request. */
 	private const EVENT_PAGE_SIZE = 50;
+
+	/** Recent report subjects shown on the landing page. */
+	private const RECENT_SUBJECT_LIMIT = 50;
 
 	/** Anonymous visitors offered in one selector page. */
 	private const VISITOR_PAGE_SIZE = 50;
@@ -258,7 +263,7 @@ final class Journey_Report_Controller {
 	}
 
 	/**
-	 * Render the initial selectors and bounded anonymous visitor page.
+	 * Render the initial selectors and recent customer journeys.
 	 *
 	 * @param string $from_date Inclusive local date.
 	 * @param string $to_date   Inclusive local date.
@@ -277,6 +282,7 @@ final class Journey_Report_Controller {
 			before_at: $cursor['at'],
 			before_id: $cursor['id']
 		);
+		$subjects = $this->visitor_repository->recent_subjects( limit: self::RECENT_SUBJECT_LIMIT );
 		$this->render_controls(
 			from_date: $from_date,
 			to_date: $to_date,
@@ -285,22 +291,23 @@ final class Journey_Report_Controller {
 			visitors: $visitors ?? array()
 		);
 
-		if ( null === $visitors ) {
+		if ( null === $visitors || null === $subjects ) {
 			$this->render_unavailable();
 			return;
 		}
 
+		$this->render_recent_subjects( subjects: $subjects );
 		$this->render_visitor_pagination( visitors: $visitors, from_date: $from_date, to_date: $to_date );
 	}
 
 	/**
 	 * Render customer search and anonymous visitor selector forms.
 	 *
-	 * @param string                                                                                    $from_date          Inclusive local date.
-	 * @param string                                                                                    $to_date            Inclusive local date.
-	 * @param WP_User|null                                                                              $selected_user       Selected customer.
-	 * @param int|null                                                                                  $selected_visitor_id Selected visitor ID.
-	 * @param array<int,array{id:int,created_at:string,last_seen_at:string,first_touch_at:string|null}> $visitors Visitor options.
+	 * @param string                                  $from_date          Inclusive local date.
+	 * @param string                                  $to_date            Inclusive local date.
+	 * @param WP_User|null                            $selected_user       Selected customer.
+	 * @param int|null                                $selected_visitor_id Selected visitor ID.
+	 * @param list<array{id:int,last_seen_at:string}> $visitors Visitor options.
 	 * @return void
 	 */
 	private function render_controls(
@@ -358,6 +365,101 @@ final class Journey_Report_Controller {
 			</form>
 		</div>
 		<?php
+	}
+
+	/**
+	 * Render authenticated customers and anonymous visitors by latest activity.
+	 *
+	 * @param array $subjects Validated recent report subjects.
+	 * @return void
+	 * @phpstan-param list<RecentSubject> $subjects
+	 */
+	private function render_recent_subjects( array $subjects ): void {
+		?>
+		<h3><?php echo esc_html__( 'Recent Journeys', 'shurloc-site-tools' ); ?></h3>
+		<?php if ( array() === $subjects ) : ?>
+			<p><?php echo esc_html__( 'No customer journeys have been recorded.', 'shurloc-site-tools' ); ?></p>
+			<?php return; ?>
+		<?php endif; ?>
+
+		<table class="widefat striped shurloc-journey-subjects">
+			<thead>
+				<tr>
+					<th scope="col"><?php echo esc_html__( 'Customer or visitor', 'shurloc-site-tools' ); ?></th>
+					<th scope="col"><?php echo esc_html__( 'Type', 'shurloc-site-tools' ); ?></th>
+					<th scope="col"><?php echo esc_html__( 'Latest activity', 'shurloc-site-tools' ); ?></th>
+				</tr>
+			</thead>
+			<tbody>
+				<?php foreach ( $subjects as $subject ) : ?>
+					<?php $this->render_recent_subject_row( subject: $subject ); ?>
+				<?php endforeach; ?>
+			</tbody>
+		</table>
+		<?php
+	}
+
+	/**
+	 * Render one recent report subject with a link when it remains viewable.
+	 *
+	 * @param array $subject Validated recent report subject.
+	 * @return void
+	 * @phpstan-param RecentSubject $subject
+	 */
+	private function render_recent_subject_row( array $subject ): void {
+		$user        = 'customer' === $subject['subject_type'] ? get_userdata( $subject['subject_id'] ) : false;
+		$is_customer = $user instanceof WP_User;
+		$label       = $is_customer
+			? $this->customer_label( user: $user )
+			: $this->visitor_label( visitor_id: $subject['subject_id'] );
+		$type_label  = 'customer' === $subject['subject_type']
+			? __( 'Authenticated customer', 'shurloc-site-tools' )
+			: __( 'Anonymous visitor', 'shurloc-site-tools' );
+		?>
+		<tr>
+			<td>
+				<?php if ( 'visitor' === $subject['subject_type'] || $is_customer ) : ?>
+					<a href="<?php echo esc_url( $this->recent_subject_url( subject: $subject ) ); ?>"><?php echo esc_html( $label ); ?></a>
+				<?php else : ?>
+					<?php
+					echo esc_html(
+						sprintf(
+							/* translators: %d: WordPress user ID for a deleted account. */
+							__( 'Unavailable customer (#%d)', 'shurloc-site-tools' ),
+							$subject['subject_id']
+						)
+					);
+					?>
+				<?php endif; ?>
+			</td>
+			<td><?php echo esc_html( $type_label ); ?></td>
+			<td><?php echo esc_html( $this->local_datetime( utc: $subject['last_activity_at'] ) ); ?></td>
+		</tr>
+		<?php
+	}
+
+	/**
+	 * Build a seven-day report URL ending on the subject's latest activity day.
+	 *
+	 * @param array $subject Validated recent report subject.
+	 * @return string Report URL.
+	 * @phpstan-param RecentSubject $subject
+	 */
+	private function recent_subject_url( array $subject ): string {
+		$latest                  = DateTimeImmutable::createFromFormat( '!Y-m-d H:i:s', $subject['last_activity_at'], new DateTimeZone( 'UTC' ) );
+		$latest                  = false === $latest ? $this->now : $latest->setTimezone( $this->timezone );
+		$args                    = $this->base_url_args(
+			from_date: $latest->modify( '-6 days' )->format( 'Y-m-d' ),
+			to_date: $latest->format( 'Y-m-d' )
+		);
+		$args['journey_subject'] = $subject['subject_type'];
+		if ( 'customer' === $subject['subject_type'] ) {
+			$args['journey_user_id'] = $subject['subject_id'];
+		} else {
+			$args['journey_visitor_id'] = $subject['subject_id'];
+		}
+
+		return add_query_arg( $args, admin_url( 'admin.php' ) );
 	}
 
 	/**

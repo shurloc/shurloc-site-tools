@@ -97,18 +97,34 @@ final class JourneyReportControllerTest extends TestCase {
 	}
 
 	/**
-	 * The landing page uses bounded selectors and WooCommerce customer search.
+	 * The landing page lists recent authenticated and anonymous journeys.
 	 *
 	 * @return void
 	 */
-	public function test_renders_bounded_subject_selectors(): void {
-		$this->database->prefix  = 'shop_';
-		$this->database->results = array(
-			(object) array(
-				'id'             => '12',
-				'created_at'     => '2026-09-16 12:00:00',
-				'last_seen_at'   => '2026-09-18 12:00:00',
-				'first_touch_at' => null,
+	public function test_renders_recent_subject_links_and_bounded_selectors(): void {
+		$this->database->prefix               = 'shop_';
+		$GLOBALS['shurloc_test_users'][7]     = true;
+		$GLOBALS['shurloc_test_user_data'][7] = array( 'display_name' => 'alice' );
+		$this->database->result_queue         = array(
+			array(
+				(object) array(
+					'id'             => '12',
+					'created_at'     => '2026-09-16 12:00:00',
+					'last_seen_at'   => '2026-09-18 12:00:00',
+					'first_touch_at' => null,
+				),
+			),
+			array(
+				(object) array(
+					'subject_type'     => 'customer',
+					'subject_id'       => '7',
+					'last_activity_at' => '2026-09-18 12:00:00',
+				),
+				(object) array(
+					'subject_type'     => 'visitor',
+					'subject_id'       => '12',
+					'last_activity_at' => '2026-09-18 12:00:00',
+				),
 			),
 		);
 
@@ -119,10 +135,49 @@ final class JourneyReportControllerTest extends TestCase {
 		self::assertStringContainsString( 'Anonymous Visitor #12 — last seen 2026-09-18 5:00 am', $output );
 		self::assertStringContainsString( 'name="journey_from" value="2026-09-15"', $output );
 		self::assertStringContainsString( 'name="journey_to" value="2026-09-21"', $output );
+		self::assertStringContainsString( '<h3>Recent Journeys</h3>', $output );
+		self::assertStringContainsString( '>alice (#7)</a>', $output );
+		self::assertStringContainsString( '>Anonymous Visitor #12</a>', $output );
+		self::assertStringContainsString( '<td>Authenticated customer</td>', $output );
+		self::assertStringContainsString( '<td>Anonymous visitor</td>', $output );
+		self::assertStringContainsString( 'journey_from=2026-09-12&amp;journey_to=2026-09-18&amp;journey_subject=customer&amp;journey_user_id=7', $output );
+		self::assertStringContainsString( 'journey_from=2026-09-12&amp;journey_to=2026-09-18&amp;journey_subject=visitor&amp;journey_visitor_id=12', $output );
 		self::assertStringNotContainsString( 'visitor_uuid', $output );
-		self::assertCount( 1, $this->database->prepared_queries );
+		self::assertCount( 2, $this->database->prepared_queries );
 		self::assertSame( 'shop_shurloc_journey_visitors', $this->database->prepared_queries[0]['args'][0] );
 		self::assertSame( 50, $this->database->prepared_queries[0]['args'][6] );
+		self::assertSame(
+			array(
+				'shop_shurloc_journey_events',
+				'shop_shurloc_journey_events',
+				'shop_shurloc_journey_identity_periods',
+				50,
+			),
+			$this->database->prepared_queries[1]['args']
+		);
+	}
+
+	/**
+	 * Deleted customer accounts remain visible without a broken report link.
+	 *
+	 * @return void
+	 */
+	public function test_renders_unavailable_customer_without_link(): void {
+		$this->database->result_queue = array(
+			array(),
+			array(
+				(object) array(
+					'subject_type'     => 'customer',
+					'subject_id'       => '9',
+					'last_activity_at' => '2026-09-18 12:00:00',
+				),
+			),
+		);
+
+		$output = $this->render();
+
+		self::assertStringContainsString( 'Unavailable customer (#9)', $output );
+		self::assertStringNotContainsString( 'journey_user_id=9', $output );
 	}
 
 	/**
