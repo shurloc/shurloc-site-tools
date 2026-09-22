@@ -1,6 +1,6 @@
 <?php
 /**
- * Tests for Customer Journey anonymous visitor selector reads.
+ * Tests for Customer Journey report-subject selector reads.
  *
  * @package ShurlocSiteTools
  */
@@ -15,7 +15,7 @@ use Shurloc_Test_WPDB;
 use stdClass;
 
 /**
- * Verify bounded and identity-scoped anonymous visitor pages.
+ * Verify bounded recent subjects and identity-scoped anonymous visitor pages.
  */
 final class JourneyReportVisitorRepositoryTest extends TestCase {
 	/**
@@ -54,6 +54,62 @@ final class JourneyReportVisitorRepositoryTest extends TestCase {
 		$GLOBALS['wpdb'] = new Shurloc_Test_WPDB();
 
 		parent::tearDown();
+	}
+
+	/**
+	 * Recent subjects combine authenticated users and never-linked visitors.
+	 *
+	 * @return void
+	 */
+	public function test_reads_bounded_recent_subjects_without_visitor_uuids(): void {
+		$this->database->prefix  = 'shop_';
+		$this->database->results = array(
+			(object) array(
+				'subject_type'     => 'customer',
+				'subject_id'       => '7',
+				'last_activity_at' => '2026-09-18 12:00:00',
+			),
+			(object) array(
+				'subject_type'     => 'visitor',
+				'subject_id'       => '12',
+				'last_activity_at' => '2026-09-17 12:00:00',
+			),
+		);
+
+		$subjects = ( new Journey_Report_Visitor_Repository() )->recent_subjects( limit: 25 );
+
+		self::assertSame(
+			array(
+				array(
+					'subject_type'     => 'customer',
+					'subject_id'       => 7,
+					'last_activity_at' => '2026-09-18 12:00:00',
+				),
+				array(
+					'subject_type'     => 'visitor',
+					'subject_id'       => 12,
+					'last_activity_at' => '2026-09-17 12:00:00',
+				),
+			),
+			$subjects
+		);
+
+		$query = $this->database->prepared_queries[0];
+		self::assertSame(
+			array(
+				'shop_shurloc_journey_events',
+				'shop_shurloc_journey_events',
+				'shop_shurloc_journey_identity_periods',
+				25,
+			),
+			$query['args']
+		);
+		self::assertStringContainsString( 'e.user_id_at_event IS NOT NULL', $query['query'] );
+		self::assertStringContainsString( 'e.user_id_at_event IS NULL', $query['query'] );
+		self::assertStringContainsString( 'p.user_id IS NOT NULL', $query['query'] );
+		self::assertStringContainsString( 'GROUP BY recent.subject_type, recent.subject_id', $query['query'] );
+		self::assertStringContainsString( 'ORDER BY last_activity_at DESC', $query['query'] );
+		self::assertStringNotContainsString( 'visitor_uuid', $query['query'] );
 	}
 
 	/**
@@ -132,6 +188,8 @@ final class JourneyReportVisitorRepositoryTest extends TestCase {
 	public function test_invalid_requests_fail_closed(): void {
 		$repository = new Journey_Report_Visitor_Repository();
 
+		self::assertNull( $repository->recent_subjects( limit: 0 ) );
+		self::assertNull( $repository->recent_subjects( limit: 101 ) );
 		self::assertNull( $repository->anonymous_visitors( limit: 0 ) );
 		self::assertNull( $repository->anonymous_visitors( limit: 101 ) );
 		self::assertNull( $repository->anonymous_visitors( before_at: '2026-09-17 12:00:00' ) );
@@ -141,6 +199,7 @@ final class JourneyReportVisitorRepositoryTest extends TestCase {
 		self::assertSame( array(), $this->database->prepared_queries );
 
 		$GLOBALS['shurloc_test_options'] = array();
+		self::assertNull( $repository->recent_subjects() );
 		self::assertNull( $repository->anonymous_visitors() );
 		self::assertSame( array(), $this->database->prepared_queries );
 	}
@@ -172,6 +231,51 @@ final class JourneyReportVisitorRepositoryTest extends TestCase {
 		$row->first_touch_at     = '2026-09-18 12:00:00';
 		$this->database->results = array( $row );
 		self::assertNull( $repository->anonymous_visitors() );
+	}
+
+	/**
+	 * Recent subject rows reject unknown types, invalid IDs, and invalid times.
+	 *
+	 * @return void
+	 */
+	public function test_recent_subject_result_validation(): void {
+		$repository = new Journey_Report_Visitor_Repository();
+
+		self::assertSame( array(), $repository->recent_subjects() );
+
+		$row                     = $this->recent_subject_row( subject_type: 'unknown' );
+		$this->database->results = array( $row );
+		self::assertNull( $repository->recent_subjects() );
+
+		$row->subject_type = 'customer';
+		$row->subject_id   = '0';
+		self::assertNull( $repository->recent_subjects() );
+
+		$row->subject_id       = '7';
+		$row->last_activity_at = '2026-02-30 12:00:00';
+		self::assertNull( $repository->recent_subjects() );
+
+		$this->database->results = array_fill(
+			0,
+			2,
+			$this->recent_subject_row()
+		);
+		self::assertNull( $repository->recent_subjects( limit: 1 ) );
+	}
+
+	/**
+	 * Build one representative recent-subject result row.
+	 *
+	 * @param string $subject_type Subject type.
+	 * @return stdClass Database row.
+	 */
+	private function recent_subject_row( string $subject_type = 'customer' ): stdClass {
+		$row                   = new stdClass();
+		$row->subject_type     = $subject_type;
+		$row->subject_id       = '7';
+		$row->last_activity_at = '2026-09-18 12:00:00';
+
+		return $row;
 	}
 
 	/**

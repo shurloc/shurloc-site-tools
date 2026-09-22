@@ -1,6 +1,6 @@
 <?php
 /**
- * Customer Journey anonymous visitor selector reads.
+ * Customer Journey report-subject selector reads.
  *
  * @package ShurlocSiteTools
  */
@@ -16,12 +16,13 @@ use DateTimeZone;
 use Shurloc\SiteTools\Customer\Journey\Migrations\Journey_Schema_Migrator;
 
 /**
- * List visitors eligible for the anonymous report without exposing UUIDs.
+ * List recent report subjects and anonymous visitors without exposing UUIDs.
  *
  * Admin controllers must check report-viewing capability before calling this
  * repository. Visitors linked to any WordPress user belong in customer reports.
  *
  * @phpstan-type AnonymousVisitor array{id:int, created_at:string, last_seen_at:string, first_touch_at:string|null}
+ * @phpstan-type RecentSubject array{subject_type:'customer'|'visitor', subject_id:int, last_activity_at:string}
  */
 final class Journey_Report_Visitor_Repository {
 	/** Maximum visitors in one selector page. */
@@ -41,6 +42,63 @@ final class Journey_Report_Visitor_Repository {
 	 */
 	public function __construct( ?Journey_Schema_Migrator $schema_migrator = null ) {
 		$this->schema_migrator = $schema_migrator ?? new Journey_Schema_Migrator();
+	}
+
+	/**
+	 * Read authenticated users and never-linked visitors by latest event.
+	 *
+	 * Each subject appears once. Authenticated events are grouped by their
+	 * server-recorded WordPress user ID. Anonymous visitors are included only
+	 * while no identity period has ever linked that visitor to a user.
+	 *
+	 * @param int $limit Number of report subjects, at most MAX_PAGE_SIZE.
+	 * @return list<RecentSubject>|null Recent subjects or null on failure.
+	 */
+	public function recent_subjects( int $limit = 50 ): ?array {
+		if ( 1 > $limit || self::MAX_PAGE_SIZE < $limit || ! $this->schema_migrator->is_ready() ) {
+			return null;
+		}
+
+		global $wpdb;
+
+		$rows = $wpdb->get_results(
+			$wpdb->prepare(
+				'SELECT recent.subject_type, recent.subject_id, MAX(recent.occurred_at) AS last_activity_at
+				FROM (
+					SELECT \'customer\' AS subject_type, e.user_id_at_event AS subject_id, e.occurred_at
+					FROM %i e WHERE e.user_id_at_event IS NOT NULL
+					UNION ALL
+					SELECT \'visitor\' AS subject_type, e.visitor_id AS subject_id, e.occurred_at
+					FROM %i e WHERE e.user_id_at_event IS NULL
+					AND NOT EXISTS (
+						SELECT 1 FROM %i p WHERE p.visitor_id = e.visitor_id AND p.user_id IS NOT NULL
+					)
+				) recent
+				GROUP BY recent.subject_type, recent.subject_id
+				ORDER BY last_activity_at DESC, recent.subject_type ASC, recent.subject_id DESC
+				LIMIT %d',
+				$wpdb->prefix . 'shurloc_journey_events',
+				$wpdb->prefix . 'shurloc_journey_events',
+				$wpdb->prefix . 'shurloc_journey_identity_periods',
+				$limit
+			)
+		);
+
+		if ( ! is_array( $rows ) || count( $rows ) > $limit ) {
+			return null;
+		}
+
+		$subjects = array();
+		foreach ( $rows as $row ) {
+			$subject = $this->parse_recent_subject( row: $row );
+			if ( null === $subject ) {
+				return null;
+			}
+
+			$subjects[] = $subject;
+		}
+
+		return $subjects;
 	}
 
 	/**
@@ -137,6 +195,37 @@ final class Journey_Report_Visitor_Repository {
 			'created_at'     => $created_at,
 			'last_seen_at'   => $last_seen_at,
 			'first_touch_at' => $first_touch_at,
+		);
+	}
+
+	/**
+	 * Parse one recent report subject without accepting raw visitor identity.
+	 *
+	 * @param mixed $row Database result.
+	 * @return RecentSubject|null Parsed subject or null for an invalid row.
+	 */
+	private function parse_recent_subject( mixed $row ): ?array {
+		if ( ! is_object( $row ) ) {
+			return null;
+		}
+
+		$subject_type     = $row->subject_type ?? null;
+		$subject_id       = $this->positive_id( value: $row->subject_id ?? null );
+		$last_activity_at = $row->last_activity_at ?? null;
+
+		if (
+			! in_array( $subject_type, array( 'customer', 'visitor' ), true ) ||
+			null === $subject_id ||
+			! is_string( $last_activity_at ) ||
+			! $this->valid_time( value: $last_activity_at )
+		) {
+			return null;
+		}
+
+		return array(
+			'subject_type'     => $subject_type,
+			'subject_id'       => $subject_id,
+			'last_activity_at' => $last_activity_at,
 		);
 	}
 
