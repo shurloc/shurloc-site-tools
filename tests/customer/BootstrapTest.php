@@ -18,6 +18,7 @@ use Shurloc\SiteTools\Customer\Admin\User_Filters;
 use Shurloc\SiteTools\Customer\Journey\Admin\Journey_Report_Controller;
 use Shurloc\SiteTools\Customer\Journey\Admin\Journey_Schema_Admin;
 use Shurloc\SiteTools\Customer\Journey\Frontend\Journey_Browser_Assets;
+use Shurloc\SiteTools\Customer\Journey\Journey_Privacy_Eraser;
 use Shurloc\SiteTools\Customer\Journey\Journey_Retention_Scheduler;
 use Shurloc\SiteTools\Customer\Journey\Migrations\Journey_Schema_Migrator;
 use Shurloc\SiteTools\Customer\Journey\Rest\Journey_Browser_Ingestion_Controller;
@@ -476,6 +477,29 @@ final class BootstrapTest extends TestCase {
 			self::assertSame( 1, $GLOBALS['shurloc_test_action_metadata'][ $hook ][0]['accepted_args'] );
 		}
 
+		self::assertSame( array(), $GLOBALS['shurloc_test_options'] );
+	}
+
+	/**
+	 * Verify bootstrap registers the Journey WordPress privacy eraser.
+	 *
+	 * @return void
+	 */
+	public function test_bootstrap_wires_journey_privacy_eraser(): void {
+		$GLOBALS['shurloc_test_is_admin'] = false;
+
+		$bootstrap = new Bootstrap();
+		$bootstrap->register();
+
+		$hook = 'wp_privacy_personal_data_erasers';
+		self::assertCount( 1, $GLOBALS['shurloc_test_filters'][ $hook ] );
+
+		$callback = $GLOBALS['shurloc_test_filters'][ $hook ][0];
+		self::assertIsArray( $callback );
+		self::assertInstanceOf( Journey_Privacy_Eraser::class, $callback[0] );
+		self::assertSame( 'register_eraser', $callback[1] );
+		self::assertSame( 10, $GLOBALS['shurloc_test_filter_metadata'][ $hook ][0]['priority'] );
+		self::assertSame( 1, $GLOBALS['shurloc_test_filter_metadata'][ $hook ][0]['accepted_args'] );
 		self::assertSame( array(), $GLOBALS['shurloc_test_options'] );
 	}
 
