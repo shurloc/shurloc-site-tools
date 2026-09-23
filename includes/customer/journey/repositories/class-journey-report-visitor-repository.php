@@ -51,25 +51,44 @@ final class Journey_Report_Visitor_Repository {
 	 * server-recorded WordPress user ID. Anonymous visitors are included only
 	 * while no identity period has ever linked that visitor to a user.
 	 *
-	 * @param int $limit Number of report subjects, at most MAX_PAGE_SIZE.
+	 * When supplied, from_utc is inclusive and until_utc is exclusive. The two
+	 * range boundaries must be supplied together.
+	 *
+	 * @param int         $limit     Number of report subjects, at most MAX_PAGE_SIZE.
+	 * @param string|null $from_utc  Optional inclusive UTC datetime.
+	 * @param string|null $until_utc Optional exclusive UTC datetime.
 	 * @return list<RecentSubject>|null Recent subjects or null on failure.
 	 */
-	public function recent_subjects( int $limit = 50 ): ?array {
-		if ( 1 > $limit || self::MAX_PAGE_SIZE < $limit || ! $this->schema_migrator->is_ready() ) {
+	public function recent_subjects( int $limit = 50, ?string $from_utc = null, ?string $until_utc = null ): ?array {
+		if (
+			1 > $limit || self::MAX_PAGE_SIZE < $limit ||
+			( null === $from_utc ) !== ( null === $until_utc ) ||
+			! $this->schema_migrator->is_ready()
+		) {
+			return null;
+		}
+		if (
+			null !== $from_utc && null !== $until_utc &&
+			( ! $this->valid_time( value: $from_utc ) || ! $this->valid_time( value: $until_utc ) || $from_utc >= $until_utc )
+		) {
 			return null;
 		}
 
 		global $wpdb;
+		$from_utc  = $from_utc ?? '1000-01-01 00:00:00';
+		$until_utc = $until_utc ?? '9999-12-31 23:59:59';
 
 		$rows = $wpdb->get_results(
 			$wpdb->prepare(
 				'SELECT recent.subject_type, recent.subject_id, MAX(recent.occurred_at) AS last_activity_at
 				FROM (
 					SELECT \'customer\' AS subject_type, e.user_id_at_event AS subject_id, e.occurred_at
-					FROM %i e WHERE e.user_id_at_event IS NOT NULL
+					FROM %i e
+					WHERE e.user_id_at_event IS NOT NULL AND e.occurred_at >= %s AND e.occurred_at < %s
 					UNION ALL
 					SELECT \'visitor\' AS subject_type, e.visitor_id AS subject_id, e.occurred_at
-					FROM %i e WHERE e.user_id_at_event IS NULL
+					FROM %i e
+					WHERE e.user_id_at_event IS NULL AND e.occurred_at >= %s AND e.occurred_at < %s
 					AND NOT EXISTS (
 						SELECT 1 FROM %i p WHERE p.visitor_id = e.visitor_id AND p.user_id IS NOT NULL
 					)
@@ -78,7 +97,11 @@ final class Journey_Report_Visitor_Repository {
 				ORDER BY last_activity_at DESC, recent.subject_type ASC, recent.subject_id DESC
 				LIMIT %d',
 				$wpdb->prefix . 'shurloc_journey_events',
+				$from_utc,
+				$until_utc,
 				$wpdb->prefix . 'shurloc_journey_events',
+				$from_utc,
+				$until_utc,
 				$wpdb->prefix . 'shurloc_journey_identity_periods',
 				$limit
 			)

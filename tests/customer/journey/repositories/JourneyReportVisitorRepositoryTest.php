@@ -98,7 +98,11 @@ final class JourneyReportVisitorRepositoryTest extends TestCase {
 		self::assertSame(
 			array(
 				'shop_shurloc_journey_events',
+				'1000-01-01 00:00:00',
+				'9999-12-31 23:59:59',
 				'shop_shurloc_journey_events',
+				'1000-01-01 00:00:00',
+				'9999-12-31 23:59:59',
 				'shop_shurloc_journey_identity_periods',
 				25,
 			),
@@ -110,6 +114,38 @@ final class JourneyReportVisitorRepositoryTest extends TestCase {
 		self::assertStringContainsString( 'GROUP BY recent.subject_type, recent.subject_id', $query['query'] );
 		self::assertStringContainsString( 'ORDER BY last_activity_at DESC', $query['query'] );
 		self::assertStringNotContainsString( 'visitor_uuid', $query['query'] );
+	}
+
+	/**
+	 * Optional range boundaries filter both event branches before grouping.
+	 *
+	 * @return void
+	 */
+	public function test_filters_recent_subjects_by_half_open_utc_range(): void {
+		$this->database->results = array( $this->recent_subject_row() );
+
+		$subjects = ( new Journey_Report_Visitor_Repository() )->recent_subjects(
+			limit: 25,
+			from_utc: '2026-09-01 07:00:00',
+			until_utc: '2026-10-01 07:00:00'
+		);
+
+		self::assertSame( 7, $subjects[0]['subject_id'] ?? null );
+		$query = $this->database->prepared_queries[0];
+		self::assertSame(
+			array(
+				'wp_shurloc_journey_events',
+				'2026-09-01 07:00:00',
+				'2026-10-01 07:00:00',
+				'wp_shurloc_journey_events',
+				'2026-09-01 07:00:00',
+				'2026-10-01 07:00:00',
+				'wp_shurloc_journey_identity_periods',
+				25,
+			),
+			$query['args']
+		);
+		self::assertSame( 2, substr_count( $query['query'], 'e.occurred_at >= %s AND e.occurred_at < %s' ) );
 	}
 
 	/**
@@ -190,6 +226,11 @@ final class JourneyReportVisitorRepositoryTest extends TestCase {
 
 		self::assertNull( $repository->recent_subjects( limit: 0 ) );
 		self::assertNull( $repository->recent_subjects( limit: 101 ) );
+		self::assertNull( $repository->recent_subjects( from_utc: '2026-09-01 00:00:00' ) );
+		self::assertNull( $repository->recent_subjects( until_utc: '2026-10-01 00:00:00' ) );
+		self::assertNull( $repository->recent_subjects( from_utc: 'invalid', until_utc: '2026-10-01 00:00:00' ) );
+		self::assertNull( $repository->recent_subjects( from_utc: '2026-10-01 00:00:00', until_utc: '2026-09-01 00:00:00' ) );
+		self::assertNull( $repository->recent_subjects( from_utc: '2026-10-01 00:00:00', until_utc: '2026-10-01 00:00:00' ) );
 		self::assertNull( $repository->anonymous_visitors( limit: 0 ) );
 		self::assertNull( $repository->anonymous_visitors( limit: 101 ) );
 		self::assertNull( $repository->anonymous_visitors( before_at: '2026-09-17 12:00:00' ) );
