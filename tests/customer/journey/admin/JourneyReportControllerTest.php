@@ -256,6 +256,38 @@ final class JourneyReportControllerTest extends TestCase {
 	}
 
 	/**
+	 * An empty anonymous selection lists all subjects active in the date range.
+	 *
+	 * @return void
+	 */
+	public function test_empty_anonymous_search_lists_journeys_in_selected_range(): void {
+		$_GET                    = array(
+			'journey_subject' => 'visitor',
+			'journey_from'    => '2026-09-01',
+			'journey_to'      => '2026-09-18',
+		);
+		$this->database->results = array(
+			(object) array(
+				'subject_type'     => 'visitor',
+				'subject_id'       => '12',
+				'last_activity_at' => '2026-09-17 12:00:00',
+			),
+		);
+
+		$output = $this->render();
+
+		self::assertStringContainsString( 'Anonymous visitor (optional)', $output );
+		self::assertStringContainsString( '<option value="">All journeys</option>', $output );
+		self::assertStringContainsString( '<h3>Journeys in Selected Date Range</h3>', $output );
+		self::assertStringContainsString( '>Anonymous Visitor #12</a>', $output );
+		self::assertStringNotContainsString( 'Select a valid anonymous visitor.', $output );
+		self::assertStringContainsString( 'journey_from=2026-09-01&amp;journey_to=2026-09-18&amp;journey_subject=visitor&amp;journey_visitor_id=12', $output );
+		self::assertCount( 1, $this->database->prepared_queries );
+		self::assertSame( '2026-09-01 07:00:00', $this->database->prepared_queries[0]['args'][1] );
+		self::assertSame( '2026-09-19 07:00:00', $this->database->prepared_queries[0]['args'][2] );
+	}
+
+	/**
 	 * Customer requests load one event page, its sessions, and linked history.
 	 *
 	 * @return void
@@ -398,6 +430,10 @@ final class JourneyReportControllerTest extends TestCase {
 				'journey_subject' => 'customer',
 				'journey_from'    => '2026-09-31',
 				'journey_to'      => '2026-09-31',
+			),
+			array(
+				'journey_subject'    => 'visitor',
+				'journey_visitor_id' => 'invalid',
 			),
 			array(
 				'journey_subject'    => 'visitor',

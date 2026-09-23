@@ -166,10 +166,11 @@ final class Journey_Report_Controller {
 			$to_date = $this->now->setTimezone( $this->timezone )->format( 'Y-m-d' );
 		}
 
-		$user_value = $this->request_value( key: 'journey_user_id' );
-		$user_id    = $this->positive_integer( value: $user_value );
-		$visitor_id = $this->positive_integer( value: $this->request_value( key: 'journey_visitor_id' ) );
-		$user       = 'customer' === $subject && null !== $user_id ? get_userdata( $user_id ) : false;
+		$user_value    = $this->request_value( key: 'journey_user_id' );
+		$user_id       = $this->positive_integer( value: $user_value );
+		$visitor_value = $this->request_value( key: 'journey_visitor_id' );
+		$visitor_id    = $this->positive_integer( value: $visitor_value );
+		$user          = 'customer' === $subject && null !== $user_id ? get_userdata( $user_id ) : false;
 
 		if ( '' === $subject ) {
 			$this->render_landing( from_date: $from_date, to_date: $to_date );
@@ -197,7 +198,7 @@ final class Journey_Report_Controller {
 			return;
 		}
 
-		if ( 'visitor' === $subject && null === $visitor_id ) {
+		if ( 'visitor' === $subject && '' !== $visitor_value && null === $visitor_id ) {
 			$this->render_error( message: __( 'Select a valid anonymous visitor.', 'shurloc-site-tools' ) );
 			return;
 		}
@@ -208,7 +209,10 @@ final class Journey_Report_Controller {
 			return;
 		}
 
-		if ( 'customer' === $subject && null === $user_id ) {
+		if (
+			( 'customer' === $subject && null === $user_id ) ||
+			( 'visitor' === $subject && null === $visitor_id )
+		) {
 			$subjects = $this->visitor_repository->recent_subjects(
 				limit: self::RECENT_SUBJECT_LIMIT,
 				from_utc: $range['from_utc'],
@@ -364,15 +368,14 @@ final class Journey_Report_Controller {
 
 			<form method="get">
 				<?php $this->render_common_fields( subject: 'visitor', from_date: $from_date, to_date: $to_date ); ?>
-				<label for="shurloc-journey-visitor"><?php echo esc_html__( 'Anonymous visitor', 'shurloc-site-tools' ); ?></label>
+				<label for="shurloc-journey-visitor"><?php echo esc_html__( 'Anonymous visitor (optional)', 'shurloc-site-tools' ); ?></label>
 				<select id="shurloc-journey-visitor" name="journey_visitor_id">
 					<?php if ( null !== $selected_visitor_id ) : ?>
 						<option value="<?php echo esc_attr( (string) $selected_visitor_id ); ?>" selected>
 							<?php echo esc_html( $this->visitor_label( visitor_id: $selected_visitor_id ) ); ?>
 						</option>
-					<?php elseif ( array() === $visitors ) : ?>
-						<option value=""><?php echo esc_html__( 'No anonymous visitors found', 'shurloc-site-tools' ); ?></option>
 					<?php else : ?>
+						<option value=""><?php echo esc_html__( 'All journeys', 'shurloc-site-tools' ); ?></option>
 						<?php foreach ( $visitors as $visitor ) : ?>
 							<option value="<?php echo esc_attr( (string) $visitor['id'] ); ?>">
 								<?php echo esc_html( $this->visitor_label( visitor_id: $visitor['id'] ) . ' — ' . __( 'last seen', 'shurloc-site-tools' ) . ' ' . $this->local_datetime( utc: $visitor['last_seen_at'] ) ); ?>
@@ -380,7 +383,7 @@ final class Journey_Report_Controller {
 						<?php endforeach; ?>
 					<?php endif; ?>
 				</select>
-				<?php submit_button( __( 'View Anonymous Journey', 'shurloc-site-tools' ), 'secondary', 'submit', false ); ?>
+				<?php submit_button( __( 'View Journeys', 'shurloc-site-tools' ), 'secondary', 'submit', false ); ?>
 			</form>
 		</div>
 		<?php
