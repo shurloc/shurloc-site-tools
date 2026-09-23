@@ -166,7 +166,8 @@ final class Journey_Report_Controller {
 			$to_date = $this->now->setTimezone( $this->timezone )->format( 'Y-m-d' );
 		}
 
-		$user_id    = $this->positive_integer( value: $this->request_value( key: 'journey_user_id' ) );
+		$user_value = $this->request_value( key: 'journey_user_id' );
+		$user_id    = $this->positive_integer( value: $user_value );
 		$visitor_id = $this->positive_integer( value: $this->request_value( key: 'journey_visitor_id' ) );
 		$user       = 'customer' === $subject && null !== $user_id ? get_userdata( $user_id ) : false;
 
@@ -188,7 +189,10 @@ final class Journey_Report_Controller {
 			return;
 		}
 
-		if ( 'customer' === $subject && ( null === $user_id || ! $user instanceof WP_User ) ) {
+		if (
+			'customer' === $subject &&
+			( ( '' !== $user_value && null === $user_id ) || ( null !== $user_id && ! $user instanceof WP_User ) )
+		) {
 			$this->render_error( message: __( 'Select a valid WordPress customer.', 'shurloc-site-tools' ) );
 			return;
 		}
@@ -201,6 +205,21 @@ final class Journey_Report_Controller {
 		$range = $this->utc_range( from_date: $from_date, to_date: $to_date );
 		if ( null === $range ) {
 			$this->render_error( message: __( 'Choose a valid date range of no more than 31 days.', 'shurloc-site-tools' ) );
+			return;
+		}
+
+		if ( 'customer' === $subject && null === $user_id ) {
+			$subjects = $this->visitor_repository->recent_subjects(
+				limit: self::RECENT_SUBJECT_LIMIT,
+				from_utc: $range['from_utc'],
+				until_utc: $range['until_utc']
+			);
+			if ( null === $subjects ) {
+				$this->render_unavailable();
+				return;
+			}
+
+			$this->render_recent_subjects( subjects: $subjects, from_date: $from_date, to_date: $to_date );
 			return;
 		}
 
@@ -319,19 +338,19 @@ final class Journey_Report_Controller {
 	): void {
 		?>
 		<h2><?php echo esc_html__( 'Customer Journeys', 'shurloc-site-tools' ); ?></h2>
-		<p><?php echo esc_html__( 'Inspect one customer or never-linked anonymous visitor over a bounded date range.', 'shurloc-site-tools' ); ?></p>
+		<p><?php echo esc_html__( 'Inspect journeys over a bounded date range, optionally narrowed to one customer or anonymous visitor.', 'shurloc-site-tools' ); ?></p>
 
 		<div class="shurloc-journey-selectors">
 			<form method="get">
 				<?php $this->render_common_fields( subject: 'customer', from_date: $from_date, to_date: $to_date ); ?>
-				<label for="shurloc-journey-customer"><?php echo esc_html__( 'Customer', 'shurloc-site-tools' ); ?></label>
+				<label for="shurloc-journey-customer"><?php echo esc_html__( 'Customer (optional)', 'shurloc-site-tools' ); ?></label>
 				<select
 					id="shurloc-journey-customer"
 					name="journey_user_id"
 					class="wc-customer-search"
 					data-action="woocommerce_json_search_customers"
 					data-allow_clear="true"
-					data-placeholder="<?php echo esc_attr__( 'Search for a customer', 'shurloc-site-tools' ); ?>"
+					data-placeholder="<?php echo esc_attr__( 'All journeys', 'shurloc-site-tools' ); ?>"
 					style="width: 320px"
 				>
 					<?php if ( null !== $selected_user ) : ?>
@@ -340,7 +359,7 @@ final class Journey_Report_Controller {
 						</option>
 					<?php endif; ?>
 				</select>
-				<?php submit_button( __( 'View Customer Journey', 'shurloc-site-tools' ), 'secondary', 'submit', false ); ?>
+				<?php submit_button( __( 'View Journeys', 'shurloc-site-tools' ), 'secondary', 'submit', false ); ?>
 			</form>
 
 			<form method="get">
@@ -370,15 +389,24 @@ final class Journey_Report_Controller {
 	/**
 	 * Render authenticated customers and anonymous visitors by latest activity.
 	 *
-	 * @param array $subjects Validated recent report subjects.
+	 * @param array       $subjects  Validated recent report subjects.
+	 * @param string|null $from_date Optional inclusive local report date.
+	 * @param string|null $to_date   Optional inclusive local report date.
 	 * @return void
 	 * @phpstan-param list<RecentSubject> $subjects
 	 */
-	private function render_recent_subjects( array $subjects ): void {
+	private function render_recent_subjects( array $subjects, ?string $from_date = null, ?string $to_date = null ): void {
+		$range_selected = null !== $from_date && null !== $to_date;
+		$heading        = $range_selected
+			? __( 'Journeys in Selected Date Range', 'shurloc-site-tools' )
+			: __( 'Recent Journeys', 'shurloc-site-tools' );
+		$empty_message  = $range_selected
+			? __( 'No journeys were found in this date range.', 'shurloc-site-tools' )
+			: __( 'No customer journeys have been recorded.', 'shurloc-site-tools' );
 		?>
-		<h3><?php echo esc_html__( 'Recent Journeys', 'shurloc-site-tools' ); ?></h3>
+		<h3><?php echo esc_html( $heading ); ?></h3>
 		<?php if ( array() === $subjects ) : ?>
-			<p><?php echo esc_html__( 'No customer journeys have been recorded.', 'shurloc-site-tools' ); ?></p>
+			<p><?php echo esc_html( $empty_message ); ?></p>
 			<?php return; ?>
 		<?php endif; ?>
 
@@ -392,7 +420,7 @@ final class Journey_Report_Controller {
 			</thead>
 			<tbody>
 				<?php foreach ( $subjects as $subject ) : ?>
-					<?php $this->render_recent_subject_row( subject: $subject ); ?>
+					<?php $this->render_recent_subject_row( subject: $subject, from_date: $from_date, to_date: $to_date ); ?>
 				<?php endforeach; ?>
 			</tbody>
 		</table>
@@ -402,11 +430,13 @@ final class Journey_Report_Controller {
 	/**
 	 * Render one recent report subject with a link when it remains viewable.
 	 *
-	 * @param array $subject Validated recent report subject.
+	 * @param array       $subject   Validated recent report subject.
+	 * @param string|null $from_date Optional inclusive local report date.
+	 * @param string|null $to_date   Optional inclusive local report date.
 	 * @return void
 	 * @phpstan-param RecentSubject $subject
 	 */
-	private function render_recent_subject_row( array $subject ): void {
+	private function render_recent_subject_row( array $subject, ?string $from_date, ?string $to_date ): void {
 		$user        = 'customer' === $subject['subject_type'] ? get_userdata( $subject['subject_id'] ) : false;
 		$is_customer = $user instanceof WP_User;
 		$label       = $is_customer
@@ -419,7 +449,7 @@ final class Journey_Report_Controller {
 		<tr>
 			<td>
 				<?php if ( 'visitor' === $subject['subject_type'] || $is_customer ) : ?>
-					<a href="<?php echo esc_url( $this->recent_subject_url( subject: $subject ) ); ?>"><?php echo esc_html( $label ); ?></a>
+					<a href="<?php echo esc_url( $this->recent_subject_url( subject: $subject, from_date: $from_date, to_date: $to_date ) ); ?>"><?php echo esc_html( $label ); ?></a>
 				<?php else : ?>
 					<?php
 					echo esc_html(
@@ -439,18 +469,25 @@ final class Journey_Report_Controller {
 	}
 
 	/**
-	 * Build a seven-day report URL ending on the subject's latest activity day.
+	 * Build a report URL, defaulting to the subject's latest seven-day window.
 	 *
-	 * @param array $subject Validated recent report subject.
+	 * @param array       $subject   Validated recent report subject.
+	 * @param string|null $from_date Optional inclusive local report date.
+	 * @param string|null $to_date   Optional inclusive local report date.
 	 * @return string Report URL.
 	 * @phpstan-param RecentSubject $subject
 	 */
-	private function recent_subject_url( array $subject ): string {
-		$latest                  = DateTimeImmutable::createFromFormat( '!Y-m-d H:i:s', $subject['last_activity_at'], new DateTimeZone( 'UTC' ) );
-		$latest                  = false === $latest ? $this->now : $latest->setTimezone( $this->timezone );
+	private function recent_subject_url( array $subject, ?string $from_date, ?string $to_date ): string {
+		if ( null === $from_date || null === $to_date ) {
+			$latest    = DateTimeImmutable::createFromFormat( '!Y-m-d H:i:s', $subject['last_activity_at'], new DateTimeZone( 'UTC' ) );
+			$latest    = false === $latest ? $this->now : $latest->setTimezone( $this->timezone );
+			$from_date = $latest->modify( '-6 days' )->format( 'Y-m-d' );
+			$to_date   = $latest->format( 'Y-m-d' );
+		}
+
 		$args                    = $this->base_url_args(
-			from_date: $latest->modify( '-6 days' )->format( 'Y-m-d' ),
-			to_date: $latest->format( 'Y-m-d' )
+			from_date: $from_date,
+			to_date: $to_date
 		);
 		$args['journey_subject'] = $subject['subject_type'];
 		if ( 'customer' === $subject['subject_type'] ) {

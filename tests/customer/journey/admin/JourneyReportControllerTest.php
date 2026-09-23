@@ -185,6 +185,77 @@ final class JourneyReportControllerTest extends TestCase {
 	}
 
 	/**
+	 * An empty customer selection lists all subjects active in the date range.
+	 *
+	 * @return void
+	 */
+	public function test_empty_customer_search_lists_journeys_in_selected_range(): void {
+		$_GET                                 = array(
+			'journey_subject' => 'customer',
+			'journey_from'    => '2026-09-01',
+			'journey_to'      => '2026-09-18',
+		);
+		$GLOBALS['shurloc_test_users'][7]     = true;
+		$GLOBALS['shurloc_test_user_data'][7] = array( 'display_name' => 'alice' );
+		$this->database->results              = array(
+			(object) array(
+				'subject_type'     => 'customer',
+				'subject_id'       => '7',
+				'last_activity_at' => '2026-09-18 12:00:00',
+			),
+			(object) array(
+				'subject_type'     => 'visitor',
+				'subject_id'       => '12',
+				'last_activity_at' => '2026-09-17 12:00:00',
+			),
+		);
+
+		$output = $this->render();
+
+		self::assertStringContainsString( 'Customer (optional)', $output );
+		self::assertStringContainsString( 'data-placeholder="All journeys"', $output );
+		self::assertStringContainsString( 'value="View Journeys"', $output );
+		self::assertStringContainsString( '<h3>Journeys in Selected Date Range</h3>', $output );
+		self::assertStringContainsString( '>alice (#7)</a>', $output );
+		self::assertStringContainsString( '>Anonymous Visitor #12</a>', $output );
+		self::assertStringNotContainsString( 'Select a valid WordPress customer.', $output );
+		self::assertStringContainsString( 'journey_from=2026-09-01&amp;journey_to=2026-09-18&amp;journey_subject=customer&amp;journey_user_id=7', $output );
+		self::assertStringContainsString( 'journey_from=2026-09-01&amp;journey_to=2026-09-18&amp;journey_subject=visitor&amp;journey_visitor_id=12', $output );
+		self::assertCount( 1, $this->database->prepared_queries );
+		self::assertSame(
+			array(
+				'wp_shurloc_journey_events',
+				'2026-09-01 07:00:00',
+				'2026-09-19 07:00:00',
+				'wp_shurloc_journey_events',
+				'2026-09-01 07:00:00',
+				'2026-09-19 07:00:00',
+				'wp_shurloc_journey_identity_periods',
+				50,
+			),
+			$this->database->prepared_queries[0]['args']
+		);
+	}
+
+	/**
+	 * Empty range searches render a clear no-results message.
+	 *
+	 * @return void
+	 */
+	public function test_empty_customer_search_reports_no_journeys_in_range(): void {
+		$_GET = array(
+			'journey_subject' => 'customer',
+			'journey_from'    => '2026-09-01',
+			'journey_to'      => '2026-09-18',
+		);
+
+		$output = $this->render();
+
+		self::assertStringContainsString( 'No journeys were found in this date range.', $output );
+		self::assertCount( 1, $this->database->prepared_queries );
+	}
+
+	/**
 	 * Customer requests load one event page, its sessions, and linked history.
 	 *
 	 * @return void
@@ -318,6 +389,15 @@ final class JourneyReportControllerTest extends TestCase {
 			array(
 				'journey_subject' => 'customer',
 				'journey_user_id' => '7',
+			),
+			array(
+				'journey_subject' => 'customer',
+				'journey_user_id' => 'invalid',
+			),
+			array(
+				'journey_subject' => 'customer',
+				'journey_from'    => '2026-09-31',
+				'journey_to'      => '2026-09-31',
 			),
 			array(
 				'journey_subject'    => 'visitor',
