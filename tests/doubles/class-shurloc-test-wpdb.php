@@ -52,6 +52,14 @@ use Shurloc\SiteTools\Customer\Journey\Migrations\Journey_Schema_V2;
  *     first_utm_term?:string|null,
  *     first_utm_content?:string|null
  * }
+ * @phpstan-type CartLinkRow array{
+ *     id:int,
+ *     cart_token_hash:string,
+ *     visitor_id:int,
+ *     session_id:int,
+ *     linked_at:string,
+ *     last_seen_at:string
+ * }
  */
 final class Shurloc_Test_WPDB {
 
@@ -201,6 +209,13 @@ final class Shurloc_Test_WPDB {
 	public array $events = array();
 
 	/**
+	 * Journey cart links keyed by their ID.
+	 *
+	 * @var array<int,CartLinkRow>
+	 */
+	public array $cart_links = array();
+
+	/**
 	 * Insert calls and their arguments.
 	 *
 	 * @var list<array{table:string,data:array<string,mixed>,formats:array<int,string>}>
@@ -329,6 +344,20 @@ final class Shurloc_Test_WPDB {
 	public bool $fail_event_select = false;
 
 	/**
+	 * Simulate a cart-link upsert failure.
+	 *
+	 * @var bool
+	 */
+	public bool $fail_cart_link_upsert = false;
+
+	/**
+	 * Simulate a cart-link cleanup failure.
+	 *
+	 * @var bool
+	 */
+	public bool $fail_cart_link_delete = false;
+
+	/**
 	 * Simulate a view-duration event update failure.
 	 *
 	 * @var bool
@@ -378,6 +407,13 @@ final class Shurloc_Test_WPDB {
 	private int $next_event_id = 1;
 
 	/**
+	 * Next Journey cart-link ID.
+	 *
+	 * @var int
+	 */
+	private int $next_cart_link_id = 1;
+
+	/**
 	 * Transaction snapshot of identity periods.
 	 *
 	 * @var array<int,array{id:int,visitor_id:int,user_id:int|null,started_at:string,linked_at:string|null,ended_at:string|null}>|null
@@ -397,6 +433,13 @@ final class Shurloc_Test_WPDB {
 	 * @var array<int,array<string,mixed>>|null
 	 */
 	private ?array $snapshot_events = null;
+
+	/**
+	 * Transaction snapshot of Journey cart links.
+	 *
+	 * @var array<int,CartLinkRow>|null
+	 */
+	private ?array $snapshot_cart_links = null;
 
 	/**
 	 * Next period ID before transaction start.
@@ -463,6 +506,20 @@ final class Shurloc_Test_WPDB {
 	 * @return string|null Visitor ID, or null when missing.
 	 */
 	public function get_var( string $query ): ?string {
+		if ( str_starts_with( $query, 'SELECT id FROM %i WHERE id = %d AND visitor_id = %d LIMIT 1 FOR UPDATE' ) ) {
+			if ( $this->fail_session_select ) {
+				return null;
+			}
+
+			$session_id = (int) $this->last_args[1];
+			$visitor_id = (int) $this->last_args[2];
+
+			return isset( $this->sessions[ $session_id ] ) &&
+				$visitor_id === $this->sessions[ $session_id ]['visitor_id']
+				? (string) $session_id
+				: null;
+		}
+
 		if ( str_starts_with( $query, 'SELECT id FROM %i WHERE visitor_uuid = %s' ) ) {
 			$uuid = (string) $this->last_args[1];
 			$row  = $this->visitors[ $uuid ] ?? $this->visitor_rows[ $uuid ] ?? null;
@@ -810,6 +867,7 @@ final class Shurloc_Test_WPDB {
 			$this->snapshot                 = $this->periods;
 			$this->snapshot_sessions        = $this->sessions;
 			$this->snapshot_events          = $this->events;
+			$this->snapshot_cart_links      = $this->cart_links;
 			$this->snapshot_next_period_id  = $this->next_period_id;
 			$this->snapshot_next_session_id = $this->next_session_id;
 			return 0;
@@ -820,9 +878,10 @@ final class Shurloc_Test_WPDB {
 				return false;
 			}
 
-			$this->snapshot          = null;
-			$this->snapshot_sessions = null;
-			$this->snapshot_events   = null;
+			$this->snapshot            = null;
+			$this->snapshot_sessions   = null;
+			$this->snapshot_events     = null;
+			$this->snapshot_cart_links = null;
 			return 0;
 		}
 
@@ -841,8 +900,89 @@ final class Shurloc_Test_WPDB {
 				$this->events          = $this->snapshot_events;
 				$this->snapshot_events = null;
 			}
+			if ( null !== $this->snapshot_cart_links ) {
+				$this->cart_links          = $this->snapshot_cart_links;
+				$this->snapshot_cart_links = null;
+			}
 
 			return 0;
+		}
+
+		if ( str_starts_with( $query, 'INSERT INTO %i (cart_token_hash, visitor_id, session_id, linked_at, last_seen_at)' ) ) {
+			if ( $this->fail_cart_link_upsert ) {
+				return false;
+			}
+
+			$cart_token_hash = (string) $this->last_args[1];
+			$visitor_id      = (int) $this->last_args[2];
+			$session_id      = (int) $this->last_args[3];
+			$linked_at       = (string) $this->last_args[4];
+			$last_seen_at    = (string) $this->last_args[5];
+
+			foreach ( $this->cart_links as $id => $link ) {
+				if ( $cart_token_hash !== $link['cart_token_hash'] || $session_id !== $link['session_id'] ) {
+					continue;
+				}
+
+				$changed = $visitor_id !== $link['visitor_id'] || $last_seen_at > $link['last_seen_at'];
+
+				$this->cart_links[ $id ]['visitor_id'] = $visitor_id;
+				if ( $last_seen_at > $link['last_seen_at'] ) {
+					$this->cart_links[ $id ]['last_seen_at'] = $last_seen_at;
+				}
+
+				return $changed ? 2 : 0;
+			}
+
+			$id                      = $this->next_cart_link_id++;
+			$this->cart_links[ $id ] = array(
+				'id'              => $id,
+				'cart_token_hash' => $cart_token_hash,
+				'visitor_id'      => $visitor_id,
+				'session_id'      => $session_id,
+				'linked_at'       => $linked_at,
+				'last_seen_at'    => $last_seen_at,
+			);
+
+			return 1;
+		}
+
+		if ( str_starts_with( $query, 'DELETE FROM %i WHERE session_id IN (' ) &&
+			str_ends_with( (string) $this->last_args[0], 'shurloc_journey_cart_links' ) ) {
+			if ( $this->fail_cart_link_delete ) {
+				return false;
+			}
+
+			$session_ids = array_map( 'intval', array_slice( $this->last_args, 1 ) );
+			$deleted     = 0;
+
+			foreach ( $this->cart_links as $id => $link ) {
+				if ( in_array( $link['session_id'], $session_ids, true ) ) {
+					unset( $this->cart_links[ $id ] );
+					++$deleted;
+				}
+			}
+
+			return $deleted;
+		}
+
+		if ( 'DELETE FROM %i WHERE visitor_id = %d' === $query &&
+			str_ends_with( (string) $this->last_args[0], 'shurloc_journey_cart_links' ) ) {
+			if ( $this->fail_cart_link_delete ) {
+				return false;
+			}
+
+			$visitor_id = (int) $this->last_args[1];
+			$deleted    = 0;
+
+			foreach ( $this->cart_links as $id => $link ) {
+				if ( $visitor_id === $link['visitor_id'] ) {
+					unset( $this->cart_links[ $id ] );
+					++$deleted;
+				}
+			}
+
+			return $deleted;
 		}
 
 		if ( str_starts_with( $query, 'UPDATE %i SET %i = %i + ' ) &&
