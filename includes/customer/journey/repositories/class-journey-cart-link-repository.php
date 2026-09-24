@@ -123,6 +123,42 @@ final class Journey_Cart_Link_Repository {
 	}
 
 	/**
+	 * Find the visitor most recently linked to a WooCommerce cart token.
+	 *
+	 * Ordering by ID makes equal activity timestamps deterministic. The query
+	 * matches the cart_recent index created by the Journey v2 schema.
+	 *
+	 * @param string $cart_token_hash Lowercase SHA-256 cart-token hash.
+	 * @return int|null Journey visitor ID, or null when no usable link exists.
+	 */
+	public function find_latest_visitor_id( string $cart_token_hash ): ?int {
+		if (
+			1 !== preg_match( '/\A[0-9a-f]{64}\z/', $cart_token_hash ) ||
+			! $this->schema_migrator->is_ready()
+		) {
+			return null;
+		}
+
+		global $wpdb;
+
+		$value = $wpdb->get_var(
+			$wpdb->prepare(
+				'SELECT visitor_id FROM %i WHERE cart_token_hash = %s ORDER BY last_seen_at DESC, id DESC LIMIT 1',
+				$this->table_name(),
+				$cart_token_hash
+			)
+		);
+
+		$visitor_id = filter_var(
+			$value,
+			FILTER_VALIDATE_INT,
+			array( 'options' => array( 'min_range' => 1 ) )
+		);
+
+		return false === $visitor_id ? null : $visitor_id;
+	}
+
+	/**
 	 * Delete links for a validated list of Journey session IDs.
 	 *
 	 * The caller may include this operation in a wider retention or privacy

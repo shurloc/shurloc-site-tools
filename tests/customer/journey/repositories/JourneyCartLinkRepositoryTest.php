@@ -201,6 +201,82 @@ final class JourneyCartLinkRepositoryTest extends TestCase {
 	}
 
 	/**
+	 * Verify a cart token resolves to its most recent deterministic visitor.
+	 *
+	 * @return void
+	 */
+	public function test_finds_latest_visitor_id_for_cart_token(): void {
+		$hash                       = str_repeat( '1', 64 );
+		$this->database->prefix     = 'shop_';
+		$this->database->cart_links = array(
+			1 => array(
+				'id'              => 1,
+				'cart_token_hash' => $hash,
+				'visitor_id'      => 10,
+				'session_id'      => 20,
+				'linked_at'       => '2026-09-24 10:00:00',
+				'last_seen_at'    => '2026-09-24 11:00:00',
+			),
+			2 => array(
+				'id'              => 2,
+				'cart_token_hash' => $hash,
+				'visitor_id'      => 11,
+				'session_id'      => 21,
+				'linked_at'       => '2026-09-24 12:00:00',
+				'last_seen_at'    => '2026-09-24 13:00:00',
+			),
+			3 => array(
+				'id'              => 3,
+				'cart_token_hash' => $hash,
+				'visitor_id'      => 12,
+				'session_id'      => 22,
+				'linked_at'       => '2026-09-24 12:30:00',
+				'last_seen_at'    => '2026-09-24 13:00:00',
+			),
+			4 => array(
+				'id'              => 4,
+				'cart_token_hash' => str_repeat( '2', 64 ),
+				'visitor_id'      => 13,
+				'session_id'      => 23,
+				'linked_at'       => '2026-09-24 14:00:00',
+				'last_seen_at'    => '2026-09-24 14:00:00',
+			),
+		);
+
+		self::assertSame( 12, ( new Journey_Cart_Link_Repository() )->find_latest_visitor_id( $hash ) );
+		self::assertSame(
+			'SELECT visitor_id FROM %i WHERE cart_token_hash = %s ORDER BY last_seen_at DESC, id DESC LIMIT 1',
+			$this->database->prepared_queries[0]['query']
+		);
+		self::assertSame(
+			array( 'shop_shurloc_journey_cart_links', $hash ),
+			$this->database->prepared_queries[0]['args']
+		);
+	}
+
+	/**
+	 * Verify invalid, unavailable, missing, and failed cart lookups return null.
+	 *
+	 * @return void
+	 */
+	public function test_latest_visitor_lookup_rejects_unusable_results(): void {
+		$repository = new Journey_Cart_Link_Repository();
+		$hash       = str_repeat( '3', 64 );
+
+		self::assertNull( $repository->find_latest_visitor_id( str_repeat( 'A', 64 ) ) );
+		self::assertNull( $repository->find_latest_visitor_id( str_repeat( '3', 63 ) ) );
+		self::assertSame( array(), $this->database->prepared_queries );
+
+		self::assertNull( $repository->find_latest_visitor_id( $hash ) );
+		$this->database->fail_cart_link_select = true;
+		self::assertNull( $repository->find_latest_visitor_id( $hash ) );
+
+		$GLOBALS['shurloc_test_options'] = array();
+		self::assertNull( $repository->find_latest_visitor_id( $hash ) );
+		self::assertCount( 2, $this->database->prepared_queries );
+	}
+
+	/**
 	 * Verify cleanup can delete dependent links by session or visitor.
 	 *
 	 * @return void

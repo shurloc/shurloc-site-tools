@@ -351,6 +351,13 @@ final class Shurloc_Test_WPDB {
 	public bool $fail_cart_link_upsert = false;
 
 	/**
+	 * Simulate a cart-link visitor lookup failure.
+	 *
+	 * @var bool
+	 */
+	public bool $fail_cart_link_select = false;
+
+	/**
 	 * Simulate a cart-link cleanup failure.
 	 *
 	 * @var bool
@@ -506,6 +513,33 @@ final class Shurloc_Test_WPDB {
 	 * @return string|null Visitor ID, or null when missing.
 	 */
 	public function get_var( string $query ): ?string {
+		if ( str_starts_with( $query, 'SELECT visitor_id FROM %i WHERE cart_token_hash = %s ORDER BY last_seen_at DESC, id DESC LIMIT 1' ) ) {
+			if ( $this->fail_cart_link_select ) {
+				return null;
+			}
+
+			$cart_token_hash = (string) $this->last_args[1];
+			$links           = array_values(
+				array_filter(
+					$this->cart_links,
+					static fn ( array $link ): bool => $cart_token_hash === $link['cart_token_hash']
+				)
+			);
+
+			usort(
+				$links,
+				static function ( array $first, array $second ): int {
+					$activity_order = $second['last_seen_at'] <=> $first['last_seen_at'];
+
+					return 0 !== $activity_order
+						? $activity_order
+						: $second['id'] <=> $first['id'];
+				}
+			);
+
+			return array() === $links ? null : (string) $links[0]['visitor_id'];
+		}
+
 		if ( str_starts_with( $query, 'SELECT id FROM %i WHERE id = %d AND visitor_id = %d LIMIT 1 FOR UPDATE' ) ) {
 			if ( $this->fail_session_select ) {
 				return null;
