@@ -9,6 +9,7 @@ declare( strict_types=1 );
 
 namespace Shurloc\SiteTools\Customer\Admin;
 
+use DateTimeImmutable;
 use PHPUnit\Framework\TestCase;
 use Shurloc\SiteTools\Customer\Formatters\Relative_Time_Formatter;
 use Shurloc\SiteTools\Customer\Repositories\Cart_Session_Repository;
@@ -64,6 +65,7 @@ final class CartsControllerTest extends TestCase {
 		$GLOBALS['shurloc_test_users']            = array();
 		$GLOBALS['shurloc_test_user_data']        = array();
 		$GLOBALS['shurloc_test_permalinks']       = array();
+		$GLOBALS['shurloc_test_timezone']         = 'UTC';
 
 		$this->current_time           = \time();
 		$GLOBALS['shurloc_test_time'] = $this->current_time;
@@ -99,6 +101,7 @@ final class CartsControllerTest extends TestCase {
 		$GLOBALS['shurloc_test_user_data']        = array();
 		$GLOBALS['shurloc_test_permalinks']       = array();
 		$GLOBALS['shurloc_test_time']             = 0;
+		$GLOBALS['shurloc_test_timezone']         = 'UTC';
 
 		parent::tearDown();
 	}
@@ -194,6 +197,34 @@ final class CartsControllerTest extends TestCase {
 		self::assertStringContainsString( '$25.00', $output );
 		self::assertStringContainsString( '10 minutes ago', $output );
 		self::assertStringContainsString( '>Active</td>', $output );
+		self::assertStringNotContainsString( 'tab=journeys', $output );
+	}
+
+	/**
+	 * Verify authenticated cart activity links to the prior 30 Journey days.
+	 *
+	 * @return void
+	 */
+	public function test_links_authenticated_cart_activity_to_customer_journeys(): void {
+
+		$last_activity_at = $this->current_time - 600;
+		$this->add_session(
+			session_key: '101',
+			last_activity_at: $last_activity_at,
+		);
+
+		$output   = $this->render();
+		$activity = new DateTimeImmutable( '@' . $last_activity_at );
+		$from     = $activity->modify( '-29 days' )->format( 'Y-m-d' );
+		$to       = $activity->format( 'Y-m-d' );
+
+		self::assertStringContainsString( '>10 minutes ago</a>', $output );
+		self::assertStringContainsString( 'page=shurloc-site-tools-customers', $output );
+		self::assertStringContainsString( 'tab=journeys', $output );
+		self::assertStringContainsString( 'journey_subject=customer', $output );
+		self::assertStringContainsString( 'journey_user_id=101', $output );
+		self::assertStringContainsString( 'journey_from=' . $from, $output );
+		self::assertStringContainsString( 'journey_to=' . $to, $output );
 	}
 
 	/**
