@@ -10,6 +10,7 @@ declare( strict_types=1 );
 namespace Shurloc\SiteTools;
 
 use PHPUnit\Framework\TestCase;
+use Shurloc\SiteTools\Customer\Journey\Migrations\Journey_Schema_Migrator;
 
 /**
  * Tests the plugin bootstrap.
@@ -25,10 +26,12 @@ final class BootstrapTest extends TestCase {
 
 		parent::setUp();
 
-		$GLOBALS['shurloc_test_actions']         = array();
-		$GLOBALS['shurloc_test_action_metadata'] = array();
-		$GLOBALS['shurloc_test_filters']         = array();
-		$GLOBALS['shurloc_test_filter_metadata'] = array();
+		$GLOBALS['shurloc_test_actions']          = array();
+		$GLOBALS['shurloc_test_action_metadata']  = array();
+		$GLOBALS['shurloc_test_filters']          = array();
+		$GLOBALS['shurloc_test_filter_metadata']  = array();
+		$GLOBALS['shurloc_test_activation_hooks'] = array();
+		$GLOBALS['shurloc_test_options']          = array();
 	}
 
 	/**
@@ -38,10 +41,12 @@ final class BootstrapTest extends TestCase {
 	 */
 	protected function tearDown(): void {
 
-		$GLOBALS['shurloc_test_actions']         = array();
-		$GLOBALS['shurloc_test_action_metadata'] = array();
-		$GLOBALS['shurloc_test_filters']         = array();
-		$GLOBALS['shurloc_test_filter_metadata'] = array();
+		$GLOBALS['shurloc_test_actions']          = array();
+		$GLOBALS['shurloc_test_action_metadata']  = array();
+		$GLOBALS['shurloc_test_filters']          = array();
+		$GLOBALS['shurloc_test_filter_metadata']  = array();
+		$GLOBALS['shurloc_test_activation_hooks'] = array();
+		$GLOBALS['shurloc_test_options']          = array();
 
 		parent::tearDown();
 	}
@@ -154,6 +159,39 @@ final class BootstrapTest extends TestCase {
 		self::assertArrayHasKey(
 			'add_meta_boxes_product',
 			$GLOBALS['shurloc_test_actions']
+		);
+	}
+
+	/**
+	 * Verify the main plugin file registers a working Journey activation hook.
+	 *
+	 * @return void
+	 */
+	public function test_plugin_activation_runs_journey_schema_migrator(): void {
+		$plugin_file = realpath( dirname( __DIR__ ) . '/shurloc-site-tools.php' );
+		self::assertIsString( $plugin_file );
+		require_once $plugin_file;
+
+		self::assertArrayHasKey(
+			$plugin_file,
+			$GLOBALS['shurloc_test_activation_hooks']
+		);
+		self::assertSame(
+			__NAMESPACE__ . '\\shurloc_site_tools_activate_journey_schema',
+			$GLOBALS['shurloc_test_activation_hooks'][ $plugin_file ]
+		);
+
+		$GLOBALS['shurloc_test_options'][ Journey_Schema_Migrator::VERSION_OPTION ] = 2;
+		$activation_callback = $GLOBALS['shurloc_test_activation_hooks'][ $plugin_file ];
+		$activation_callback();
+
+		self::assertSame(
+			'newer_schema',
+			$GLOBALS['shurloc_test_options'][ Journey_Schema_Migrator::FAILURE_OPTION ]
+		);
+		self::assertSame(
+			2,
+			$GLOBALS['shurloc_test_options'][ Journey_Schema_Migrator::VERSION_OPTION ]
 		);
 	}
 }

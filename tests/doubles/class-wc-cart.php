@@ -11,6 +11,23 @@ declare( strict_types=1 );
  * WooCommerce cart test double.
  */
 class WC_Cart {
+	/**
+	 * Get raw cart items without loading a session.
+	 *
+	 * @return array<string,array<string,mixed>>
+	 */
+	public function get_cart_contents(): array {
+		return array();
+	}
+
+	/**
+	 * Get items available for restoration after removal.
+	 *
+	 * @return array<string,array<string,mixed>>
+	 */
+	public function get_removed_cart_contents(): array {
+		return array();
+	}
 
 	/**
 	 * Get the cart contents.

@@ -11,7 +11,9 @@ namespace Shurloc\SiteTools\Customer\Admin;
 
 defined( 'ABSPATH' ) || exit;
 
+use DateTimeImmutable;
 use Shurloc\SiteTools\Customer\Formatters\Relative_Time_Formatter;
+use Shurloc\SiteTools\Customer\Journey\Admin\Journey_Report_Controller;
 use Shurloc\SiteTools\Customer\Repositories\Cart_Session_Repository;
 use Shurloc\SiteTools\Customer\Services\Cart_Listing_Service;
 use WP_User;
@@ -41,6 +43,9 @@ final class Carts_Controller {
 	 * @var string
 	 */
 	private const ASSET_HANDLE = 'shurloc-user-cart-column';
+
+	/** Calendar days included in a cart customer Journey link. */
+	private const JOURNEY_LOOKBACK_DAYS = 30;
 
 	/**
 	 * Cart listing service.
@@ -280,6 +285,7 @@ final class Carts_Controller {
 		$cart_contents     = isset( $item['cart_contents'] ) && is_array( $item['cart_contents'] )
 			? $item['cart_contents']
 			: array();
+		$last_activity_at  = isset( $item['last_activity_at'] ) ? (int) $item['last_activity_at'] : 0;
 
 		$cart_html = $this->cart_details_renderer->render(
 			reference: $session_reference,
@@ -297,11 +303,54 @@ final class Carts_Controller {
 				?>
 			</td>
 			<td>
-				<?php echo esc_html( $this->time_formatter->format( isset( $item['last_activity_at'] ) ? (int) $item['last_activity_at'] : 0 ) ); ?>
+				<?php $this->render_last_activity( user_id: $user_id, last_activity_at: $last_activity_at ); ?>
 			</td>
 			<td><?php echo esc_html( isset( $item['status'] ) && is_string( $item['status'] ) ? $item['status'] : '' ); ?></td>
 		</tr>
 		<?php
+	}
+
+	/**
+	 * Render cart activity with a customer Journey link when identity is known.
+	 *
+	 * Guest WooCommerce sessions have no reliable mapping to the separate
+	 * Journey visitor identity, so their activity remains plain text.
+	 *
+	 * @param int $user_id          Registered user ID, or zero for a guest.
+	 * @param int $last_activity_at Estimated cart activity timestamp.
+	 * @return void
+	 */
+	private function render_last_activity( int $user_id, int $last_activity_at ): void {
+		$label = $this->time_formatter->format( $last_activity_at );
+		if ( 0 >= $user_id || 0 >= $last_activity_at ) {
+			echo esc_html( $label );
+			return;
+		}
+
+		?>
+		<a href="<?php echo esc_url( $this->get_customer_journey_url( user_id: $user_id, last_activity_at: $last_activity_at ) ); ?>"><?php echo esc_html( $label ); ?></a>
+		<?php
+	}
+
+	/**
+	 * Build a customer Journey URL for the 30 days ending on cart activity.
+	 *
+	 * @param int $user_id          Registered user ID.
+	 * @param int $last_activity_at Estimated cart activity timestamp.
+	 * @return string Customer Journey report URL.
+	 */
+	private function get_customer_journey_url( int $user_id, int $last_activity_at ): string {
+		$activity = ( new DateTimeImmutable( '@' . $last_activity_at ) )->setTimezone( wp_timezone() );
+		$args     = array(
+			'page'            => Journey_Report_Controller::PAGE_SLUG,
+			'tab'             => Journey_Report_Controller::TAB_SLUG,
+			'journey_subject' => 'customer',
+			'journey_user_id' => $user_id,
+			'journey_from'    => $activity->modify( '-' . ( self::JOURNEY_LOOKBACK_DAYS - 1 ) . ' days' )->format( 'Y-m-d' ),
+			'journey_to'      => $activity->format( 'Y-m-d' ),
+		);
+
+		return add_query_arg( $args, admin_url( 'admin.php' ) );
 	}
 
 	/**

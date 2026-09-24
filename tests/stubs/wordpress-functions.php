@@ -16,6 +16,10 @@ if ( ! defined( 'MINUTE_IN_SECONDS' ) ) {
 	define( 'MINUTE_IN_SECONDS', 60 );
 }
 
+if ( ! defined( 'LOGGED_IN_COOKIE' ) ) {
+	define( 'LOGGED_IN_COOKIE', 'wordpress_logged_in_test' );
+}
+
 /**
  * Test post meta values.
  */
@@ -25,6 +29,26 @@ $GLOBALS['shurloc_test_post_meta'] = array();
  * Registered test actions.
  */
 $GLOBALS['shurloc_test_actions'] = array();
+
+/**
+ * Scheduled WordPress cron events.
+ */
+$GLOBALS['shurloc_test_cron_events'] = array();
+
+/**
+ * Whether test cron scheduling calls succeed.
+ */
+$GLOBALS['shurloc_test_cron_schedule_result'] = true;
+
+/**
+ * Registered plugin deactivation callbacks.
+ */
+$GLOBALS['shurloc_test_deactivation_hooks'] = array();
+
+/**
+ * Registered REST routes.
+ */
+$GLOBALS['shurloc_test_rest_routes'] = array();
 
 /**
  * Registered test action metadata.
@@ -45,6 +69,11 @@ $GLOBALS['shurloc_test_filter_metadata'] = array();
  * Whether the current test request is an admin request.
  */
 $GLOBALS['shurloc_test_is_admin'] = true;
+
+/**
+ * Whether the current test request is a WordPress AJAX request.
+ */
+$GLOBALS['shurloc_test_doing_ajax'] = false;
 
 /**
  * Registered test styles.
@@ -90,6 +119,11 @@ $GLOBALS['shurloc_test_filtered_content'] = null;
  * Current test timestamp.
  */
 $GLOBALS['shurloc_test_time'] = 0;
+
+/**
+ * Current test site timezone.
+ */
+$GLOBALS['shurloc_test_timezone'] = 'UTC';
 
 /**
  * Current test user ID.
@@ -210,6 +244,11 @@ $GLOBALS['shurloc_test_enqueued_styles'] = array();
  * Enqueued scripts.
  */
 $GLOBALS['shurloc_test_enqueued_scripts'] = array();
+
+/**
+ * Inline scripts registered during tests.
+ */
+$GLOBALS['shurloc_test_inline_scripts'] = array();
 
 /**
  * Localized scripts.
@@ -335,6 +374,53 @@ if ( ! function_exists( 'add_action' ) ) {
 	}
 }
 
+if ( ! function_exists( 'register_rest_route' ) ) {
+	/**
+	 * Record REST route registration for tests.
+	 *
+	 * @param string              $route_namespace Route namespace.
+	 * @param string              $route     Route path.
+	 * @param array<string,mixed> $args      Route arguments.
+	 * @param bool                $override  Whether to override a route.
+	 * @return bool Whether registration succeeded.
+	 */
+	function register_rest_route( string $route_namespace, string $route, array $args = array(), bool $override = false ): bool {
+		$GLOBALS['shurloc_test_rest_routes'][ $route_namespace . $route ] = array(
+			'namespace' => $route_namespace,
+			'route'     => $route,
+			'args'      => $args,
+			'override'  => $override,
+		);
+		return true;
+	}
+}
+
+if ( ! function_exists( 'register_activation_hook' ) ) {
+	/**
+	 * Record a plugin activation callback for tests.
+	 *
+	 * @param string   $file     Main plugin file.
+	 * @param callable $callback Activation callback.
+	 * @return void
+	 */
+	function register_activation_hook( string $file, callable $callback ): void {
+		$GLOBALS['shurloc_test_activation_hooks'][ $file ] = $callback;
+	}
+}
+
+if ( ! function_exists( 'register_deactivation_hook' ) ) {
+	/**
+	 * Record a plugin deactivation callback for tests.
+	 *
+	 * @param string   $file     Main plugin file.
+	 * @param callable $callback Deactivation callback.
+	 * @return void
+	 */
+	function register_deactivation_hook( string $file, callable $callback ): void {
+		$GLOBALS['shurloc_test_deactivation_hooks'][ $file ] = $callback;
+	}
+}
+
 if ( ! function_exists( 'add_filter' ) ) {
 
 	/**
@@ -376,6 +462,187 @@ if ( ! function_exists( 'is_admin' ) ) {
 	function is_admin(): bool {
 
 		return $GLOBALS['shurloc_test_is_admin'] ?? false;
+	}
+}
+
+if ( ! function_exists( 'wp_doing_ajax' ) ) {
+	/**
+	 * Determine whether the current test request is an AJAX request.
+	 *
+	 * @return bool
+	 */
+	function wp_doing_ajax(): bool {
+		return $GLOBALS['shurloc_test_doing_ajax'] ?? false;
+	}
+}
+
+if ( ! function_exists( 'wp_parse_url' ) ) {
+	/**
+	 * Parse a URL for tests without loading WordPress.
+	 *
+	 * @param string $url       URL to parse.
+	 * @param int    $component Component to return, or -1 for all parts.
+	 * @return array<string,int|string>|false|int|string|null Parsed component.
+	 */
+	function wp_parse_url( string $url, int $component = -1 ): array|false|int|string|null {
+		// phpcs:ignore WordPress.WP.AlternativeFunctions.parse_url_parse_url -- Test stub delegates to PHP's parser.
+		return parse_url( $url, $component );
+	}
+}
+
+if ( ! function_exists( 'wp_doing_cron' ) ) {
+	/**
+	 * Determine whether the current Journey test request runs from cron.
+	 *
+	 * @return bool Whether the request runs from cron.
+	 */
+	function wp_doing_cron(): bool {
+		return $GLOBALS['shurloc_journey_test_doing_cron'] ?? false;
+	}
+}
+
+if ( ! function_exists( 'wp_next_scheduled' ) ) {
+	/**
+	 * Return the next matching test cron timestamp.
+	 *
+	 * @param string           $hook Cron hook.
+	 * @param array<int,mixed> $args Cron arguments.
+	 * @return int|false Next timestamp, or false when unscheduled.
+	 */
+	function wp_next_scheduled( string $hook, array $args = array() ): int|false {
+		$timestamps = array();
+
+		foreach ( $GLOBALS['shurloc_test_cron_events'] as $event ) {
+			if ( $hook === $event['hook'] && $args === $event['args'] ) {
+				$timestamps[] = $event['timestamp'];
+			}
+		}
+
+		return array() === $timestamps ? false : min( $timestamps );
+	}
+}
+
+if ( ! function_exists( 'wp_schedule_event' ) ) {
+	/**
+	 * Store one recurring test cron event.
+	 *
+	 * @param int              $timestamp  First run timestamp.
+	 * @param string           $recurrence WordPress schedule name.
+	 * @param string           $hook       Cron hook.
+	 * @param array<int,mixed> $args       Cron arguments.
+	 * @param bool             $wp_error   Whether WordPress errors are requested.
+	 * @return bool Whether scheduling succeeded.
+	 */
+	function wp_schedule_event(
+		int $timestamp,
+		string $recurrence,
+		string $hook,
+		array $args = array(),
+		bool $wp_error = false
+	): bool {
+		unset( $wp_error );
+
+		if ( ! $GLOBALS['shurloc_test_cron_schedule_result'] ) {
+			return false;
+		}
+
+		$GLOBALS['shurloc_test_cron_events'][] = array(
+			'timestamp'  => $timestamp,
+			'recurrence' => $recurrence,
+			'hook'       => $hook,
+			'args'       => $args,
+		);
+
+		return true;
+	}
+}
+
+if ( ! function_exists( 'wp_schedule_single_event' ) ) {
+	/**
+	 * Store one single test cron event.
+	 *
+	 * @param int              $timestamp Run timestamp.
+	 * @param string           $hook      Cron hook.
+	 * @param array<int,mixed> $args      Cron arguments.
+	 * @param bool             $wp_error  Whether WordPress errors are requested.
+	 * @return bool Whether scheduling succeeded.
+	 */
+	function wp_schedule_single_event(
+		int $timestamp,
+		string $hook,
+		array $args = array(),
+		bool $wp_error = false
+	): bool {
+		unset( $wp_error );
+
+		if ( ! $GLOBALS['shurloc_test_cron_schedule_result'] ) {
+			return false;
+		}
+
+		$GLOBALS['shurloc_test_cron_events'][] = array(
+			'timestamp'  => $timestamp,
+			'recurrence' => false,
+			'hook'       => $hook,
+			'args'       => $args,
+		);
+
+		return true;
+	}
+}
+
+if ( ! function_exists( 'wp_clear_scheduled_hook' ) ) {
+	/**
+	 * Remove all matching test cron events.
+	 *
+	 * @param string           $hook     Cron hook.
+	 * @param array<int,mixed> $args     Cron arguments.
+	 * @param bool             $wp_error Whether WordPress errors are requested.
+	 * @return int Number of removed events.
+	 */
+	function wp_clear_scheduled_hook(
+		string $hook,
+		array $args = array(),
+		bool $wp_error = false
+	): int {
+		unset( $wp_error );
+
+		$remaining = array();
+		$removed   = 0;
+
+		foreach ( $GLOBALS['shurloc_test_cron_events'] as $event ) {
+			if ( $hook === $event['hook'] && $args === $event['args'] ) {
+				++$removed;
+				continue;
+			}
+
+			$remaining[] = $event;
+		}
+
+		$GLOBALS['shurloc_test_cron_events'] = $remaining;
+
+		return $removed;
+	}
+}
+
+if ( ! function_exists( 'wp_get_current_user' ) ) {
+	/**
+	 * Return the configured current Journey test user.
+	 *
+	 * @return WP_User Current test user.
+	 */
+	function wp_get_current_user(): WP_User {
+		return $GLOBALS['shurloc_journey_test_current_user'] ?? new WP_User();
+	}
+}
+
+if ( ! function_exists( 'is_ssl' ) ) {
+	/**
+	 * Return the configured Journey test request protocol.
+	 *
+	 * @return bool Whether the request is HTTPS.
+	 */
+	function is_ssl(): bool {
+		return $GLOBALS['shurloc_journey_cookie_test_is_ssl'] ?? false;
 	}
 }
 
@@ -708,7 +975,47 @@ if ( ! function_exists( 'home_url' ) ) {
 	 */
 	function home_url( string $path = '' ): string {
 
-		return 'https://example.com' . $path;
+		return ( $GLOBALS['shurloc_test_home_url'] ?? 'https://example.com' ) . $path;
+	}
+}
+
+if ( ! function_exists( 'rest_url' ) ) {
+	/**
+	 * Build a test REST URL from the configurable site endpoint.
+	 *
+	 * @param string $path   REST route path.
+	 * @param string $scheme URL scheme context.
+	 * @return string Full REST URL.
+	 */
+	function rest_url( string $path = '', string $scheme = 'rest' ): string {
+		unset( $scheme );
+		$base = $GLOBALS['shurloc_test_rest_url'] ?? home_url( '/wp-json/' );
+		return trailingslashit( $base ) . ltrim( $path, '/' );
+	}
+}
+
+if ( ! function_exists( 'url_to_postid' ) ) {
+	/**
+	 * Resolve a test URL through a configured post ID map.
+	 *
+	 * @param string $url URL to resolve.
+	 * @return int Mapped post ID, or zero.
+	 */
+	function url_to_postid( string $url ): int {
+		$GLOBALS['shurloc_test_url_to_postid_calls'][] = $url;
+		return $GLOBALS['shurloc_test_url_post_ids'][ $url ] ?? 0;
+	}
+}
+
+if ( ! function_exists( 'get_post_status' ) ) {
+	/**
+	 * Return the configured test post status.
+	 *
+	 * @param int $post_id Post ID.
+	 * @return string|false Post status or false.
+	 */
+	function get_post_status( int $post_id ): string|false {
+		return $GLOBALS['shurloc_test_post_statuses'][ $post_id ] ?? false;
 	}
 }
 
@@ -904,6 +1211,17 @@ if ( ! function_exists( 'wp_date' ) ) {
 			$format,
 			$timestamp
 		);
+	}
+}
+
+if ( ! function_exists( 'wp_timezone' ) ) {
+	/**
+	 * Return the configured test site timezone.
+	 *
+	 * @return DateTimeZone Site timezone.
+	 */
+	function wp_timezone(): DateTimeZone {
+		return new DateTimeZone( $GLOBALS['shurloc_test_timezone'] );
 	}
 }
 
@@ -1494,6 +1812,25 @@ if ( ! function_exists( 'wp_enqueue_script' ) ) {
 	}
 }
 
+if ( ! function_exists( 'wp_add_inline_script' ) ) {
+	/**
+	 * Record inline script data for tests.
+	 *
+	 * @param string $handle   Registered script handle.
+	 * @param string $data     JavaScript source.
+	 * @param string $position Before or after the script.
+	 * @return bool Whether inline data was recorded.
+	 */
+	function wp_add_inline_script( string $handle, string $data, string $position = 'after' ): bool {
+		$GLOBALS['shurloc_test_inline_scripts'][] = array(
+			'handle'   => $handle,
+			'data'     => $data,
+			'position' => $position,
+		);
+		return true;
+	}
+}
+
 if ( ! function_exists( 'wp_localize_script' ) ) {
 
 	/**
@@ -1644,6 +1981,41 @@ if ( ! function_exists( 'get_userdata' ) ) {
 			)
 		) {
 			return new WP_User( $user_id );
+		}
+
+		return false;
+	}
+}
+
+if ( ! function_exists( 'get_user_by' ) ) {
+	/**
+	 * Find a test WordPress user by ID or email address.
+	 *
+	 * @param string     $field User field.
+	 * @param string|int $value Field value.
+	 * @return WP_User|false
+	 */
+	function get_user_by( string $field, string|int $value ): WP_User|false {
+		if ( 'id' === $field ) {
+			return get_userdata( (int) $value );
+		}
+
+		if ( 'email' !== $field || ! is_string( $value ) ) {
+			return false;
+		}
+
+		$user_data = $GLOBALS['shurloc_test_user_data'] ?? array();
+		foreach ( $user_data as $user_id => $data ) {
+			if (
+				! is_array( $data ) ||
+				! isset( $data['user_email'] ) ||
+				! is_string( $data['user_email'] ) ||
+				0 !== strcasecmp( $data['user_email'], $value )
+			) {
+				continue;
+			}
+
+			return get_userdata( (int) $user_id );
 		}
 
 		return false;

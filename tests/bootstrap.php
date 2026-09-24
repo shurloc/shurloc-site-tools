@@ -44,13 +44,17 @@ require_once __DIR__ . '/stubs/customer-formatters-functions.php';
 require_once __DIR__ . '/stubs/customer-services-functions.php';
 require_once __DIR__ . '/stubs/customer-admin-functions.php';
 require_once __DIR__ . '/stubs/customer-migrations-functions.php';
+require_once __DIR__ . '/stubs/customer-journey-functions.php';
 
 require_once __DIR__ . '/stubs/woocommerce-functions.php';
 
 require_once __DIR__ . '/doubles/class-wp-query.php';
 require_once __DIR__ . '/doubles/class-wp-post.php';
+require_once __DIR__ . '/doubles/class-wp-error.php';
+require_once __DIR__ . '/doubles/class-wp-rest-request.php';
 require_once __DIR__ . '/doubles/class-wp-screen.php';
 require_once __DIR__ . '/doubles/class-wp-user.php';
+require_once __DIR__ . '/doubles/class-journey-collection-test-user.php';
 require_once __DIR__ . '/doubles/class-catalog-report-actions.php';
 require_once __DIR__ . '/doubles/class-catalog-report-controller.php';
 require_once __DIR__ . '/doubles/class-product-catalog-service.php';
