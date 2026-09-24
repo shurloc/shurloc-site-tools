@@ -10,6 +10,8 @@ declare( strict_types=1 );
 namespace Shurloc\SiteTools\Customer\Journey\Tracking;
 
 use PHPUnit\Framework\TestCase;
+use Shurloc\SiteTools\Checkout\Test_WooCommerce;
+use Shurloc\SiteTools\Customer\Journey\Journey_Cart_Session_Token;
 use Shurloc\SiteTools\Customer\Journey\Journey_Collection_Policy;
 use Shurloc\SiteTools\Customer\Journey\Journey_Collection_Test_User;
 use Shurloc\SiteTools\Customer\Journey\Journey_Event_Type;
@@ -27,6 +29,13 @@ final class JourneyCartTrackerTest extends TestCase {
 	 * @var Shurloc_Test_WPDB
 	 */
 	private Shurloc_Test_WPDB $database;
+
+	/**
+	 * WooCommerce test instance.
+	 *
+	 * @var Test_WooCommerce
+	 */
+	private Test_WooCommerce $woocommerce;
 
 	/**
 	 * Original request cookies.
@@ -69,7 +78,9 @@ final class JourneyCartTrackerTest extends TestCase {
 		$GLOBALS['shurloc_journey_cookie_test_result'] = true;
 		$GLOBALS['shurloc_journey_cookie_test_headers_sent'] = false;
 
-		$this->database = new Shurloc_Test_WPDB();
+		$this->database                      = new Shurloc_Test_WPDB();
+		$this->woocommerce                   = new Test_WooCommerce();
+		$GLOBALS['shurloc_test_woocommerce'] = $this->woocommerce;
 
 		// phpcs:ignore WordPress.WP.GlobalVariablesOverride.Prohibited -- Test-only database replacement.
 		$GLOBALS['wpdb'] = $this->database;
@@ -94,6 +105,7 @@ final class JourneyCartTrackerTest extends TestCase {
 		$GLOBALS['shurloc_journey_cookie_test_calls']  = array();
 		$GLOBALS['shurloc_journey_cookie_test_result'] = true;
 		$GLOBALS['shurloc_journey_cookie_test_headers_sent'] = false;
+		$GLOBALS['shurloc_test_woocommerce']                 = null;
 
 		// phpcs:ignore WordPress.WP.GlobalVariablesOverride.Prohibited -- Restore the shared test database double.
 		$GLOBALS['wpdb'] = new Shurloc_Test_WPDB();
@@ -147,6 +159,28 @@ final class JourneyCartTrackerTest extends TestCase {
 		self::assertSame( '0.75', $this->database->events[2]['quantity'] );
 		self::assertSame( 2, $this->database->sessions[1]['cart_add_count'] );
 		self::assertSame( '2.7500', $this->database->sessions[1]['added_quantity'] );
+	}
+
+	/**
+	 * A successful cart event links the WooCommerce cart to its Journey session.
+	 *
+	 * @return void
+	 */
+	public function test_successful_cart_event_links_current_cart_and_journey_session(): void {
+		$token  = str_repeat( 'ab', 32 );
+		$before = gmdate( 'Y-m-d H:i:s' );
+		$this->woocommerce->session->set( Journey_Cart_Session_Token::SESSION_KEY, $token );
+
+		( new Journey_Cart_Tracker() )->added_to_cart( 'item-key', 19, 1, 0 );
+		$after = gmdate( 'Y-m-d H:i:s' );
+
+		self::assertCount( 1, $this->database->cart_links );
+		self::assertSame( hash( 'sha256', $token ), $this->database->cart_links[1]['cart_token_hash'] );
+		self::assertSame( 1, $this->database->cart_links[1]['visitor_id'] );
+		self::assertSame( 1, $this->database->cart_links[1]['session_id'] );
+		self::assertSame( $this->database->cart_links[1]['linked_at'], $this->database->cart_links[1]['last_seen_at'] );
+		self::assertGreaterThanOrEqual( $before, $this->database->cart_links[1]['linked_at'] );
+		self::assertLessThanOrEqual( $after, $this->database->cart_links[1]['linked_at'] );
 	}
 
 	/**
@@ -237,5 +271,7 @@ final class JourneyCartTrackerTest extends TestCase {
 		$tracker->added_to_cart( 'item-key', 5, 1, 0 );
 		self::assertSame( array(), $this->database->events );
 		self::assertSame( array(), $GLOBALS['shurloc_journey_cookie_test_calls'] );
+		self::assertSame( array(), $this->database->cart_links );
+		self::assertNull( $this->woocommerce->session->get( Journey_Cart_Session_Token::SESSION_KEY ) );
 	}
 }
