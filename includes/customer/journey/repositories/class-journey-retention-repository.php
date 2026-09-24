@@ -69,8 +69,9 @@ final class Journey_Retention_Repository {
 	/**
 	 * Delete a batch of stale visitors that have never been identified.
 	 *
-	 * Events, sessions, and periods are removed before each visitor row in the
-	 * same transaction. The returned count is the number of visitor roots.
+	 * Cart links, events, sessions, and periods are removed before each visitor
+	 * row in the same transaction. The returned count is the number of visitor
+	 * roots.
 	 *
 	 * @param string $cutoff_utc Exclusive last-seen UTC cutoff.
 	 * @param int    $batch_size Maximum visitors to delete.
@@ -103,9 +104,9 @@ final class Journey_Retention_Repository {
 	/**
 	 * Delete old sessions belonging to visitors with identified history.
 	 *
-	 * Any remaining events for a selected session are deleted first. This keeps
-	 * the operation safe when event and session retention are configured in an
-	 * unexpected order.
+	 * Any remaining cart links and events for a selected session are deleted
+	 * first. This keeps the operation safe when retention scopes are configured
+	 * in an unexpected order.
 	 *
 	 * @param string $cutoff_utc Exclusive last-activity UTC cutoff.
 	 * @param int    $batch_size Maximum sessions to delete.
@@ -145,6 +146,12 @@ final class Journey_Retention_Repository {
 			}
 
 			if ( array() !== $session_ids ) {
+				$this->require_delete(
+					table: $this->cart_links_table(),
+					column: 'session_id',
+					ids: $session_ids,
+				);
+
 				$this->require_delete(
 					table: $this->events_table(),
 					column: 'session_id',
@@ -301,6 +308,7 @@ final class Journey_Retention_Repository {
 			}
 
 			if ( array() !== $visitor_ids ) {
+				$this->require_delete( table: $this->cart_links_table(), column: 'visitor_id', ids: $visitor_ids );
 				$this->require_delete( table: $this->events_table(), column: 'visitor_id', ids: $visitor_ids );
 				$this->require_delete( table: $this->sessions_table(), column: 'visitor_id', ids: $visitor_ids );
 				$this->require_delete( table: $this->periods_table(), column: 'visitor_id', ids: $visitor_ids );
@@ -462,5 +470,15 @@ final class Journey_Retention_Repository {
 	private function events_table(): string {
 		global $wpdb;
 		return $wpdb->prefix . 'shurloc_journey_events';
+	}
+
+	/**
+	 * Get the current site cart-links table name.
+	 *
+	 * @return string Full cart-links table name.
+	 */
+	private function cart_links_table(): string {
+		global $wpdb;
+		return $wpdb->prefix . 'shurloc_journey_cart_links';
 	}
 }
