@@ -11,6 +11,7 @@ namespace Shurloc\SiteTools\Customer\Services;
 
 defined( 'ABSPATH' ) || exit;
 
+use Shurloc\SiteTools\Customer\Journey\Repositories\Journey_Cart_Link_Repository;
 use Shurloc\SiteTools\Customer\Repositories\Cart_Session_Repository;
 use WC_Product;
 
@@ -31,6 +32,7 @@ use WC_Product;
  * @phpstan-type ListingCart array{
  *     session_reference:string,
  *     user_id:int,
+ *     journey_visitor_id:int|null,
  *     cart_contents:array<int,ListingCartItem>,
  *     item_count:int,
  *     contents_total:float,
@@ -146,6 +148,13 @@ final class Cart_Listing_Service {
 	private Cart_Session_Repository $cart_session_repository;
 
 	/**
+	 * Journey cart correlation repository.
+	 *
+	 * @var Journey_Cart_Link_Repository
+	 */
+	private Journey_Cart_Link_Repository $cart_link_repository;
+
+	/**
 	 * Registered user IDs excluded from the report.
 	 *
 	 * @var int[]
@@ -155,16 +164,19 @@ final class Cart_Listing_Service {
 	/**
 	 * Constructor.
 	 *
-	 * @param Cart_Session_Repository $cart_session_repository Cart session repository.
-	 * @param array<int>              $excluded_user_ids      Registered user IDs to exclude.
+	 * @param Cart_Session_Repository           $cart_session_repository Cart session repository.
+	 * @param array<int>                        $excluded_user_ids      Registered user IDs to exclude.
+	 * @param Journey_Cart_Link_Repository|null $cart_link_repository  Journey cart correlation repository.
 	 */
 	public function __construct(
 		Cart_Session_Repository $cart_session_repository,
-		array $excluded_user_ids = self::EXCLUDED_USER_IDS
+		array $excluded_user_ids = self::EXCLUDED_USER_IDS,
+		?Journey_Cart_Link_Repository $cart_link_repository = null
 	) {
 
 		$this->cart_session_repository = $cart_session_repository;
 		$this->excluded_user_ids       = $excluded_user_ids;
+		$this->cart_link_repository    = $cart_link_repository ?? new Journey_Cart_Link_Repository();
 	}
 
 	/**
@@ -350,32 +362,40 @@ final class Cart_Listing_Service {
 				? (int) $cart['expires_at']
 				: 0;
 
-			$is_expired = ! empty( $cart['is_expired'] );
+			$is_expired         = ! empty( $cart['is_expired'] );
+			$user_id            = isset( $cart['user_id'] )
+				? (int) $cart['user_id']
+				: 0;
+			$cart_token_hash    = isset( $cart['cart_token_hash'] ) && is_string( $cart['cart_token_hash'] )
+				? $cart['cart_token_hash']
+				: null;
+			$journey_visitor_id = 0 >= $user_id && null !== $cart_token_hash
+				? $this->cart_link_repository->find_latest_visitor_id( cart_token_hash: $cart_token_hash )
+				: null;
 
 			$prepared_carts[] = array(
-				'session_reference' => isset( $cart['session_reference'] ) && is_string( $cart['session_reference'] )
+				'session_reference'  => isset( $cart['session_reference'] ) && is_string( $cart['session_reference'] )
 					? $cart['session_reference']
 					: '',
-				'user_id'           => isset( $cart['user_id'] )
-					? (int) $cart['user_id']
-					: 0,
-				'cart_contents'     => $this->prepare_cart_contents(
+				'user_id'            => $user_id,
+				'journey_visitor_id' => $journey_visitor_id,
+				'cart_contents'      => $this->prepare_cart_contents(
 					contents: isset( $cart['cart_contents'] ) && is_array( $cart['cart_contents'] )
 						? $cart['cart_contents']
 						: array(),
 					product_cache: $product_cache,
 				),
-				'item_count'        => isset( $cart['item_count'] )
+				'item_count'         => isset( $cart['item_count'] )
 					? (int) $cart['item_count']
 					: 0,
-				'contents_total'    => isset( $cart['contents_total'] )
+				'contents_total'     => isset( $cart['contents_total'] )
 					? (float) $cart['contents_total']
 					: 0.0,
-				'expires_at'        => $expires_at,
-				'is_expired'        => $is_expired,
-				'last_activity_at'  => $this->get_last_activity( expires_at: $expires_at ),
-				'status'            => $this->get_status(
-					user_id: isset( $cart['user_id'] ) ? (int) $cart['user_id'] : 0,
+				'expires_at'         => $expires_at,
+				'is_expired'         => $is_expired,
+				'last_activity_at'   => $this->get_last_activity( expires_at: $expires_at ),
+				'status'             => $this->get_status(
+					user_id: $user_id,
 					is_expired: $is_expired,
 					expires_at: $expires_at,
 				),
