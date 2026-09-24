@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.9.0] - 2026-09-24
+
+### Added
+
+- Added Customer Journey collection for page views, visible duration, cart activity, checkout entry, and order creation.
+- Added authenticated and anonymous Journey reports with customer, visitor, and date-range navigation.
+- Added configurable Journey retention, scheduled cleanup, and WordPress personal-data export and erasure support.
+
 ## [0.8.1] - 2026-09-16
 
 ### Added
