@@ -12,6 +12,8 @@ namespace Shurloc\SiteTools\Customer\Admin;
 use DateTimeImmutable;
 use PHPUnit\Framework\TestCase;
 use Shurloc\SiteTools\Customer\Formatters\Relative_Time_Formatter;
+use Shurloc\SiteTools\Customer\Journey\Journey_Cart_Session_Token;
+use Shurloc\SiteTools\Customer\Journey\Migrations\Journey_Schema_Migrator;
 use Shurloc\SiteTools\Customer\Repositories\Cart_Session_Repository;
 use Shurloc\SiteTools\Customer\Services\Cart_Listing_Service;
 use Shurloc_Test_WPDB;
@@ -36,6 +38,13 @@ final class CartsControllerTest extends TestCase {
 	private Carts_Controller $controller;
 
 	/**
+	 * Shared database double.
+	 *
+	 * @var Shurloc_Test_WPDB
+	 */
+	private Shurloc_Test_WPDB $database;
+
+	/**
 	 * Current test timestamp.
 	 *
 	 * @var int
@@ -51,14 +60,19 @@ final class CartsControllerTest extends TestCase {
 
 		parent::setUp();
 
+		$this->database = new Shurloc_Test_WPDB();
+
 		// phpcs:ignore WordPress.WP.GlobalVariablesOverride.Prohibited -- Test-only wpdb replacement.
-		$GLOBALS['wpdb'] = new Shurloc_Test_WPDB();
+		$GLOBALS['wpdb'] = $this->database;
 
 		$_GET = array();
 
 		$GLOBALS['shurloc_test_actions']          = array();
 		$GLOBALS['shurloc_test_action_metadata']  = array();
 		$GLOBALS['shurloc_test_filters']          = array();
+		$GLOBALS['shurloc_test_options']          = array(
+			Journey_Schema_Migrator::VERSION_OPTION => Journey_Schema_Migrator::CURRENT_VERSION,
+		);
 		$GLOBALS['shurloc_test_styles']           = array();
 		$GLOBALS['shurloc_test_enqueued_scripts'] = array();
 		$GLOBALS['shurloc_test_products']         = array();
@@ -94,6 +108,7 @@ final class CartsControllerTest extends TestCase {
 		$GLOBALS['shurloc_test_actions']          = array();
 		$GLOBALS['shurloc_test_action_metadata']  = array();
 		$GLOBALS['shurloc_test_filters']          = array();
+		$GLOBALS['shurloc_test_options']          = array();
 		$GLOBALS['shurloc_test_styles']           = array();
 		$GLOBALS['shurloc_test_enqueued_scripts'] = array();
 		$GLOBALS['shurloc_test_products']         = array();
@@ -225,6 +240,44 @@ final class CartsControllerTest extends TestCase {
 		self::assertStringContainsString( 'journey_user_id=101', $output );
 		self::assertStringContainsString( 'journey_from=' . $from, $output );
 		self::assertStringContainsString( 'journey_to=' . $to, $output );
+	}
+
+	/**
+	 * Verify correlated guest activity links to the anonymous Journey visitor.
+	 *
+	 * @return void
+	 */
+	public function test_links_correlated_guest_activity_to_visitor_journeys(): void {
+
+		$last_activity_at = $this->current_time - 600;
+		$token            = str_repeat( 'ab', 32 );
+		$hash             = hash( 'sha256', $token );
+		$this->add_session(
+			session_key: 't_linked-guest',
+			last_activity_at: $last_activity_at,
+			cart_token: $token,
+		);
+		$this->database->cart_links[1] = array(
+			'id'              => 1,
+			'cart_token_hash' => $hash,
+			'visitor_id'      => 12,
+			'session_id'      => 20,
+			'linked_at'       => '2026-09-24 12:00:00',
+			'last_seen_at'    => '2026-09-24 12:00:00',
+		);
+
+		$output   = $this->render();
+		$activity = new DateTimeImmutable( '@' . $last_activity_at );
+		$from     = $activity->modify( '-29 days' )->format( 'Y-m-d' );
+		$to       = $activity->format( 'Y-m-d' );
+
+		self::assertStringContainsString( '>10 minutes ago</a>', $output );
+		self::assertStringContainsString( 'tab=journeys', $output );
+		self::assertStringContainsString( 'journey_subject=visitor', $output );
+		self::assertStringContainsString( 'journey_visitor_id=12', $output );
+		self::assertStringContainsString( 'journey_from=' . $from, $output );
+		self::assertStringContainsString( 'journey_to=' . $to, $output );
+		self::assertStringNotContainsString( $token, $output );
 	}
 
 	/**
@@ -379,15 +432,17 @@ final class CartsControllerTest extends TestCase {
 	/**
 	 * Add a serialized WooCommerce session row.
 	 *
-	 * @param string   $session_key     Session key.
-	 * @param int|null $last_activity_at Last activity timestamp.
-	 * @param int|null $expires_at      Explicit expiry timestamp.
+	 * @param string      $session_key     Session key.
+	 * @param int|null    $last_activity_at Last activity timestamp.
+	 * @param int|null    $expires_at      Explicit expiry timestamp.
+	 * @param string|null $cart_token   Stored Journey cart token.
 	 * @return void
 	 */
 	private function add_session(
 		string $session_key,
 		?int $last_activity_at = null,
-		?int $expires_at = null
+		?int $expires_at = null,
+		?string $cart_token = null
 	): void {
 
 		$last_activity_at ??= $this->current_time - 600;
@@ -411,6 +466,10 @@ final class CartsControllerTest extends TestCase {
 				array( 'cart_contents_total' => 25.0 )
 			),
 		);
+
+		if ( null !== $cart_token ) {
+			$session[ Journey_Cart_Session_Token::SESSION_KEY ] = $cart_token;
+		}
 
 		$GLOBALS['wpdb']->results[] = (object) array(
 			'session_key'    => $session_key,

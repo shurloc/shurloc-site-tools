@@ -276,16 +276,17 @@ final class Carts_Controller {
 		array $item
 	): void {
 
-		$user_id           = isset( $item['user_id'] ) ? (int) $item['user_id'] : 0;
-		$session_reference = isset( $item['session_reference'] ) && is_string( $item['session_reference'] )
+		$user_id            = isset( $item['user_id'] ) ? (int) $item['user_id'] : 0;
+		$session_reference  = isset( $item['session_reference'] ) && is_string( $item['session_reference'] )
 			? $item['session_reference']
 			: '';
-		$item_count        = isset( $item['item_count'] ) ? (int) $item['item_count'] : 0;
-		$contents_total    = isset( $item['contents_total'] ) ? (float) $item['contents_total'] : 0.0;
-		$cart_contents     = isset( $item['cart_contents'] ) && is_array( $item['cart_contents'] )
+		$item_count         = isset( $item['item_count'] ) ? (int) $item['item_count'] : 0;
+		$contents_total     = isset( $item['contents_total'] ) ? (float) $item['contents_total'] : 0.0;
+		$cart_contents      = isset( $item['cart_contents'] ) && is_array( $item['cart_contents'] )
 			? $item['cart_contents']
 			: array();
-		$last_activity_at  = isset( $item['last_activity_at'] ) ? (int) $item['last_activity_at'] : 0;
+		$last_activity_at   = isset( $item['last_activity_at'] ) ? (int) $item['last_activity_at'] : 0;
+		$journey_visitor_id = isset( $item['journey_visitor_id'] ) ? (int) $item['journey_visitor_id'] : 0;
 
 		$cart_html = $this->cart_details_renderer->render(
 			reference: $session_reference,
@@ -303,7 +304,7 @@ final class Carts_Controller {
 				?>
 			</td>
 			<td>
-				<?php $this->render_last_activity( user_id: $user_id, last_activity_at: $last_activity_at ); ?>
+				<?php $this->render_last_activity( user_id: $user_id, journey_visitor_id: $journey_visitor_id, last_activity_at: $last_activity_at ); ?>
 			</td>
 			<td><?php echo esc_html( isset( $item['status'] ) && is_string( $item['status'] ) ? $item['status'] : '' ); ?></td>
 		</tr>
@@ -311,44 +312,47 @@ final class Carts_Controller {
 	}
 
 	/**
-	 * Render cart activity with a customer Journey link when identity is known.
+	 * Render cart activity with a Journey link when identity is known.
 	 *
-	 * Guest WooCommerce sessions have no reliable mapping to the separate
-	 * Journey visitor identity, so their activity remains plain text.
-	 *
-	 * @param int $user_id          Registered user ID, or zero for a guest.
-	 * @param int $last_activity_at Estimated cart activity timestamp.
+	 * @param int $user_id           Registered user ID, or zero for a guest.
+	 * @param int $journey_visitor_id Correlated Journey visitor ID, or zero.
+	 * @param int $last_activity_at  Estimated cart activity timestamp.
 	 * @return void
 	 */
-	private function render_last_activity( int $user_id, int $last_activity_at ): void {
+	private function render_last_activity( int $user_id, int $journey_visitor_id, int $last_activity_at ): void {
 		$label = $this->time_formatter->format( $last_activity_at );
-		if ( 0 >= $user_id || 0 >= $last_activity_at ) {
+		if ( 0 >= $last_activity_at || ( 0 >= $user_id && 0 >= $journey_visitor_id ) ) {
 			echo esc_html( $label );
 			return;
 		}
 
 		?>
-		<a href="<?php echo esc_url( $this->get_customer_journey_url( user_id: $user_id, last_activity_at: $last_activity_at ) ); ?>"><?php echo esc_html( $label ); ?></a>
+		<a href="<?php echo esc_url( $this->get_journey_url( user_id: $user_id, visitor_id: $journey_visitor_id, last_activity_at: $last_activity_at ) ); ?>"><?php echo esc_html( $label ); ?></a>
 		<?php
 	}
 
 	/**
-	 * Build a customer Journey URL for the 30 days ending on cart activity.
+	 * Build a Journey URL for the 30 days ending on cart activity.
 	 *
-	 * @param int $user_id          Registered user ID.
+	 * @param int $user_id          Registered user ID, or zero for a guest.
+	 * @param int $visitor_id       Correlated Journey visitor ID, or zero.
 	 * @param int $last_activity_at Estimated cart activity timestamp.
-	 * @return string Customer Journey report URL.
+	 * @return string Journey report URL.
 	 */
-	private function get_customer_journey_url( int $user_id, int $last_activity_at ): string {
+	private function get_journey_url( int $user_id, int $visitor_id, int $last_activity_at ): string {
 		$activity = ( new DateTimeImmutable( '@' . $last_activity_at ) )->setTimezone( wp_timezone() );
 		$args     = array(
 			'page'            => Journey_Report_Controller::PAGE_SLUG,
 			'tab'             => Journey_Report_Controller::TAB_SLUG,
-			'journey_subject' => 'customer',
-			'journey_user_id' => $user_id,
+			'journey_subject' => 0 < $user_id ? 'customer' : 'visitor',
 			'journey_from'    => $activity->modify( '-' . ( self::JOURNEY_LOOKBACK_DAYS - 1 ) . ' days' )->format( 'Y-m-d' ),
 			'journey_to'      => $activity->format( 'Y-m-d' ),
 		);
+		if ( 0 < $user_id ) {
+			$args['journey_user_id'] = $user_id;
+		} else {
+			$args['journey_visitor_id'] = $visitor_id;
+		}
 
 		return add_query_arg( $args, admin_url( 'admin.php' ) );
 	}
