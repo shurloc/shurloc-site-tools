@@ -8,6 +8,7 @@
 declare( strict_types=1 );
 
 use Shurloc\SiteTools\Customer\Journey\Migrations\Journey_Schema_V1;
+use Shurloc\SiteTools\Customer\Journey\Migrations\Journey_Schema_V2;
 
 /**
  * WordPress database test double.
@@ -1088,7 +1089,10 @@ final class Shurloc_Test_WPDB {
 
 		$table_name   = $matches[1];
 		$table_suffix = substr( $table_name, strlen( $this->prefix ) );
-		$definitions  = Journey_Schema_V1::get_table_definitions();
+		$definitions  = array_merge(
+			Journey_Schema_V1::get_table_definitions(),
+			Journey_Schema_V2::get_table_definitions(),
+		);
 		if ( isset( $definitions[ $table_suffix ] ) ) {
 			$definition = $definitions[ $table_suffix ];
 

@@ -23,7 +23,7 @@ final class Journey_Schema_Migrator {
 	/**
 	 * Current Journey database schema version, independent of plugin version.
 	 */
-	public const CURRENT_VERSION = 1;
+	public const CURRENT_VERSION = 2;
 
 	/**
 	 * Installed Journey schema version option.
@@ -264,16 +264,33 @@ final class Journey_Schema_Migrator {
 	 * @throws RuntimeException When the version is unknown or verification fails.
 	 */
 	private function apply_version( int $version ): void {
-		if ( 1 !== $version ) {
-			throw new RuntimeException( 'Unknown Journey schema version.' );
-		}
-
 		global $wpdb;
 
-		$statements = Journey_Schema_V1::get_create_table_statements(
-			table_prefix: $wpdb->prefix,
-			charset_collate: $wpdb->get_charset_collate(),
-		);
+		$charset_collate = $wpdb->get_charset_collate();
+
+		switch ( $version ) {
+			case 1:
+				$statements  = Journey_Schema_V1::get_create_table_statements(
+					table_prefix: $wpdb->prefix,
+					charset_collate: $charset_collate,
+				);
+				$definitions = Journey_Schema_V1::get_table_definitions();
+				break;
+
+			case 2:
+				$statements  = Journey_Schema_V2::get_create_table_statements(
+					table_prefix: $wpdb->prefix,
+					charset_collate: $charset_collate,
+				);
+				$definitions = array_merge(
+					Journey_Schema_V1::get_table_definitions(),
+					Journey_Schema_V2::get_table_definitions(),
+				);
+				break;
+
+			default:
+				throw new RuntimeException( 'Unknown Journey schema version.' );
+		}
 
 		foreach ( $statements as $statement ) {
 			( $this->schema_updater )( $statement );
@@ -281,7 +298,7 @@ final class Journey_Schema_Migrator {
 
 		$this->verify_schema(
 			table_prefix: $wpdb->prefix,
-			definitions: Journey_Schema_V1::get_table_definitions(),
+			definitions: $definitions,
 		);
 	}
 

@@ -75,23 +75,42 @@ final class JourneySchemaMigratorTest extends TestCase {
 	}
 
 	/**
+	 * Install the V1 schema and record its completed version.
+	 *
+	 * @return void
+	 */
+	private function install_v1_schema(): void {
+		$statements = Journey_Schema_V1::get_create_table_statements(
+			table_prefix: $this->database->prefix,
+			charset_collate: $this->database->get_charset_collate(),
+		);
+
+		foreach ( $statements as $statement ) {
+			$this->database->install_table( sql: $statement );
+		}
+
+		$GLOBALS['shurloc_test_options'][ Journey_Schema_Migrator::VERSION_OPTION ] = 1;
+	}
+
+	/**
 	 * Verify a fresh install creates and verifies every table.
 	 *
 	 * @return void
 	 */
-	public function test_fresh_install_creates_four_tables_and_stores_version(): void {
+	public function test_fresh_install_creates_five_tables_and_stores_version(): void {
 		$migrator = $this->create_migrator();
 
 		self::assertTrue( $migrator->migrate() );
-		self::assertSame( 1, $migrator->get_installed_version() );
+		self::assertSame( 2, $migrator->get_installed_version() );
 		self::assertTrue( $migrator->is_ready() );
-		self::assertCount( 4, $GLOBALS['shurloc_journey_dbdelta_calls'] );
+		self::assertCount( 5, $GLOBALS['shurloc_journey_dbdelta_calls'] );
 		self::assertSame(
 			array(
 				'wp_shurloc_journey_visitors',
 				'wp_shurloc_journey_identity_periods',
 				'wp_shurloc_journey_sessions',
 				'wp_shurloc_journey_events',
+				'wp_shurloc_journey_cart_links',
 			),
 			array_keys( $this->database->tables )
 		);
@@ -116,7 +135,7 @@ final class JourneySchemaMigratorTest extends TestCase {
 
 		self::assertTrue( $migrator->migrate() );
 		self::assertSame( array(), $GLOBALS['shurloc_journey_dbdelta_calls'] );
-		self::assertSame( 1, $migrator->get_installed_version() );
+		self::assertSame( 2, $migrator->get_installed_version() );
 	}
 
 	/**
@@ -147,11 +166,70 @@ final class JourneySchemaMigratorTest extends TestCase {
 		$migrator = $this->create_migrator();
 
 		self::assertTrue( $migrator->migrate() );
-		self::assertSame( 1, $migrator->get_installed_version() );
+		self::assertSame( 2, $migrator->get_installed_version() );
 		self::assertArrayNotHasKey(
 			Journey_Schema_Migrator::LOCK_OPTION,
 			$GLOBALS['shurloc_test_options']
 		);
+	}
+
+	/**
+	 * Verify an existing V1 installation applies only V2 and becomes ready.
+	 *
+	 * @return void
+	 */
+	public function test_v1_installation_applies_only_v2(): void {
+		$this->install_v1_schema();
+		$this->database->charset_collate_calls = 0;
+		$migrator                              = $this->create_migrator();
+
+		self::assertTrue( $migrator->migrate() );
+		self::assertSame( 2, $migrator->get_installed_version() );
+		self::assertTrue( $migrator->is_ready() );
+		self::assertCount( 1, $GLOBALS['shurloc_journey_dbdelta_calls'] );
+		self::assertStringStartsWith(
+			'CREATE TABLE wp_shurloc_journey_cart_links',
+			$GLOBALS['shurloc_journey_dbdelta_calls'][0]
+		);
+		self::assertSame( 1, $this->database->charset_collate_calls );
+	}
+
+	/**
+	 * Verify V2 does not advance when its new table is unavailable.
+	 *
+	 * @return void
+	 */
+	public function test_failed_v2_migration_keeps_v1_version(): void {
+		$this->install_v1_schema();
+		$GLOBALS['shurloc_journey_dbdelta_apply'] = false;
+		$migrator                                 = $this->create_migrator();
+
+		self::assertFalse( $migrator->migrate() );
+		self::assertSame( 1, $migrator->get_installed_version() );
+		self::assertFalse( $migrator->is_ready() );
+		self::assertSame( 'migration_failed', $migrator->get_failure_code() );
+		self::assertArrayNotHasKey(
+			'wp_shurloc_journey_cart_links',
+			$this->database->tables
+		);
+	}
+
+	/**
+	 * Verify V2 checks the existing V1 schema before storing version two.
+	 *
+	 * @return void
+	 */
+	public function test_v2_verifies_combined_schema_before_advancing(): void {
+		$GLOBALS['shurloc_test_options'][ Journey_Schema_Migrator::VERSION_OPTION ] = 1;
+		$migrator = $this->create_migrator();
+
+		self::assertFalse( $migrator->migrate() );
+		self::assertSame( 1, $migrator->get_installed_version() );
+		self::assertArrayHasKey(
+			'wp_shurloc_journey_cart_links',
+			$this->database->tables
+		);
+		self::assertSame( 'migration_failed', $migrator->get_failure_code() );
 	}
 
 	/**
@@ -291,6 +369,10 @@ final class JourneySchemaMigratorTest extends TestCase {
 			'store_42_shurloc_journey_events',
 			$this->database->tables
 		);
+		self::assertArrayHasKey(
+			'store_42_shurloc_journey_cart_links',
+			$this->database->tables
+		);
 		self::assertStringStartsWith(
 			'CREATE TABLE store_42_shurloc_journey_visitors',
 			$GLOBALS['shurloc_journey_dbdelta_calls'][0]
@@ -299,6 +381,13 @@ final class JourneySchemaMigratorTest extends TestCase {
 			array(
 				'query' => 'SHOW TABLE STATUS WHERE Name = %s',
 				'args'  => array( 'store_42_shurloc_journey_events' ),
+			),
+			$this->database->prepared_queries
+		);
+		self::assertContains(
+			array(
+				'query' => 'SHOW TABLE STATUS WHERE Name = %s',
+				'args'  => array( 'store_42_shurloc_journey_cart_links' ),
 			),
 			$this->database->prepared_queries
 		);
@@ -339,11 +428,11 @@ final class JourneySchemaMigratorTest extends TestCase {
 	 * @return void
 	 */
 	public function test_newer_installed_version_is_not_downgraded(): void {
-		$GLOBALS['shurloc_test_options'][ Journey_Schema_Migrator::VERSION_OPTION ] = 2;
+		$GLOBALS['shurloc_test_options'][ Journey_Schema_Migrator::VERSION_OPTION ] = 3;
 		$migrator = $this->create_migrator();
 
 		self::assertFalse( $migrator->migrate() );
-		self::assertSame( 2, $migrator->get_installed_version() );
+		self::assertSame( 3, $migrator->get_installed_version() );
 		self::assertFalse( $migrator->is_ready() );
 		self::assertSame( 'newer_schema', $migrator->get_failure_code() );
 		self::assertSame( array(), $GLOBALS['shurloc_journey_dbdelta_calls'] );
