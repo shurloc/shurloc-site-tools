@@ -11,6 +11,7 @@ namespace Shurloc\SiteTools\Customer\Repositories;
 
 defined( 'ABSPATH' ) || exit;
 
+use Shurloc\SiteTools\Customer\Journey\Journey_Cart_Session_Token;
 use WC_Session_Handler;
 
 /**
@@ -31,6 +32,7 @@ use WC_Session_Handler;
  * }
  * @phpstan-type StoredCartSession array{
  *     session_reference:string,
+ *     cart_token_hash:string|null,
  *     user_id:int,
  *     cart_contents:array<int,StoredCartItem>,
  *     item_count:int,
@@ -103,6 +105,9 @@ final class Cart_Session_Repository {
 				'session_reference' => $this->get_session_reference(
 					session_key: $session_key,
 					user_id: $user_id,
+				),
+				'cart_token_hash'   => Journey_Cart_Session_Token::hash_token(
+					token: $session[ Journey_Cart_Session_Token::SESSION_KEY ] ?? null,
 				),
 				'user_id'           => $user_id,
 				'cart_contents'     => $cart_contents,
