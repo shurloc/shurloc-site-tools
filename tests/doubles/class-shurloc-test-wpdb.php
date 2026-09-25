@@ -9,6 +9,7 @@ declare( strict_types=1 );
 
 use Shurloc\SiteTools\Customer\Journey\Migrations\Journey_Schema_V1;
 use Shurloc\SiteTools\Customer\Journey\Migrations\Journey_Schema_V2;
+use Shurloc\SiteTools\Customer\Journey\Migrations\Journey_Schema_V3;
 
 /**
  * WordPress database test double.
@@ -37,7 +38,13 @@ use Shurloc\SiteTools\Customer\Journey\Migrations\Journey_Schema_V2;
  *     removed_quantity:string,
  *     checkout_started_count:int,
  *     order_created_count:int,
- *     active_ms:int
+ *     active_ms:int,
+ *     user_agent?:string|null,
+ *     client_type?:string,
+ *     client_name?:string|null,
+ *     device_type?:string,
+ *     classification_version?:int,
+ *     event_count?:int
  * }
  * @phpstan-type VisitorRow array{
  *     id:int,
@@ -377,6 +384,13 @@ final class Shurloc_Test_WPDB {
 	 * @var bool
 	 */
 	public bool $fail_event_summary_update = false;
+
+	/**
+	 * Simulate failure while backfilling v3 session event totals.
+	 *
+	 * @var bool
+	 */
+	public bool $fail_event_count_backfill = false;
 
 	/**
 	 * Arguments of the latest prepared query.
@@ -942,6 +956,28 @@ final class Shurloc_Test_WPDB {
 			return 0;
 		}
 
+		if ( str_starts_with( $query, 'UPDATE %i SET event_count = page_view_count + cart_add_count + cart_remove_count + checkout_started_count + order_created_count' ) ) {
+			if ( $this->fail_event_count_backfill ) {
+				return false;
+			}
+
+			$updated = 0;
+			foreach ( $this->sessions as $session_id => $session ) {
+				$event_count = $session['page_view_count'] +
+					$session['cart_add_count'] +
+					$session['cart_remove_count'] +
+					$session['checkout_started_count'] +
+					$session['order_created_count'];
+
+				if ( ( $session['event_count'] ?? 0 ) !== $event_count ) {
+					$this->sessions[ $session_id ]['event_count'] = $event_count;
+					++$updated;
+				}
+			}
+
+			return $updated;
+		}
+
 		if ( str_starts_with( $query, 'INSERT INTO %i (cart_token_hash, visitor_id, session_id, linked_at, last_seen_at)' ) ) {
 			if ( $this->fail_cart_link_upsert ) {
 				return false;
@@ -1267,6 +1303,9 @@ final class Shurloc_Test_WPDB {
 			Journey_Schema_V1::get_table_definitions(),
 			Journey_Schema_V2::get_table_definitions(),
 		);
+		if ( 'shurloc_journey_sessions' === $table_suffix && str_contains( $sql, 'classification_version' ) ) {
+			$definitions[ $table_suffix ] = Journey_Schema_V3::get_table_definitions()[ $table_suffix ];
+		}
 		if ( isset( $definitions[ $table_suffix ] ) ) {
 			$definition = $definitions[ $table_suffix ];
 

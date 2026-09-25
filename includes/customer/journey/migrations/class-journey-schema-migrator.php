@@ -23,7 +23,7 @@ final class Journey_Schema_Migrator {
 	/**
 	 * Current Journey database schema version, independent of plugin version.
 	 */
-	public const CURRENT_VERSION = 2;
+	public const CURRENT_VERSION = 3;
 
 	/**
 	 * Installed Journey schema version option.
@@ -288,6 +288,18 @@ final class Journey_Schema_Migrator {
 				);
 				break;
 
+			case 3:
+				$statements  = Journey_Schema_V3::get_create_table_statements(
+					table_prefix: $wpdb->prefix,
+					charset_collate: $charset_collate,
+				);
+				$definitions = array_merge(
+					Journey_Schema_V1::get_table_definitions(),
+					Journey_Schema_V2::get_table_definitions(),
+					Journey_Schema_V3::get_table_definitions(),
+				);
+				break;
+
 			default:
 				throw new RuntimeException( 'Unknown Journey schema version.' );
 		}
@@ -300,6 +312,35 @@ final class Journey_Schema_Migrator {
 			table_prefix: $wpdb->prefix,
 			definitions: $definitions,
 		);
+
+		if ( 3 === $version ) {
+			$this->backfill_event_count();
+		}
+	}
+
+	/**
+	 * Populate the new total-event counter from the complete v1 summaries.
+	 *
+	 * Product views already contribute to page_view_count, so adding the
+	 * product-specific counter would count those events twice. The update is
+	 * idempotent and may safely run again after an interrupted migration.
+	 *
+	 * @return void
+	 * @throws RuntimeException When the session summaries cannot be updated.
+	 */
+	private function backfill_event_count(): void {
+		global $wpdb;
+
+		$updated = $wpdb->query(
+			$wpdb->prepare(
+				'UPDATE %i SET event_count = page_view_count + cart_add_count + cart_remove_count + checkout_started_count + order_created_count WHERE event_count <> page_view_count + cart_add_count + cart_remove_count + checkout_started_count + order_created_count',
+				$wpdb->prefix . 'shurloc_journey_sessions'
+			)
+		);
+
+		if ( false === $updated ) {
+			throw new RuntimeException( 'Journey event totals could not be backfilled.' );
+		}
 	}
 
 	/**
