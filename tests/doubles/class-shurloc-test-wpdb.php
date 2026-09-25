@@ -841,6 +841,11 @@ final class Shurloc_Test_WPDB {
 				'checkout_started_count' => 0,
 				'order_created_count'    => 0,
 				'active_ms'              => 0,
+				'user_agent'             => null === ( $data['user_agent'] ?? null ) ? null : (string) $data['user_agent'],
+				'client_type'            => (string) ( $data['client_type'] ?? 'unknown' ),
+				'client_name'            => null === ( $data['client_name'] ?? null ) ? null : (string) $data['client_name'],
+				'device_type'            => (string) ( $data['device_type'] ?? 'unknown' ),
+				'classification_version' => (int) ( $data['classification_version'] ?? 0 ),
 				'event_count'            => 0,
 			);
 			return 1;
