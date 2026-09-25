@@ -18,6 +18,7 @@ defined( 'ABSPATH' ) || exit;
  * decimal string so a later database update does not pass through PHP floats.
  *
  * @phpstan-type SummaryDelta array{
+ *     event_count?:int,
  *     page_view_count?:int,
  *     product_view_count?:int,
  *     cart_add_count?:int,
@@ -52,7 +53,10 @@ final class Journey_Event_Summary_Delta {
 				return null;
 			}
 
-			$delta = array( 'page_view_count' => 1 );
+			$delta = array(
+				'event_count'     => 1,
+				'page_view_count' => 1,
+			);
 			if ( Journey_Event_Type::counts_as_product_view( value: $event_type ) ) {
 				$delta['product_view_count'] = 1;
 			}
@@ -75,6 +79,7 @@ final class Journey_Event_Summary_Delta {
 				}
 
 				return array(
+					'event_count'    => 1,
 					'cart_add_count' => 1,
 					'added_quantity' => $quantity,
 				);
@@ -85,15 +90,26 @@ final class Journey_Event_Summary_Delta {
 				}
 
 				return array(
+					'event_count'       => 1,
 					'cart_remove_count' => 1,
 					'removed_quantity'  => $quantity,
 				);
 
 			case Journey_Event_Type::CHECKOUT_STARTED:
-				return null === $quantity ? array( 'checkout_started_count' => 1 ) : null;
+				return null === $quantity
+					? array(
+						'event_count'            => 1,
+						'checkout_started_count' => 1,
+					)
+					: null;
 
 			case Journey_Event_Type::ORDER_CREATED:
-				return null === $quantity ? array( 'order_created_count' => 1 ) : null;
+				return null === $quantity
+					? array(
+						'event_count'         => 1,
+						'order_created_count' => 1,
+					)
+					: null;
 		}
 
 		return null;

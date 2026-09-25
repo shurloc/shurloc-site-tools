@@ -841,6 +841,7 @@ final class Shurloc_Test_WPDB {
 				'checkout_started_count' => 0,
 				'order_created_count'    => 0,
 				'active_ms'              => 0,
+				'event_count'            => 0,
 			);
 			return 1;
 		}
@@ -1095,6 +1096,9 @@ final class Shurloc_Test_WPDB {
 				}
 
 				switch ( $column ) {
+					case 'event_count':
+						$this->sessions[ $session_id ]['event_count'] = ( $this->sessions[ $session_id ]['event_count'] ?? 0 ) + (int) $increment;
+						break;
 					case 'page_view_count':
 						$this->sessions[ $session_id ]['page_view_count'] += (int) $increment;
 						break;
