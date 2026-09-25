@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.10.1] - 2026-09-25
+
+### Fixed
+
+- Prevented crawler or excluded requests from populating the shared storefront cache without the Journey tracker and blocking eligible event collection.
+
 ## [0.10.0] - 2026-09-25
 
 ### Added
