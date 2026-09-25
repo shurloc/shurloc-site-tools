@@ -1,5 +1,16 @@
 # Changelog
 
+## [0.10.0] - 2026-09-25
+
+### Added
+
+- Added links from authenticated customers' Cart report Last Activity values to their Journey reports for the 30-day period ending on the cart's estimated activity date.
+- Added secure guest cart-to-Journey correlation, extending those Last Activity links to correlated guest carts.
+
+### Changed
+
+- Updated the Journey schema to version 2 with retention and privacy-erasure cleanup for cart-correlation links.
+
 ## [0.9.0] - 2026-09-24
 
 ### Added
