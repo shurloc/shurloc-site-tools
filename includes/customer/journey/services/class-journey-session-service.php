@@ -12,6 +12,7 @@ namespace Shurloc\SiteTools\Customer\Journey\Services;
 defined( 'ABSPATH' ) || exit;
 
 use Shurloc\SiteTools\Customer\Journey\Journey_Attribution_Sanitizer;
+use Shurloc\SiteTools\Customer\Journey\Journey_User_Agent_Classifier;
 use Shurloc\SiteTools\Customer\Journey\Repositories\Journey_Session_Repository;
 use Shurloc\SiteTools\Customer\Journey\Repositories\Journey_Visitor_Repository;
 
@@ -66,23 +67,33 @@ final class Journey_Session_Service {
 	private Journey_Attribution_Sanitizer $attribution;
 
 	/**
+	 * Request user-agent inspection and classification.
+	 *
+	 * @var Journey_User_Agent_Classifier
+	 */
+	private Journey_User_Agent_Classifier $user_agent_classifier;
+
+	/**
 	 * Constructor.
 	 *
 	 * @param Journey_Visitor_Service|null       $visitors    Visitor identity resolver.
 	 * @param Journey_Session_Repository|null    $sessions    Session storage.
 	 * @param Journey_Attribution_Sanitizer|null $attribution Attribution sanitizer.
 	 * @param Journey_Visitor_Repository|null    $visitor_repository Visitor attribution storage.
+	 * @param Journey_User_Agent_Classifier|null $user_agent_classifier Client inspection.
 	 */
 	public function __construct(
 		?Journey_Visitor_Service $visitors = null,
 		?Journey_Session_Repository $sessions = null,
 		?Journey_Attribution_Sanitizer $attribution = null,
-		?Journey_Visitor_Repository $visitor_repository = null
+		?Journey_Visitor_Repository $visitor_repository = null,
+		?Journey_User_Agent_Classifier $user_agent_classifier = null
 	) {
-		$this->visitors           = $visitors ?? new Journey_Visitor_Service();
-		$this->sessions           = $sessions ?? new Journey_Session_Repository();
-		$this->attribution        = $attribution ?? new Journey_Attribution_Sanitizer();
-		$this->visitor_repository = $visitor_repository ?? new Journey_Visitor_Repository();
+		$this->visitors              = $visitors ?? new Journey_Visitor_Service();
+		$this->sessions              = $sessions ?? new Journey_Session_Repository();
+		$this->attribution           = $attribution ?? new Journey_Attribution_Sanitizer();
+		$this->visitor_repository    = $visitor_repository ?? new Journey_Visitor_Repository();
+		$this->user_agent_classifier = $user_agent_classifier ?? new Journey_User_Agent_Classifier();
 	}
 
 	/**
@@ -111,9 +122,13 @@ final class Journey_Session_Service {
 			$timeout = self::DEFAULT_TIMEOUT_SECONDS;
 		}
 
-		$attribution = $this->attribution->sanitize(
+		$attribution        = $this->attribution->sanitize(
 			request_uri: $page_uri ?? '',
 			referrer_url: $referrer_url,
+		);
+		$request_user_agent = $_SERVER['HTTP_USER_AGENT'] ?? null;
+		$client_snapshot    = $this->user_agent_classifier->classify(
+			user_agent: is_string( $request_user_agent ) ? $request_user_agent : null
 		);
 
 		$observed_at = gmdate( 'Y-m-d H:i:s' );
@@ -130,6 +145,11 @@ final class Journey_Session_Service {
 			utm_campaign: $attribution['utm_campaign'],
 			utm_term: $attribution['utm_term'],
 			utm_content: $attribution['utm_content'],
+			user_agent: $client_snapshot['user_agent'],
+			client_type: $client_snapshot['client_type'],
+			client_name: $client_snapshot['client_name'],
+			device_type: $client_snapshot['device_type'],
+			classification_version: $client_snapshot['classification_version'],
 		);
 
 		if ( null === $session_id ) {
