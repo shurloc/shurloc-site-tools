@@ -169,7 +169,7 @@ schema is unavailable.
 
 ### Database Schema and Migrations
 
-Journey schema version `1` uses four InnoDB tables. Every table name starts
+Journey schema version `2` uses five InnoDB tables. Every table name starts
 with the current WordPress `$wpdb->prefix`:
 
 - `shurloc_journey_visitors` stores the opaque visitor UUID, created and last
@@ -185,6 +185,10 @@ with the current WordPress `$wpdb->prefix`:
   quantity, cumulative visible duration, source, and an optional idempotency
   key. The idempotency key is unique. Additional indexes support session,
   visitor, user, date, type, product, and order queries.
+- `shurloc_journey_cart_links` correlates a SHA-256 WooCommerce cart-token hash
+  with a Journey visitor and session. A cart and session pair is unique, while
+  separate indexes support the most recent cart or visitor lookup and
+  session-scoped cleanup.
 
 The integer schema version is independent of the plugin version and is stored
 in the `shurloc_customer_journey_db_version` option. Authorized admin requests
@@ -302,6 +306,21 @@ Reports default to seven local calendar days, allow at most 31 days, and read
 and does not expose raw visitor UUIDs. Once a visitor has been linked to an
 account, its history is available through the customer report.
 
+The Customer Tools **Carts** tab links the Last Activity value for a registered
+customer to that customer's Journeys. A guest Last Activity value is linked
+when its WooCommerce cart has been correlated with a Journey visitor. Each link
+opens the visitor's Journeys in the 30 local-calendar-day period ending on the
+cart's estimated activity date. An uncorrelated guest value remains plain text.
+
+### WooCommerce Cart Correlation
+
+After an accepted cart-add or cart-remove event is recorded, Journey creates or
+reuses a random token in the WooCommerce session. Journey stores only its
+SHA-256 hash in the cart-link table. The cart report hashes the token read from
+the stored WooCommerce session and uses the most recently observed matching
+link to resolve the Journey visitor. The raw token and its hash are not exposed
+in the report URL or rendered output.
+
 ### Retention
 
 The retention policy has separate scopes for raw events, anonymous history,
@@ -318,6 +337,9 @@ expired sessions and history and clears expired attribution; anonymous cleanup
 removes expired never-linked histories. Raw-event cleanup can use its own
 cutoff independently of session-summary retention.
 
+Cart links are dependent session data. Retention deletes their rows in the same
+transaction before deleting the associated sessions or visitor roots.
+
 ### Privacy Export and Erasure
 
 Journey registers with WordPress's personal-data exporter and eraser. Both
@@ -327,8 +349,9 @@ Journey itself does not store email addresses.
 Exports are paged and include readable identity-period, session, and event
 records without raw visitor UUIDs or WordPress user IDs. Erasure deletes that
 user's linked events, sessions, and identity periods in bounded transactions,
-then removes a visitor row only when it is orphaned. A failed erasure reports
-that data may remain instead of claiming success.
+including the related cart links, then removes a visitor row only when it is
+orphaned. A failed erasure reports that data may remain instead of claiming
+success.
 
 ### Configuration Filters
 
