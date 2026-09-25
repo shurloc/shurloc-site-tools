@@ -16,7 +16,7 @@ use Shurloc\SiteTools\Customer\Journey\Migrations\Journey_Schema_Migrator;
 use Shurloc\SiteTools\Customer\Journey\Rest\Journey_Browser_Ingestion_Controller;
 
 /**
- * Tests frontend eligibility and the browser transport configuration.
+ * Tests cache-safe frontend output and the browser transport configuration.
  */
 final class JourneyBrowserAssetsTest extends TestCase {
 	/**
@@ -190,45 +190,43 @@ final class JourneyBrowserAssetsTest extends TestCase {
 	}
 
 	/**
-	 * Consent, user exclusions, and missing schema prevent script output.
+	 * Request-specific policy does not vary cacheable storefront asset output.
 	 *
 	 * @return void
 	 */
-	public function test_policy_and_schema_must_allow_collection(): void {
+	public function test_request_policy_cannot_omit_tracker_from_shared_cache(): void {
 		$assets = new Journey_Browser_Assets();
 		add_filter( Journey_Collection_Policy::COLLECTION_ALLOWED_FILTER, static fn (): bool => false );
+		$_SERVER['HTTP_USER_AGENT']                 = 'Googlebot/2.1';
+		$GLOBALS['shurloc_journey_test_doing_cron'] = true;
 		$assets->enqueue_assets();
-		self::assertSame( array(), $GLOBALS['shurloc_test_enqueued_scripts'] );
 
-		$GLOBALS['shurloc_test_filters'] = array();
-		$user                            = new Journey_Collection_Test_User( 37 );
-		$user->roles                     = array( 'staff' );
-		$GLOBALS['shurloc_journey_test_current_user'] = $user;
-		add_filter( Journey_Collection_Policy::EXCLUDED_ROLES_FILTER, static fn (): array => array( 'staff' ) );
-		$assets->enqueue_assets();
-		self::assertSame( array(), $GLOBALS['shurloc_test_enqueued_scripts'] );
+		self::assertCount( 1, $GLOBALS['shurloc_test_enqueued_scripts'] );
+		self::assertCount( 1, $GLOBALS['shurloc_test_inline_scripts'] );
+	}
 
-		$GLOBALS['shurloc_test_filters'] = array();
+	/**
+	 * Missing schema prevents unusable transport output.
+	 *
+	 * @return void
+	 */
+	public function test_schema_must_be_ready(): void {
+		$assets                          = new Journey_Browser_Assets();
 		$GLOBALS['shurloc_test_options'] = array();
+
 		$assets->enqueue_assets();
 		self::assertSame( array(), $GLOBALS['shurloc_test_enqueued_scripts'] );
 		self::assertSame( array(), $GLOBALS['shurloc_test_inline_scripts'] );
 	}
 
 	/**
-	 * Admin and automated requests never get the tracker.
+	 * WordPress administration pages never get the storefront tracker.
 	 *
 	 * @return void
 	 */
-	public function test_admin_and_automated_requests_do_not_enqueue(): void {
+	public function test_admin_requests_do_not_enqueue(): void {
 		$assets                           = new Journey_Browser_Assets();
 		$GLOBALS['shurloc_test_is_admin'] = true;
-		$assets->enqueue_assets();
-		$GLOBALS['shurloc_test_is_admin']           = false;
-		$GLOBALS['shurloc_journey_test_doing_cron'] = true;
-		$assets->enqueue_assets();
-		$GLOBALS['shurloc_journey_test_doing_cron'] = false;
-		$_SERVER['HTTP_USER_AGENT']                 = 'Googlebot/2.1';
 		$assets->enqueue_assets();
 
 		self::assertSame( array(), $GLOBALS['shurloc_test_enqueued_scripts'] );
