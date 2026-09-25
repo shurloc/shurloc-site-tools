@@ -18,9 +18,11 @@ use WP_User;
  */
 final class Journey_Collection_Policy {
 	/**
-	 * Common crawler and non-browser client tokens, without a maintained bot list.
+	 * User-agent classifier shared with Journey session inspection.
+	 *
+	 * @var Journey_User_Agent_Classifier
 	 */
-	private const AUTOMATED_USER_AGENT_PATTERN = '/(?:^|[\s(;])(?:[a-z0-9_-]*(?:bot|crawler|spider)(?:[-_][a-z0-9]+)*|slurp|facebookexternalhit|headlesschrome|curl|wget|python-requests)(?=\/|[\s;)]|$)/i';
+	private Journey_User_Agent_Classifier $user_agent_classifier;
 
 	/**
 	 * Filter for site consent and other request-level collection rules.
@@ -45,6 +47,15 @@ final class Journey_Collection_Policy {
 	public const EXCLUDED_CAPABILITIES_FILTER = 'shurloc_site_tools_journey_excluded_capabilities';
 
 	/**
+	 * Create the central Journey collection policy.
+	 *
+	 * @param Journey_User_Agent_Classifier|null $user_agent_classifier Shared classifier.
+	 */
+	public function __construct( ?Journey_User_Agent_Classifier $user_agent_classifier = null ) {
+		$this->user_agent_classifier = $user_agent_classifier ?? new Journey_User_Agent_Classifier();
+	}
+
+	/**
 	 * Determine whether the current request and user may collect Journey data.
 	 *
 	 * WordPress admin AJAX may host a later Journey ingestion endpoint; that
@@ -59,7 +70,12 @@ final class Journey_Collection_Policy {
 		}
 
 		$user_agent = $_SERVER['HTTP_USER_AGENT'] ?? '';
-		if ( ! is_string( $user_agent ) || 1 === preg_match( self::AUTOMATED_USER_AGENT_PATTERN, $user_agent ) ) {
+		if ( ! is_string( $user_agent ) ) {
+			return false;
+		}
+
+		$classification = $this->user_agent_classifier->classify( user_agent: $user_agent );
+		if ( in_array( $classification['client_type'], array( 'crawler', 'http_client' ), true ) ) {
 			return false;
 		}
 

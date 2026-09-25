@@ -12,7 +12,7 @@ namespace Shurloc\SiteTools\Customer\Journey;
 use PHPUnit\Framework\TestCase;
 
 /**
- * Tests consent, request, role, and capability collection rules.
+ * Tests request, client, consent, role, and capability collection rules.
  */
 final class JourneyCollectionPolicyTest extends TestCase {
 	/**
@@ -111,12 +111,35 @@ final class JourneyCollectionPolicyTest extends TestCase {
 				'facebookexternalhit/1.1',
 				'Mozilla/5.0 HeadlessChrome/120.0',
 				'curl/8.4.0',
+				'Wget/1.25.0',
 				'python-requests/2.31.0',
+				'Go-http-client/2.0',
 			) as $user_agent
 		) {
 			$_SERVER['HTTP_USER_AGENT'] = $user_agent;
 			self::assertFalse( $this->policy->allows_collection(), $user_agent );
 		}
+	}
+
+	/**
+	 * Collection uses centrally filtered normalized client classification.
+	 *
+	 * @return void
+	 */
+	public function test_filtered_client_classification_controls_eligibility(): void {
+		$_SERVER['HTTP_USER_AGENT'] = 'AcmeMonitor/1.0';
+
+		add_filter(
+			Journey_User_Agent_Classifier::CLASSIFICATION_FILTER,
+			static fn (): array => array(
+				'client_type'            => 'http_client',
+				'client_name'            => 'Acme Monitor',
+				'device_type'            => 'server',
+				'classification_version' => 21,
+			)
+		);
+
+		self::assertFalse( $this->policy->allows_collection() );
 	}
 
 	/**
