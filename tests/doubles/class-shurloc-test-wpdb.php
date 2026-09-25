@@ -337,6 +337,13 @@ final class Shurloc_Test_WPDB {
 	public bool $fail_session_close = false;
 
 	/**
+	 * Simulate deletion failure for one session.
+	 *
+	 * @var bool
+	 */
+	public bool $fail_session_delete = false;
+
+	/**
 	 * Simulate an event insertion failure.
 	 *
 	 * @var bool
@@ -349,6 +356,13 @@ final class Shurloc_Test_WPDB {
 	 * @var bool
 	 */
 	public bool $fail_event_select = false;
+
+	/**
+	 * Simulate deletion failure for events belonging to one session.
+	 *
+	 * @var bool
+	 */
+	public bool $fail_event_delete = false;
 
 	/**
 	 * Simulate a cart-link upsert failure.
@@ -682,6 +696,24 @@ final class Shurloc_Test_WPDB {
 			);
 
 			return array_slice( $rows, 0, 2 );
+		}
+
+		if ( str_starts_with( $query, 'SELECT id, visitor_id FROM %i WHERE id = %d LIMIT 2 FOR UPDATE' ) ) {
+			if ( $this->fail_session_select ) {
+				return null;
+			}
+
+			$session_id = (int) $this->last_args[1];
+			if ( ! isset( $this->sessions[ $session_id ] ) ) {
+				return array();
+			}
+
+			return array(
+				(object) array(
+					'id'         => (string) $session_id,
+					'visitor_id' => (string) $this->sessions[ $session_id ]['visitor_id'],
+				),
+			);
 		}
 
 		if ( str_starts_with( $query, 'SELECT id, visitor_id, event_type, order_id, page_path, post_id, product_id, variation_id, quantity, active_ms, source FROM %i WHERE idempotency_key = %s' ) ) {
@@ -1059,6 +1091,41 @@ final class Shurloc_Test_WPDB {
 			}
 
 			return $deleted;
+		}
+
+		if ( 'DELETE FROM %i WHERE session_id = %d' === $query &&
+			str_ends_with( (string) $this->last_args[0], 'shurloc_journey_events' ) ) {
+			if ( $this->fail_event_delete ) {
+				return false;
+			}
+
+			$session_id = (int) $this->last_args[1];
+			$deleted    = 0;
+			foreach ( $this->events as $event_id => $event ) {
+				if ( $session_id === $event['session_id'] ) {
+					unset( $this->events[ $event_id ] );
+					++$deleted;
+				}
+			}
+
+			return $deleted;
+		}
+
+		if ( 'DELETE FROM %i WHERE id = %d AND visitor_id = %d' === $query &&
+			str_ends_with( (string) $this->last_args[0], 'shurloc_journey_sessions' ) ) {
+			if ( $this->fail_session_delete ) {
+				return false;
+			}
+
+			$session_id = (int) $this->last_args[1];
+			$visitor_id = (int) $this->last_args[2];
+			if ( ! isset( $this->sessions[ $session_id ] ) ||
+				$visitor_id !== $this->sessions[ $session_id ]['visitor_id'] ) {
+				return 0;
+			}
+
+			unset( $this->sessions[ $session_id ] );
+			return 1;
 		}
 
 		if ( str_starts_with( $query, 'UPDATE %i SET %i = %i + ' ) &&
