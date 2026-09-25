@@ -25,6 +25,22 @@ use Shurloc\SiteTools\Customer\Journey\Repositories\Journey_Report_Session_Repos
  * @phpstan-import-type Totals from Journey_Report_Page_Builder
  */
 final class JourneyReportRendererTest extends TestCase {
+	/** Reset request and nonce state used by deletion controls. */
+	protected function setUp(): void {
+		parent::setUp();
+
+		$GLOBALS['shurloc_test_nonce_fields'] = array();
+		$_GET                                 = array();
+	}
+
+	/** Restore shared request and nonce state. */
+	protected function tearDown(): void {
+		$GLOBALS['shurloc_test_nonce_fields'] = array();
+		$_GET                                 = array();
+
+		parent::tearDown();
+	}
+
 	/**
 	 * Customer reports render totals, attribution, chronology, and v1 actions.
 	 *
@@ -74,7 +90,74 @@ final class JourneyReportRendererTest extends TestCase {
 		self::assertStringNotContainsString( 'Order paid', $output );
 		self::assertStringContainsString( 'Anonymous, later linked', $output );
 		self::assertStringContainsString( 'Authenticated', $output );
+		self::assertSame( 1, substr_count( $output, 'name="journey_session_id"' ) );
 		self::assertLessThan( strpos( $output, 'Order record created' ), strpos( $output, 'Viewed — &lt;1s active' ) );
+	}
+
+	/**
+	 * Every rendered session has a deliberate deletion form with return filters.
+	 *
+	 * @return void
+	 */
+	public function test_renders_nonce_protected_session_deletion_control(): void {
+		$_GET               = array(
+			'journey_subject'   => 'customer',
+			'journey_user_id'   => '7',
+			'journey_from'      => '2026-09-01',
+			'journey_to'        => '2026-09-21',
+			'journey_before_at' => '2026-09-18 12:00:00',
+			'unrelated'         => '<script>private</script>',
+		);
+		$event              = $this->event( id: 1, event_type: Journey_Event_Type::PAGE_VIEW, occurred_at: '2026-09-18 12:00:00', page_path: '/' );
+		$totals             = $this->empty_totals();
+		$totals['sessions'] = 1;
+
+		$output = $this->render( page: $this->page( events: array( $event ), context: null, totals: $totals ), customer_report: true );
+
+		self::assertStringContainsString( '<details class="shurloc-journey-delete">', $output );
+		self::assertStringContainsString( '>Delete this journey</summary>', $output );
+		self::assertStringContainsString( 'This action cannot be undone.', $output );
+		self::assertStringContainsString( 'method="post" action="https://example.com/wp-admin/admin-post.php"', $output );
+		self::assertStringContainsString( 'name="action" value="shurloc_delete_journey_session"', $output );
+		self::assertStringContainsString( 'name="journey_session_id" value="9"', $output );
+		self::assertStringContainsString( 'name="journey_subject" value="customer"', $output );
+		self::assertStringContainsString( 'name="journey_user_id" value="7"', $output );
+		self::assertStringContainsString( 'name="journey_from" value="2026-09-01"', $output );
+		self::assertStringContainsString( 'name="journey_to" value="2026-09-21"', $output );
+		self::assertStringContainsString( 'name="_wpnonce" value="test-nonce-shurloc_delete_journey_session"', $output );
+		self::assertStringContainsString( 'class="button-link-delete">Delete journey permanently</button>', $output );
+		self::assertStringNotContainsString( 'journey_before_at', $output );
+		self::assertStringNotContainsString( 'unrelated', $output );
+		self::assertStringNotContainsString( '<script>', $output );
+		self::assertSame(
+			array(
+				array(
+					'action' => Journey_Report_Controller::DELETE_ACTION,
+					'name'   => '_wpnonce',
+				),
+			),
+			$GLOBALS['shurloc_test_nonce_fields']
+		);
+	}
+
+	/**
+	 * A session spanning local dates receives one deletion control.
+	 *
+	 * @return void
+	 */
+	public function test_renders_one_deletion_control_for_a_session_spanning_dates(): void {
+		$event              = $this->event( id: 1, event_type: Journey_Event_Type::PAGE_VIEW, occurred_at: '2026-09-18 12:00:00', page_path: '/' );
+		$totals             = $this->empty_totals();
+		$totals['sessions'] = 1;
+		$page               = $this->page( events: array( $event ), context: null, totals: $totals );
+		$second_day         = $page['days'][0];
+		$second_day['date'] = '2026-09-19';
+		$page['days'][]     = $second_day;
+
+		$output = $this->render( page: $page, customer_report: false );
+
+		self::assertSame( 1, substr_count( $output, 'name="journey_session_id" value="9"' ) );
+		self::assertCount( 1, $GLOBALS['shurloc_test_nonce_fields'] );
 	}
 
 	/**
@@ -111,6 +194,8 @@ final class JourneyReportRendererTest extends TestCase {
 		self::assertStringContainsString( 'Totals below cover only the events loaded on this page.', $output );
 		self::assertStringContainsString( 'No Journey events were found in this date range.', $output );
 		self::assertStringNotContainsString( 'shurloc-journey-events', $output );
+		self::assertStringNotContainsString( 'shurloc-journey-delete', $output );
+		self::assertSame( array(), $GLOBALS['shurloc_test_nonce_fields'] );
 	}
 
 	/**

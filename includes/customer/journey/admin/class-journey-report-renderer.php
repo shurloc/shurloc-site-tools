@@ -30,6 +30,15 @@ use Shurloc\SiteTools\Customer\Journey\Journey_Report_Page_Builder;
  * @phpstan-import-type SessionContext from \Shurloc\SiteTools\Customer\Journey\Repositories\Journey_Report_Session_Repository
  */
 final class Journey_Report_Renderer {
+	/** Report filters retained after deleting a session. */
+	private const DELETE_RETURN_FIELDS = array(
+		'journey_subject',
+		'journey_user_id',
+		'journey_visitor_id',
+		'journey_from',
+		'journey_to',
+	);
+
 	/**
 	 * Render a validated report page.
 	 *
@@ -44,6 +53,7 @@ final class Journey_Report_Renderer {
 	 * @phpstan-param ReportPage $page
 	 */
 	public function render( array $page, DateTimeZone $timezone, bool $customer_report ): void {
+		$rendered_session_ids = array();
 		?>
 		<div class="shurloc-journey-report">
 			<p class="description">
@@ -59,7 +69,16 @@ final class Journey_Report_Renderer {
 						<?php $this->render_totals( totals: $day['totals'] ); ?>
 
 						<?php foreach ( $day['sessions'] as $session ) : ?>
-							<?php $this->render_session( session: $session, timezone: $timezone, customer_report: $customer_report ); ?>
+							<?php
+							$render_delete                                  = ! isset( $rendered_session_ids[ $session['session_id'] ] );
+							$rendered_session_ids[ $session['session_id'] ] = true;
+							$this->render_session(
+								session: $session,
+								timezone: $timezone,
+								customer_report: $customer_report,
+								render_delete: $render_delete
+							);
+							?>
 						<?php endforeach; ?>
 					</section>
 				<?php endforeach; ?>
@@ -102,10 +121,11 @@ final class Journey_Report_Renderer {
 	 * @param array        $session         Session group.
 	 * @param DateTimeZone $timezone        Site timezone.
 	 * @param bool         $customer_report Whether the subject is a customer.
+	 * @param bool         $render_delete   Whether to render this session's deletion control.
 	 * @return void
 	 * @phpstan-param SessionGroup $session
 	 */
-	private function render_session( array $session, DateTimeZone $timezone, bool $customer_report ): void {
+	private function render_session( array $session, DateTimeZone $timezone, bool $customer_report, bool $render_delete ): void {
 		$first_event = $session['events'][0];
 		$last_event  = $session['events'][ count( $session['events'] ) - 1 ];
 		$first_time  = $this->format_time( utc: $first_event['occurred_at'], timezone: $timezone );
@@ -146,8 +166,63 @@ final class Journey_Report_Renderer {
 					<?php endforeach; ?>
 				</tbody>
 			</table>
+
+			<?php if ( $render_delete ) : ?>
+				<?php $this->render_delete_control( session_id: $session['session_id'] ); ?>
+			<?php endif; ?>
 		</article>
 		<?php
+	}
+
+	/**
+	 * Render a deliberate, nonce-protected deletion control for one session.
+	 *
+	 * The details disclosure requires an administrator to expose the permanent
+	 * action before submitting it, without depending on JavaScript.
+	 *
+	 * @param int $session_id Journey session ID.
+	 * @return void
+	 */
+	private function render_delete_control( int $session_id ): void {
+		?>
+		<details class="shurloc-journey-delete">
+			<summary><?php echo esc_html__( 'Delete this journey', 'shurloc-site-tools' ); ?></summary>
+			<p><?php echo esc_html__( 'This permanently deletes this session and all of its recorded events. This action cannot be undone.', 'shurloc-site-tools' ); ?></p>
+			<form method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>">
+				<input type="hidden" name="action" value="<?php echo esc_attr( Journey_Report_Controller::DELETE_ACTION ); ?>">
+				<input type="hidden" name="journey_session_id" value="<?php echo esc_attr( (string) $session_id ); ?>">
+				<?php $this->render_delete_return_fields(); ?>
+				<?php wp_nonce_field( Journey_Report_Controller::DELETE_ACTION ); ?>
+				<button type="submit" class="button-link-delete"><?php echo esc_html__( 'Delete journey permanently', 'shurloc-site-tools' ); ?></button>
+			</form>
+		</details>
+		<?php
+	}
+
+	/**
+	 * Retain only report-selection fields after a deletion redirect.
+	 *
+	 * Event pagination cursors are intentionally omitted because the deleted
+	 * session can invalidate the current event page.
+	 *
+	 * @return void
+	 */
+	private function render_delete_return_fields(): void {
+		foreach ( self::DELETE_RETURN_FIELDS as $field ) {
+			// phpcs:ignore WordPress.Security.NonceVerification.Recommended -- Read-only report filters are revalidated by the deletion controller.
+			$value = $_GET[ $field ] ?? '';
+			if ( ! is_string( $value ) ) {
+				continue;
+			}
+
+			$value = sanitize_text_field( wp_unslash( $value ) );
+			if ( '' === $value ) {
+				continue;
+			}
+			?>
+			<input type="hidden" name="<?php echo esc_attr( $field ); ?>" value="<?php echo esc_attr( $value ); ?>">
+			<?php
+		}
 	}
 
 	/**
