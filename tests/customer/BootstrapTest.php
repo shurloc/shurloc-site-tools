@@ -185,6 +185,10 @@ final class BootstrapTest extends TestCase {
 		self::assertCount( 1, $journey_report_callbacks );
 		$journey_report_callback = array_values( $journey_report_callbacks )[0];
 		self::assertSame( 'enqueue_assets', $journey_report_callback[1] );
+		self::assertArrayHasKey(
+			'admin_post_' . Journey_Report_Controller::DELETE_ACTION,
+			$GLOBALS['shurloc_test_actions']
+		);
 
 		self::assertArrayHasKey(
 			'manage_users_columns',

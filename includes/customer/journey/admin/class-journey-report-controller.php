@@ -17,6 +17,7 @@ use Shurloc\SiteTools\Customer\Journey\Journey_Report_Page_Builder;
 use Shurloc\SiteTools\Customer\Journey\Repositories\Journey_Report_Repository;
 use Shurloc\SiteTools\Customer\Journey\Repositories\Journey_Report_Session_Repository;
 use Shurloc\SiteTools\Customer\Journey\Repositories\Journey_Report_Visitor_Repository;
+use Shurloc\SiteTools\Customer\Journey\Repositories\Journey_Session_Deletion_Repository;
 use WP_User;
 
 /**
@@ -33,6 +34,21 @@ final class Journey_Report_Controller {
 
 	/** Capability required to view behavioral reports. */
 	public const CAPABILITY = 'manage_options';
+
+	/** WordPress admin-post action for deleting one Journey session. */
+	public const DELETE_ACTION = 'shurloc_delete_journey_session';
+
+	/** Query argument carrying a deletion result notice. */
+	private const DELETE_RESULT_KEY = 'journey_delete_result';
+
+	/** Successful deletion result. */
+	private const DELETE_RESULT_DELETED = 'deleted';
+
+	/** Already-absent deletion result. */
+	private const DELETE_RESULT_MISSING = 'missing';
+
+	/** Failed deletion result. */
+	private const DELETE_RESULT_FAILED = 'failed';
 
 	/** Events loaded in one report request. */
 	private const EVENT_PAGE_SIZE = 50;
@@ -65,6 +81,13 @@ final class Journey_Report_Controller {
 	private Journey_Report_Visitor_Repository $visitor_repository;
 
 	/**
+	 * Individual Journey deletion.
+	 *
+	 * @var Journey_Session_Deletion_Repository
+	 */
+	private Journey_Session_Deletion_Repository $deletion_repository;
+
+	/**
 	 * Report page grouping.
 	 *
 	 * @var Journey_Report_Page_Builder
@@ -95,13 +118,14 @@ final class Journey_Report_Controller {
 	/**
 	 * Constructor.
 	 *
-	 * @param Journey_Report_Repository         $report_repository  Event report reads.
-	 * @param Journey_Report_Session_Repository $session_repository Session context reads.
-	 * @param Journey_Report_Visitor_Repository $visitor_repository Anonymous visitor reads.
-	 * @param Journey_Report_Page_Builder       $page_builder       Report grouping.
-	 * @param Journey_Report_Renderer           $renderer           Report presentation.
-	 * @param DateTimeZone                      $timezone           Site timezone.
-	 * @param DateTimeImmutable|null            $now                Current time override.
+	 * @param Journey_Report_Repository                $report_repository  Event report reads.
+	 * @param Journey_Report_Session_Repository        $session_repository Session context reads.
+	 * @param Journey_Report_Visitor_Repository        $visitor_repository Anonymous visitor reads.
+	 * @param Journey_Report_Page_Builder              $page_builder       Report grouping.
+	 * @param Journey_Report_Renderer                  $renderer           Report presentation.
+	 * @param DateTimeZone                             $timezone           Site timezone.
+	 * @param DateTimeImmutable|null                   $now                Current time override.
+	 * @param Journey_Session_Deletion_Repository|null $deletion_repository Individual Journey deletion.
 	 */
 	public function __construct(
 		Journey_Report_Repository $report_repository,
@@ -110,15 +134,17 @@ final class Journey_Report_Controller {
 		Journey_Report_Page_Builder $page_builder,
 		Journey_Report_Renderer $renderer,
 		DateTimeZone $timezone,
-		?DateTimeImmutable $now = null
+		?DateTimeImmutable $now = null,
+		?Journey_Session_Deletion_Repository $deletion_repository = null
 	) {
-		$this->report_repository  = $report_repository;
-		$this->session_repository = $session_repository;
-		$this->visitor_repository = $visitor_repository;
-		$this->page_builder       = $page_builder;
-		$this->renderer           = $renderer;
-		$this->timezone           = $timezone;
-		$this->now                = $now ?? new DateTimeImmutable( 'now', $timezone );
+		$this->report_repository   = $report_repository;
+		$this->session_repository  = $session_repository;
+		$this->visitor_repository  = $visitor_repository;
+		$this->deletion_repository = $deletion_repository ?? new Journey_Session_Deletion_Repository();
+		$this->page_builder        = $page_builder;
+		$this->renderer            = $renderer;
+		$this->timezone            = $timezone;
+		$this->now                 = $now ?? new DateTimeImmutable( 'now', $timezone );
 	}
 
 	/**
@@ -128,6 +154,37 @@ final class Journey_Report_Controller {
 	 */
 	public function register(): void {
 		add_action( 'admin_enqueue_scripts', array( $this, 'enqueue_assets' ) );
+		add_action( 'admin_post_' . self::DELETE_ACTION, array( $this, 'handle_delete' ) );
+	}
+
+	/**
+	 * Process an authorized deletion and return to a stable report page.
+	 *
+	 * @return void
+	 */
+	public function handle_delete(): void {
+		if ( ! current_user_can( self::CAPABILITY ) ) {
+			wp_die( esc_html__( 'You do not have permission to delete Customer Journeys.', 'shurloc-site-tools' ) );
+		}
+
+		if ( false === check_admin_referer( self::DELETE_ACTION ) ) {
+			wp_die( esc_html__( 'The Customer Journey deletion request could not be verified.', 'shurloc-site-tools' ) );
+		}
+
+		$session_id = $this->positive_integer( value: $this->post_value( key: 'journey_session_id' ) );
+		if ( null === $session_id ) {
+			wp_die( esc_html__( 'Select a valid Customer Journey to delete.', 'shurloc-site-tools' ) );
+		}
+
+		$deleted = $this->deletion_repository->delete_by_id( session_id: $session_id );
+		$result  = match ( $deleted ) {
+			1       => self::DELETE_RESULT_DELETED,
+			0       => self::DELETE_RESULT_MISSING,
+			default => self::DELETE_RESULT_FAILED,
+		};
+
+		wp_safe_redirect( $this->deletion_redirect_url( result: $result ) );
+		exit;
 	}
 
 	/**
@@ -155,6 +212,7 @@ final class Journey_Report_Controller {
 	 */
 	public function render(): void {
 		$this->verify_permissions();
+		$this->render_delete_notice();
 
 		$subject   = sanitize_key( $this->request_value( key: 'journey_subject' ) );
 		$from_date = $this->request_value( key: 'journey_from' );
@@ -694,6 +752,54 @@ final class Journey_Report_Controller {
 	}
 
 	/**
+	 * Read one scalar POST value after the deletion nonce is verified.
+	 *
+	 * @param string $key Request key.
+	 * @return string Sanitized value or an empty string.
+	 */
+	private function post_value( string $key ): string {
+		// phpcs:ignore WordPress.Security.NonceVerification.Missing -- handle_delete() verifies the action nonce before calling this helper.
+		$value = $_POST[ $key ] ?? '';
+		return is_string( $value ) ? sanitize_text_field( wp_unslash( $value ) ) : '';
+	}
+
+	/**
+	 * Build a deletion redirect without retaining event pagination cursors.
+	 *
+	 * @param string $result Deletion result.
+	 * @return string Customer Journey report URL.
+	 */
+	private function deletion_redirect_url( string $result ): string {
+		$args = array(
+			'page'                  => self::PAGE_SLUG,
+			'tab'                   => self::TAB_SLUG,
+			self::DELETE_RESULT_KEY => $result,
+		);
+
+		$subject = sanitize_key( $this->post_value( key: 'journey_subject' ) );
+		if ( 'customer' !== $subject && 'visitor' !== $subject ) {
+			return add_query_arg( $args, admin_url( 'admin.php' ) );
+		}
+
+		$args['journey_subject'] = $subject;
+		$subject_id              = $this->positive_integer(
+			value: $this->post_value( key: 'customer' === $subject ? 'journey_user_id' : 'journey_visitor_id' )
+		);
+		if ( null !== $subject_id ) {
+			$args[ 'customer' === $subject ? 'journey_user_id' : 'journey_visitor_id' ] = $subject_id;
+		}
+
+		$from_date = $this->post_value( key: 'journey_from' );
+		$to_date   = $this->post_value( key: 'journey_to' );
+		if ( null !== $this->utc_range( from_date: $from_date, to_date: $to_date ) ) {
+			$args['journey_from'] = $from_date;
+			$args['journey_to']   = $to_date;
+		}
+
+		return add_query_arg( $args, admin_url( 'admin.php' ) );
+	}
+
+	/**
 	 * Parse a canonical positive request integer.
 	 *
 	 * @param string $value Request value.
@@ -762,6 +868,30 @@ final class Journey_Report_Controller {
 	private function render_error( string $message ): void {
 		?>
 		<div class="notice notice-error inline"><p><?php echo esc_html( $message ); ?></p></div>
+		<?php
+	}
+
+	/**
+	 * Render feedback from the preceding deletion request.
+	 *
+	 * @return void
+	 */
+	private function render_delete_notice(): void {
+		$result = sanitize_key( $this->request_value( key: self::DELETE_RESULT_KEY ) );
+		if ( self::DELETE_RESULT_DELETED === $result ) {
+			$class   = 'notice notice-success inline is-dismissible';
+			$message = __( 'Customer Journey deleted.', 'shurloc-site-tools' );
+		} elseif ( self::DELETE_RESULT_MISSING === $result ) {
+			$class   = 'notice notice-warning inline is-dismissible';
+			$message = __( 'That Customer Journey had already been deleted.', 'shurloc-site-tools' );
+		} elseif ( self::DELETE_RESULT_FAILED === $result ) {
+			$class   = 'notice notice-error inline';
+			$message = __( 'The Customer Journey could not be deleted. Verify the Journey schema and retry.', 'shurloc-site-tools' );
+		} else {
+			return;
+		}
+		?>
+		<div class="<?php echo esc_attr( $class ); ?>"><p><?php echo esc_html( $message ); ?></p></div>
 		<?php
 	}
 

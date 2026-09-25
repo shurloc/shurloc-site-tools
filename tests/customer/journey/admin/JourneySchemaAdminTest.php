@@ -14,25 +14,6 @@ use RuntimeException;
 use Shurloc\SiteTools\Customer\Journey\Migrations\Journey_Schema_Migrator;
 use Shurloc_Test_WPDB;
 
-// phpcs:disable Universal.Files.SeparateFunctionsFromOO.Mixed -- Keep the scoped redirect test stub with its controller tests.
-
-/**
- * Capture a redirect before the handler exits the request.
- *
- * @param string $location Redirect destination.
- * @return bool Whether the test redirect was accepted.
- * @throws RuntimeException When the test needs to stop before exit.
- */
-function wp_safe_redirect( string $location ): bool {
-	$GLOBALS['shurloc_journey_schema_redirect'] = $location;
-
-	if ( $GLOBALS['shurloc_journey_schema_throw_on_redirect'] ) {
-		throw new RuntimeException( 'Journey schema redirect' );
-	}
-
-	return true;
-}
-
 /**
  * Tests the Journey schema notice and retry action.
  */
@@ -52,17 +33,17 @@ final class JourneySchemaAdminTest extends TestCase {
 	protected function setUp(): void {
 		parent::setUp();
 
-		$GLOBALS['shurloc_test_actions']                     = array();
-		$GLOBALS['shurloc_test_action_metadata']             = array();
-		$GLOBALS['shurloc_test_options']                     = array();
-		$GLOBALS['shurloc_test_nonce_fields']                = array();
-		$GLOBALS['shurloc_test_user_capabilities']           = array();
-		$GLOBALS['shurloc_test_admin_referer_checks']        = array();
-		$GLOBALS['shurloc_test_nonce_valid']                 = true;
-		$GLOBALS['shurloc_test_wp_die_messages']             = array();
-		$GLOBALS['shurloc_journey_schema_redirect']          = '';
-		$GLOBALS['shurloc_journey_schema_throw_on_redirect'] = true;
-		$GLOBALS['shurloc_journey_schema_updates']           = 0;
+		$GLOBALS['shurloc_test_actions']              = array();
+		$GLOBALS['shurloc_test_action_metadata']      = array();
+		$GLOBALS['shurloc_test_options']              = array();
+		$GLOBALS['shurloc_test_nonce_fields']         = array();
+		$GLOBALS['shurloc_test_user_capabilities']    = array();
+		$GLOBALS['shurloc_test_admin_referer_checks'] = array();
+		$GLOBALS['shurloc_test_nonce_valid']          = true;
+		$GLOBALS['shurloc_test_redirects']            = array();
+		$GLOBALS['shurloc_test_throw_on_redirect']    = true;
+		$GLOBALS['shurloc_test_wp_die_messages']      = array();
+		$GLOBALS['shurloc_journey_schema_updates']    = 0;
 
 		// phpcs:ignore WordPress.WP.GlobalVariablesOverride.Prohibited -- Install the shared test-only database double.
 		$GLOBALS['wpdb'] = new Shurloc_Test_WPDB();
@@ -84,17 +65,17 @@ final class JourneySchemaAdminTest extends TestCase {
 	 * @return void
 	 */
 	protected function tearDown(): void {
-		$GLOBALS['shurloc_test_actions']                     = array();
-		$GLOBALS['shurloc_test_action_metadata']             = array();
-		$GLOBALS['shurloc_test_options']                     = array();
-		$GLOBALS['shurloc_test_nonce_fields']                = array();
-		$GLOBALS['shurloc_test_user_capabilities']           = array();
-		$GLOBALS['shurloc_test_admin_referer_checks']        = array();
-		$GLOBALS['shurloc_test_nonce_valid']                 = true;
-		$GLOBALS['shurloc_test_wp_die_messages']             = array();
-		$GLOBALS['shurloc_journey_schema_redirect']          = '';
-		$GLOBALS['shurloc_journey_schema_throw_on_redirect'] = false;
-		$GLOBALS['shurloc_journey_schema_updates']           = 0;
+		$GLOBALS['shurloc_test_actions']              = array();
+		$GLOBALS['shurloc_test_action_metadata']      = array();
+		$GLOBALS['shurloc_test_options']              = array();
+		$GLOBALS['shurloc_test_nonce_fields']         = array();
+		$GLOBALS['shurloc_test_user_capabilities']    = array();
+		$GLOBALS['shurloc_test_admin_referer_checks'] = array();
+		$GLOBALS['shurloc_test_nonce_valid']          = true;
+		$GLOBALS['shurloc_test_redirects']            = array();
+		$GLOBALS['shurloc_test_throw_on_redirect']    = false;
+		$GLOBALS['shurloc_test_wp_die_messages']      = array();
+		$GLOBALS['shurloc_journey_schema_updates']    = 0;
 
 		// phpcs:ignore WordPress.WP.GlobalVariablesOverride.Prohibited -- Restore the shared test-only database double.
 		$GLOBALS['wpdb'] = new Shurloc_Test_WPDB();
@@ -250,7 +231,7 @@ final class JourneySchemaAdminTest extends TestCase {
 			$GLOBALS['shurloc_test_admin_referer_checks']
 		);
 		self::assertSame( 0, $GLOBALS['shurloc_journey_schema_updates'] );
-		self::assertSame( '', $GLOBALS['shurloc_journey_schema_redirect'] );
+		self::assertSame( array(), $GLOBALS['shurloc_test_redirects'] );
 	}
 
 	/**
@@ -278,7 +259,7 @@ final class JourneySchemaAdminTest extends TestCase {
 			$this->controller->handle_retry();
 			self::fail( 'Expected redirect after retry.' );
 		} catch ( RuntimeException $error ) {
-			self::assertSame( 'Journey schema redirect', $error->getMessage() );
+			self::assertSame( 'Test safe redirect', $error->getMessage() );
 		}
 
 		self::assertSame( 1, $GLOBALS['shurloc_journey_schema_updates'] );
@@ -292,7 +273,7 @@ final class JourneySchemaAdminTest extends TestCase {
 		);
 		self::assertSame(
 			'https://example.com/wp-admin/admin.php?page=shurloc-site-tools-customers',
-			$GLOBALS['shurloc_journey_schema_redirect']
+			$GLOBALS['shurloc_test_redirects'][0]
 		);
 	}
 
@@ -309,13 +290,13 @@ final class JourneySchemaAdminTest extends TestCase {
 			$this->controller->handle_retry();
 			self::fail( 'Expected redirect after retry.' );
 		} catch ( RuntimeException $error ) {
-			self::assertSame( 'Journey schema redirect', $error->getMessage() );
+			self::assertSame( 'Test safe redirect', $error->getMessage() );
 		}
 
 		self::assertSame( 0, $GLOBALS['shurloc_journey_schema_updates'] );
 		self::assertSame(
 			'https://example.com/wp-admin/admin.php?page=shurloc-site-tools-customers',
-			$GLOBALS['shurloc_journey_schema_redirect']
+			$GLOBALS['shurloc_test_redirects'][0]
 		);
 	}
 }
