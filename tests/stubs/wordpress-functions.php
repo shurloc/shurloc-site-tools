@@ -966,6 +966,27 @@ if ( ! function_exists( 'wp_strip_all_tags' ) ) {
 	}
 }
 
+if ( ! function_exists( 'wp_check_invalid_utf8' ) ) {
+	/**
+	 * Check a test string for valid UTF-8 and optionally strip invalid bytes.
+	 *
+	 * @param string $text  Text to validate.
+	 * @param bool   $strip Whether to strip invalid bytes.
+	 * @return string Validated text.
+	 */
+	function wp_check_invalid_utf8( string $text, bool $strip = false ): string {
+		if ( 1 === preg_match( '//u', $text ) ) {
+			return $text;
+		}
+
+		if ( ! $strip ) {
+			return '';
+		}
+
+		return preg_replace( '/[^\x00-\x7F]/', '', $text ) ?? '';
+	}
+}
+
 if ( ! function_exists( 'home_url' ) ) {
 	/**
 	 * Get a test home URL.
