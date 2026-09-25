@@ -11,26 +11,21 @@ namespace Shurloc\SiteTools\Customer\Journey\Frontend;
 
 defined( 'ABSPATH' ) || exit;
 
-use Shurloc\SiteTools\Customer\Journey\Journey_Collection_Policy;
 use Shurloc\SiteTools\Customer\Journey\Journey_Page_Context_Resolver;
 use Shurloc\SiteTools\Customer\Journey\Migrations\Journey_Schema_Migrator;
 use Shurloc\SiteTools\Customer\Journey\Rest\Journey_Browser_Ingestion_Controller;
 
 /**
- * Enqueue tracking only when this page may collect Journey activity.
+ * Enqueue the Journey transport on schema-ready public pages.
  *
- * The script is added to the Customer bootstrap after its asset exists.
+ * Request-specific collection policy is enforced by the ingestion controller.
+ * Applying that policy while rendering cacheable HTML would let an excluded
+ * request populate the shared page cache without the tracker for eligible
+ * visitors.
  */
 final class Journey_Browser_Assets {
 	/** Script handle shared with inline configuration. */
 	public const SCRIPT_HANDLE = 'shurloc-journey-tracker';
-
-	/**
-	 * Central collection policy.
-	 *
-	 * @var Journey_Collection_Policy
-	 */
-	private Journey_Collection_Policy $collection_policy;
 
 	/**
 	 * Installed Journey schema gate.
@@ -42,15 +37,10 @@ final class Journey_Browser_Assets {
 	/**
 	 * Constructor.
 	 *
-	 * @param Journey_Collection_Policy|null $collection_policy Collection policy.
-	 * @param Journey_Schema_Migrator|null   $schema_migrator    Schema gate.
+	 * @param Journey_Schema_Migrator|null $schema_migrator Schema gate.
 	 */
-	public function __construct(
-		?Journey_Collection_Policy $collection_policy = null,
-		?Journey_Schema_Migrator $schema_migrator = null
-	) {
-		$this->collection_policy = $collection_policy ?? new Journey_Collection_Policy();
-		$this->schema_migrator   = $schema_migrator ?? new Journey_Schema_Migrator();
+	public function __construct( ?Journey_Schema_Migrator $schema_migrator = null ) {
+		$this->schema_migrator = $schema_migrator ?? new Journey_Schema_Migrator();
 	}
 
 	/**
@@ -67,11 +57,13 @@ final class Journey_Browser_Assets {
 	 *
 	 * Anonymous pages carry no user-specific nonce, so they can be cached.
 	 * Authenticated pages must not be served from a shared full-page cache.
+	 * The REST permission callback applies consent, user exclusions, automated
+	 * client detection, and the same schema check before accepting any event.
 	 *
 	 * @return void
 	 */
 	public function enqueue_assets(): void {
-		if ( is_admin() || ! $this->collection_policy->allows_collection() || ! $this->schema_migrator->is_ready() ) {
+		if ( is_admin() || ! $this->schema_migrator->is_ready() ) {
 			return;
 		}
 
