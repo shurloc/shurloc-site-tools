@@ -181,7 +181,8 @@ final class BootstrapTest extends TestCase {
 			$GLOBALS['shurloc_test_activation_hooks'][ $plugin_file ]
 		);
 
-		$GLOBALS['shurloc_test_options'][ Journey_Schema_Migrator::VERSION_OPTION ] = 2;
+		$GLOBALS['shurloc_test_options'][ Journey_Schema_Migrator::VERSION_OPTION ] =
+			Journey_Schema_Migrator::CURRENT_VERSION + 1;
 		$activation_callback = $GLOBALS['shurloc_test_activation_hooks'][ $plugin_file ];
 		$activation_callback();
 
@@ -190,7 +191,7 @@ final class BootstrapTest extends TestCase {
 			$GLOBALS['shurloc_test_options'][ Journey_Schema_Migrator::FAILURE_OPTION ]
 		);
 		self::assertSame(
-			2,
+			Journey_Schema_Migrator::CURRENT_VERSION + 1,
 			$GLOBALS['shurloc_test_options'][ Journey_Schema_Migrator::VERSION_OPTION ]
 		);
 	}

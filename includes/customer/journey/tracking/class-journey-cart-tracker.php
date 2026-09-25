@@ -11,7 +11,9 @@ namespace Shurloc\SiteTools\Customer\Journey\Tracking;
 
 defined( 'ABSPATH' ) || exit;
 
+use Shurloc\SiteTools\Customer\Journey\Journey_Cart_Session_Token;
 use Shurloc\SiteTools\Customer\Journey\Journey_Event_Type;
+use Shurloc\SiteTools\Customer\Journey\Repositories\Journey_Cart_Link_Repository;
 use Shurloc\SiteTools\Customer\Journey\Services\Journey_Event_Service;
 use WC_Cart;
 
@@ -33,12 +35,34 @@ final class Journey_Cart_Tracker {
 	private Journey_Event_Service $events;
 
 	/**
+	 * WooCommerce session token service.
+	 *
+	 * @var Journey_Cart_Session_Token
+	 */
+	private Journey_Cart_Session_Token $cart_token;
+
+	/**
+	 * Journey cart-session link storage.
+	 *
+	 * @var Journey_Cart_Link_Repository
+	 */
+	private Journey_Cart_Link_Repository $cart_links;
+
+	/**
 	 * Constructor.
 	 *
-	 * @param Journey_Event_Service|null $events Event recorder.
+	 * @param Journey_Event_Service|null        $events     Event recorder.
+	 * @param Journey_Cart_Session_Token|null   $cart_token WooCommerce session token service.
+	 * @param Journey_Cart_Link_Repository|null $cart_links Journey cart-session link storage.
 	 */
-	public function __construct( ?Journey_Event_Service $events = null ) {
-		$this->events = $events ?? new Journey_Event_Service();
+	public function __construct(
+		?Journey_Event_Service $events = null,
+		?Journey_Cart_Session_Token $cart_token = null,
+		?Journey_Cart_Link_Repository $cart_links = null
+	) {
+		$this->events     = $events ?? new Journey_Event_Service();
+		$this->cart_token = $cart_token ?? new Journey_Cart_Session_Token();
+		$this->cart_links = $cart_links ?? new Journey_Cart_Link_Repository();
 	}
 
 	/**
@@ -189,12 +213,29 @@ final class Journey_Cart_Tracker {
 			return;
 		}
 
-		$this->events->record(
+		$result = $this->events->record(
 			event_type: $event_type,
 			product_id: $product_id,
 			variation_id: 0 < $variation_id ? $variation_id : null,
 			quantity: $this->decimal_quantity( quantity: $quantity ),
 			source: $source
+		);
+
+		if ( null === $result ) {
+			return;
+		}
+
+		$cart_token_hash = $this->cart_token->get_or_create_hash();
+
+		if ( null === $cart_token_hash ) {
+			return;
+		}
+
+		$this->cart_links->link(
+			cart_token_hash: $cart_token_hash,
+			visitor_id: $result['visitor_id'],
+			session_id: $result['session_id'],
+			observed_at: gmdate( 'Y-m-d H:i:s' )
 		);
 	}
 

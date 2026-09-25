@@ -102,7 +102,7 @@ final class Journey_Event_Service {
 	 * @param int         $active_ms       Initial estimated visible duration.
 	 * @param string|null $source          Server-selected event source.
 	 * @param string|null $idempotency_key Stable lowercase SHA-256 event key; for checkout, one entry key.
-	 * @return array{id:int,created:bool}|null Stored event or null when rejected.
+	 * @return array{id:int,created:bool,visitor_id:int,session_id:int}|null Stored event or null when rejected.
 	 * @phpstan-impure
 	 */
 	public function record(
@@ -169,7 +169,7 @@ final class Journey_Event_Service {
 			$fields['idempotency_key'] = hash( 'sha256', 'shurloc_journey:CHECKOUT_STARTED:' . $session['session_id'] . ':' . $idempotency_key );
 		}
 
-		return $this->events->record(
+		$result = $this->events->record(
 			event: array_merge(
 				array(
 					'session_id'       => $session['session_id'],
@@ -179,6 +179,17 @@ final class Journey_Event_Service {
 				),
 				$fields
 			),
+		);
+
+		if ( null === $result ) {
+			return null;
+		}
+
+		return array(
+			'id'         => $result['id'],
+			'created'    => $result['created'],
+			'visitor_id' => $session['visitor_id'],
+			'session_id' => $session['session_id'],
 		);
 	}
 

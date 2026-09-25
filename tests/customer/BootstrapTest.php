@@ -656,14 +656,16 @@ final class BootstrapTest extends TestCase {
 		self::assertSame( array(), $GLOBALS['shurloc_test_options'] );
 
 		$GLOBALS['shurloc_test_user_capabilities']['manage_options']                = true;
-		$GLOBALS['shurloc_test_options'][ Journey_Schema_Migrator::VERSION_OPTION ] = 1;
+		$GLOBALS['shurloc_test_options'][ Journey_Schema_Migrator::VERSION_OPTION ] =
+			Journey_Schema_Migrator::CURRENT_VERSION;
 		$bootstrap->maybe_migrate_journey_schema();
 		self::assertArrayNotHasKey(
 			Journey_Schema_Migrator::FAILURE_OPTION,
 			$GLOBALS['shurloc_test_options']
 		);
 
-		$GLOBALS['shurloc_test_options'][ Journey_Schema_Migrator::VERSION_OPTION ] = 2;
+		$GLOBALS['shurloc_test_options'][ Journey_Schema_Migrator::VERSION_OPTION ] =
+			Journey_Schema_Migrator::CURRENT_VERSION + 1;
 		$bootstrap->maybe_migrate_journey_schema();
 		self::assertArrayNotHasKey(
 			Journey_Schema_Migrator::FAILURE_OPTION,

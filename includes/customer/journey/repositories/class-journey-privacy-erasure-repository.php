@@ -38,21 +38,35 @@ final class Journey_Privacy_Erasure_Repository {
 	private Journey_Schema_Migrator $schema_migrator;
 
 	/**
+	 * Cart-session correlation cleanup.
+	 *
+	 * @var Journey_Cart_Link_Repository
+	 */
+	private Journey_Cart_Link_Repository $cart_links;
+
+	/**
 	 * Constructor.
 	 *
-	 * @param Journey_Schema_Migrator|null $schema_migrator Journey schema check.
+	 * @param Journey_Schema_Migrator|null      $schema_migrator Journey schema check.
+	 * @param Journey_Cart_Link_Repository|null $cart_links      Cart-session correlation cleanup.
 	 */
-	public function __construct( ?Journey_Schema_Migrator $schema_migrator = null ) {
+	public function __construct(
+		?Journey_Schema_Migrator $schema_migrator = null,
+		?Journey_Cart_Link_Repository $cart_links = null
+	) {
 		$this->schema_migrator = $schema_migrator ?? new Journey_Schema_Migrator();
+		$this->cart_links      = $cart_links ?? new Journey_Cart_Link_Repository(
+			schema_migrator: $this->schema_migrator,
+		);
 	}
 
 	// phpcs:disable Squiz.Commenting.FunctionCommentThrowTag.Missing -- Transaction failures are caught and returned as null.
 	/**
 	 * Remove one bounded batch from the user's oldest linked identity period.
 	 *
-	 * Events are removed before their sessions, and sessions before the identity
-	 * period. A successful removal reports more work so the caller performs one
-	 * final empty check before declaring the erasure complete.
+	 * Events and cart links are removed before their sessions, and sessions
+	 * before the identity period. A successful removal reports more work so the
+	 * caller performs one final empty check before declaring the erasure complete.
 	 *
 	 * @param int $user_id    WordPress user ID whose Journey data is erased.
 	 * @param int $batch_size Maximum events or sessions removed in this call.
@@ -135,6 +149,10 @@ final class Journey_Privacy_Erasure_Repository {
 			);
 
 			if ( array() !== $session_ids ) {
+				if ( ! $this->cart_links->delete_for_sessions( session_ids: $session_ids ) ) {
+					throw new RuntimeException( 'Journey privacy cart-link deletion failed.' );
+				}
+
 				$this->delete_ids(
 					table: $this->sessions_table(),
 					ids: $session_ids,

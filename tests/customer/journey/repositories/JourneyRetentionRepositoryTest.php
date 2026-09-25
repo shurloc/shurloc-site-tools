@@ -97,7 +97,7 @@ final class JourneyRetentionRepositoryTest extends TestCase {
 	 */
 	public function test_deletes_anonymous_histories_in_dependency_order(): void {
 		$this->queue_ids( 3, 8 );
-		$this->database->query_result_queue = array( 7, 4, 2, 2 );
+		$this->database->query_result_queue = array( 2, 7, 4, 2, 2 );
 
 		self::assertSame(
 			2,
@@ -127,15 +127,18 @@ final class JourneyRetentionRepositoryTest extends TestCase {
 				'DELETE FROM %i WHERE %i IN (%d, %d)',
 				'DELETE FROM %i WHERE %i IN (%d, %d)',
 				'DELETE FROM %i WHERE %i IN (%d, %d)',
+				'DELETE FROM %i WHERE %i IN (%d, %d)',
 				'COMMIT',
 			),
 			$this->database->queries
 		);
-		self::assertSame( 'wp_shurloc_journey_events', $this->database->prepared_queries[1]['args'][0] );
+		self::assertSame( 'wp_shurloc_journey_cart_links', $this->database->prepared_queries[1]['args'][0] );
 		self::assertSame( 'visitor_id', $this->database->prepared_queries[1]['args'][1] );
-		self::assertSame( 'wp_shurloc_journey_sessions', $this->database->prepared_queries[2]['args'][0] );
-		self::assertSame( 'wp_shurloc_journey_identity_periods', $this->database->prepared_queries[3]['args'][0] );
-		self::assertSame( 'wp_shurloc_journey_visitors', $this->database->prepared_queries[4]['args'][0] );
+		self::assertSame( 'wp_shurloc_journey_events', $this->database->prepared_queries[2]['args'][0] );
+		self::assertSame( 'visitor_id', $this->database->prepared_queries[2]['args'][1] );
+		self::assertSame( 'wp_shurloc_journey_sessions', $this->database->prepared_queries[3]['args'][0] );
+		self::assertSame( 'wp_shurloc_journey_identity_periods', $this->database->prepared_queries[4]['args'][0] );
+		self::assertSame( 'wp_shurloc_journey_visitors', $this->database->prepared_queries[5]['args'][0] );
 	}
 
 	/**
@@ -145,7 +148,7 @@ final class JourneyRetentionRepositoryTest extends TestCase {
 	 */
 	public function test_deletes_identified_histories_as_one_transaction(): void {
 		$this->queue_ids( 11 );
-		$this->database->query_result_queue = array( 3, 2, 1, 1 );
+		$this->database->query_result_queue = array( 1, 3, 2, 1, 1 );
 
 		self::assertSame(
 			1,
@@ -158,7 +161,7 @@ final class JourneyRetentionRepositoryTest extends TestCase {
 		$selection = $this->database->prepared_queries[0]['query'];
 		self::assertStringContainsString( 'AND EXISTS', $selection );
 		self::assertStringNotContainsString( 'NOT EXISTS', $selection );
-		self::assertSame( 'COMMIT', $this->database->queries[5] );
+		self::assertSame( 'COMMIT', $this->database->queries[6] );
 	}
 
 	/**
@@ -168,7 +171,7 @@ final class JourneyRetentionRepositoryTest extends TestCase {
 	 */
 	public function test_deletes_identified_sessions_and_residual_events(): void {
 		$this->queue_ids( 20, 21 );
-		$this->database->query_result_queue = array( 3, 2 );
+		$this->database->query_result_queue = array( 2, 3, 2 );
 
 		self::assertSame(
 			2,
@@ -181,10 +184,12 @@ final class JourneyRetentionRepositoryTest extends TestCase {
 		$selection = $this->database->prepared_queries[0];
 		self::assertStringContainsString( 's.last_activity_at < %s', $selection['query'] );
 		self::assertStringContainsString( 'p.user_id IS NOT NULL', $selection['query'] );
+		self::assertSame( 'wp_shurloc_journey_cart_links', $this->database->prepared_queries[1]['args'][0] );
 		self::assertSame( 'session_id', $this->database->prepared_queries[1]['args'][1] );
-		self::assertSame( 'id', $this->database->prepared_queries[2]['args'][1] );
+		self::assertSame( 'session_id', $this->database->prepared_queries[2]['args'][1] );
+		self::assertSame( 'id', $this->database->prepared_queries[3]['args'][1] );
 		self::assertSame(
-			array( 'START TRANSACTION', 'DELETE FROM %i WHERE %i IN (%d, %d)', 'DELETE FROM %i WHERE %i IN (%d, %d)', 'COMMIT' ),
+			array( 'START TRANSACTION', 'DELETE FROM %i WHERE %i IN (%d, %d)', 'DELETE FROM %i WHERE %i IN (%d, %d)', 'DELETE FROM %i WHERE %i IN (%d, %d)', 'COMMIT' ),
 			$this->database->queries
 		);
 	}
@@ -322,20 +327,20 @@ final class JourneyRetentionRepositoryTest extends TestCase {
 
 		$this->reset_database_calls();
 		$this->queue_ids( 7 );
-		$this->database->query_result_queue = array( 1, 1, 1, 0 );
-		self::assertNull(
-			$this->repository->delete_anonymous_histories_before( '2026-01-01 00:00:00', 10 )
-		);
-		self::assertSame( 'ROLLBACK', $this->database->queries[5] );
-
-		$this->reset_database_calls();
-		$this->queue_ids( 7 );
-		$this->database->query_result_queue = array( 1, 1, 1, 1 );
-		$this->database->fail_commit        = true;
+		$this->database->query_result_queue = array( 1, 1, 1, 1, 0 );
 		self::assertNull(
 			$this->repository->delete_anonymous_histories_before( '2026-01-01 00:00:00', 10 )
 		);
 		self::assertSame( 'ROLLBACK', $this->database->queries[6] );
+
+		$this->reset_database_calls();
+		$this->queue_ids( 7 );
+		$this->database->query_result_queue = array( 1, 1, 1, 1, 1 );
+		$this->database->fail_commit        = true;
+		self::assertNull(
+			$this->repository->delete_anonymous_histories_before( '2026-01-01 00:00:00', 10 )
+		);
+		self::assertSame( 'ROLLBACK', $this->database->queries[7] );
 	}
 
 	/**

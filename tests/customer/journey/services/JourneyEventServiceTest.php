@@ -120,8 +120,10 @@ final class JourneyEventServiceTest extends TestCase {
 
 		self::assertSame(
 			array(
-				'id'      => 1,
-				'created' => true,
+				'id'         => 1,
+				'created'    => true,
+				'visitor_id' => 1,
+				'session_id' => 1,
 			),
 			$result
 		);
@@ -157,8 +159,10 @@ final class JourneyEventServiceTest extends TestCase {
 
 		self::assertSame(
 			array(
-				'id'      => 1,
-				'created' => true,
+				'id'         => 1,
+				'created'    => true,
+				'visitor_id' => 1,
+				'session_id' => 1,
 			),
 			$result
 		);
@@ -198,15 +202,19 @@ final class JourneyEventServiceTest extends TestCase {
 
 		self::assertSame(
 			array(
-				'id'      => 1,
-				'created' => true,
+				'id'         => 1,
+				'created'    => true,
+				'visitor_id' => 1,
+				'session_id' => 1,
 			),
 			$first
 		);
 		self::assertSame(
 			array(
-				'id'      => 1,
-				'created' => false,
+				'id'         => 1,
+				'created'    => false,
+				'visitor_id' => 1,
+				'session_id' => 1,
 			),
 			$retry
 		);
@@ -259,8 +267,10 @@ final class JourneyEventServiceTest extends TestCase {
 
 		self::assertSame(
 			array(
-				'id'      => 2,
-				'created' => true,
+				'id'         => 2,
+				'created'    => true,
+				'visitor_id' => 1,
+				'session_id' => 1,
 			),
 			$result
 		);
@@ -296,15 +306,19 @@ final class JourneyEventServiceTest extends TestCase {
 
 		self::assertSame(
 			array(
-				'id'      => 1,
-				'created' => true,
+				'id'         => 1,
+				'created'    => true,
+				'visitor_id' => 1,
+				'session_id' => 1,
 			),
 			$first
 		);
 		self::assertSame(
 			array(
-				'id'      => 1,
-				'created' => false,
+				'id'         => 1,
+				'created'    => false,
+				'visitor_id' => 1,
+				'session_id' => 1,
 			),
 			$retry
 		);
@@ -322,8 +336,10 @@ final class JourneyEventServiceTest extends TestCase {
 		);
 		self::assertSame(
 			array(
-				'id'      => 2,
-				'created' => true,
+				'id'         => 2,
+				'created'    => true,
+				'visitor_id' => 1,
+				'session_id' => 1,
 			),
 			$next
 		);
@@ -363,8 +379,10 @@ final class JourneyEventServiceTest extends TestCase {
 		);
 		self::assertSame(
 			array(
-				'id'      => 2,
-				'created' => true,
+				'id'         => 2,
+				'created'    => true,
+				'visitor_id' => 1,
+				'session_id' => 2,
 			),
 			$next
 		);
@@ -416,15 +434,19 @@ final class JourneyEventServiceTest extends TestCase {
 
 		self::assertSame(
 			array(
-				'id'      => 3,
-				'created' => true,
+				'id'         => 3,
+				'created'    => true,
+				'visitor_id' => 1,
+				'session_id' => 1,
 			),
 			$order
 		);
 		self::assertSame(
 			array(
-				'id'      => 3,
-				'created' => false,
+				'id'         => 3,
+				'created'    => false,
+				'visitor_id' => 1,
+				'session_id' => 1,
 			),
 			$retry
 		);

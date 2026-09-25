@@ -150,6 +150,24 @@ final class JourneyPrivacyErasureRepositoryTest extends TestCase {
 			)
 		);
 		$this->database->query_result_queue = array( 2 );
+		$this->database->cart_links         = array(
+			1 => array(
+				'id'              => 1,
+				'cart_token_hash' => str_repeat( 'a', 64 ),
+				'visitor_id'      => 3,
+				'session_id'      => 31,
+				'linked_at'       => '2026-09-24 12:00:00',
+				'last_seen_at'    => '2026-09-24 12:00:00',
+			),
+			2 => array(
+				'id'              => 2,
+				'cart_token_hash' => str_repeat( 'b', 64 ),
+				'visitor_id'      => 9,
+				'session_id'      => 99,
+				'linked_at'       => '2026-09-24 13:00:00',
+				'last_seen_at'    => '2026-09-24 13:00:00',
+			),
+		);
 
 		self::assertSame(
 			$this->expected_result( sessions_removed: 2, has_more: true ),
@@ -161,10 +179,25 @@ final class JourneyPrivacyErasureRepositoryTest extends TestCase {
 			$this->database->prepared_queries[4]['args']
 		);
 		self::assertSame(
-			array( 'wp_shurloc_journey_sessions', 31, 32 ),
+			array( 'wp_shurloc_journey_cart_links', 31, 32 ),
 			$this->database->prepared_queries[5]['args']
 		);
-		self::assertCount( 6, $this->database->prepared_queries );
+		self::assertSame(
+			array( 'wp_shurloc_journey_sessions', 31, 32 ),
+			$this->database->prepared_queries[6]['args']
+		);
+		self::assertSame(
+			array(
+				'START TRANSACTION',
+				'DELETE FROM %i WHERE session_id IN (%d, %d)',
+				'DELETE FROM %i WHERE id IN (%d, %d)',
+				'COMMIT',
+			),
+			$this->database->queries
+		);
+		self::assertArrayNotHasKey( 1, $this->database->cart_links );
+		self::assertArrayHasKey( 2, $this->database->cart_links );
+		self::assertCount( 7, $this->database->prepared_queries );
 	}
 
 	/**
@@ -276,6 +309,37 @@ final class JourneyPrivacyErasureRepositoryTest extends TestCase {
 
 		$this->reset_calls();
 		$this->queue_locked_period(
+			additional_results: array(
+				array(),
+				array( (object) array( 'id' => '31' ) ),
+			)
+		);
+		$this->database->cart_links[1]      = array(
+			'id'              => 1,
+			'cart_token_hash' => str_repeat( 'c', 64 ),
+			'visitor_id'      => 3,
+			'session_id'      => 31,
+			'linked_at'       => '2026-09-24 14:00:00',
+			'last_seen_at'    => '2026-09-24 14:00:00',
+		);
+		$this->database->query_result_queue = array( 0 );
+		self::assertNull( $this->repository->erase_user_batch( user_id: 7, batch_size: 10 ) );
+		self::assertSame( 'ROLLBACK', $this->database->queries[3] );
+		self::assertArrayHasKey( 1, $this->database->cart_links );
+
+		$this->reset_calls();
+		$this->queue_locked_period(
+			additional_results: array(
+				array(),
+				array( (object) array( 'id' => '31' ) ),
+			)
+		);
+		$this->database->fail_cart_link_delete = true;
+		self::assertNull( $this->repository->erase_user_batch( user_id: 7, batch_size: 10 ) );
+		self::assertSame( 'ROLLBACK', $this->database->queries[2] );
+
+		$this->reset_calls();
+		$this->queue_locked_period(
 			additional_results: array( array(), array() )
 		);
 		$this->database->query_result_queue = array( 1, false );
@@ -355,7 +419,10 @@ final class JourneyPrivacyErasureRepositoryTest extends TestCase {
 		$this->database->prepared_queries   = array();
 		$this->database->queries            = array();
 		$this->database->query_result_queue = array();
-		$this->database->fail_start         = false;
-		$this->database->fail_commit        = false;
+		$this->database->cart_links         = array();
+
+		$this->database->fail_start            = false;
+		$this->database->fail_commit           = false;
+		$this->database->fail_cart_link_delete = false;
 	}
 }

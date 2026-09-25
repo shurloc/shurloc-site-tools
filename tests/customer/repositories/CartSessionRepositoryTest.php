@@ -10,6 +10,7 @@ declare( strict_types=1 );
 namespace Shurloc\SiteTools\Customer\Repositories;
 
 use PHPUnit\Framework\TestCase;
+use Shurloc\SiteTools\Customer\Journey\Journey_Cart_Session_Token;
 use Shurloc_Test_WPDB;
 
 /**
@@ -83,6 +84,7 @@ final class CartSessionRepositoryTest extends TestCase {
 		self::assertCount( 1, $carts );
 		self::assertSame( 101, $carts[0]['user_id'] );
 		self::assertSame( 'user-101', $carts[0]['session_reference'] );
+		self::assertNull( $carts[0]['cart_token_hash'] );
 		self::assertFalse( $carts[0]['is_expired'] );
 	}
 
@@ -118,6 +120,60 @@ final class CartSessionRepositoryTest extends TestCase {
 			$session_key,
 			$carts[0]['session_reference']
 		);
+	}
+
+	/**
+	 * Verify the Journey cart token is returned only as a validated hash.
+	 *
+	 * @return void
+	 */
+	public function test_returns_only_hash_for_valid_journey_cart_token(): void {
+
+		$token = str_repeat( 'ab', 32 );
+
+		$this->set_rows(
+			rows: array(
+				$this->create_row(
+					session_key: 'guest-session',
+					cart: array(
+						'first' => $this->create_item(),
+					),
+					cart_token: $token,
+				),
+			)
+		);
+
+		$carts = $this->repository->find_non_empty();
+
+		self::assertCount( 1, $carts );
+		self::assertSame( hash( 'sha256', $token ), $carts[0]['cart_token_hash'] );
+		self::assertArrayNotHasKey( Journey_Cart_Session_Token::SESSION_KEY, $carts[0] );
+		self::assertFalse( in_array( $token, $carts[0], true ) );
+	}
+
+	/**
+	 * Verify a malformed Journey cart token cannot become a lookup key.
+	 *
+	 * @return void
+	 */
+	public function test_returns_null_for_malformed_journey_cart_token(): void {
+
+		$this->set_rows(
+			rows: array(
+				$this->create_row(
+					session_key: 'guest-session',
+					cart: array(
+						'first' => $this->create_item(),
+					),
+					cart_token: str_repeat( 'A', 64 ),
+				),
+			)
+		);
+
+		$carts = $this->repository->find_non_empty();
+
+		self::assertCount( 1, $carts );
+		self::assertNull( $carts[0]['cart_token_hash'] );
 	}
 
 	/**
@@ -384,17 +440,19 @@ final class CartSessionRepositoryTest extends TestCase {
 	/**
 	 * Create a stored WooCommerce session row.
 	 *
-	 * @param string              $session_key   Session key.
-	 * @param array<string,mixed> $cart          Stored cart.
-	 * @param int                 $expires_at    Session expiry.
+	 * @param string              $session_key    Session key.
+	 * @param array<string,mixed> $cart           Stored cart.
+	 * @param int                 $expires_at     Session expiry.
 	 * @param float|null          $contents_total Stored total.
+	 * @param string|null         $cart_token     Stored Journey cart token.
 	 * @return object
 	 */
 	private function create_row(
 		string $session_key,
 		array $cart,
 		int $expires_at = 0,
-		?float $contents_total = null
+		?float $contents_total = null,
+		?string $cart_token = null
 	): object {
 
 		if ( 0 === $expires_at ) {
@@ -413,6 +471,10 @@ final class CartSessionRepositoryTest extends TestCase {
 					'cart_contents_total' => $contents_total,
 				)
 			);
+		}
+
+		if ( null !== $cart_token ) {
+			$session[ Journey_Cart_Session_Token::SESSION_KEY ] = $cart_token;
 		}
 
 		return (object) array(

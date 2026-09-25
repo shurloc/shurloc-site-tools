@@ -126,7 +126,8 @@ final class JourneySchemaAdminTest extends TestCase {
 	 * @return void
 	 */
 	public function test_ready_schema_has_no_notice(): void {
-		$GLOBALS['shurloc_test_options'][ Journey_Schema_Migrator::VERSION_OPTION ] = 1;
+		$GLOBALS['shurloc_test_options'][ Journey_Schema_Migrator::VERSION_OPTION ] =
+			Journey_Schema_Migrator::CURRENT_VERSION;
 
 		ob_start();
 		$this->controller->render_notice();
@@ -188,7 +189,8 @@ final class JourneySchemaAdminTest extends TestCase {
 	 * @return void
 	 */
 	public function test_newer_schema_shows_notice_without_retry(): void {
-		$GLOBALS['shurloc_test_options'][ Journey_Schema_Migrator::VERSION_OPTION ] = 2;
+		$GLOBALS['shurloc_test_options'][ Journey_Schema_Migrator::VERSION_OPTION ] =
+			Journey_Schema_Migrator::CURRENT_VERSION + 1;
 
 		ob_start();
 		$this->controller->render_notice();
@@ -257,7 +259,8 @@ final class JourneySchemaAdminTest extends TestCase {
 	 * @return void
 	 */
 	public function test_retry_rejects_newer_schema(): void {
-		$GLOBALS['shurloc_test_options'][ Journey_Schema_Migrator::VERSION_OPTION ] = 2;
+		$GLOBALS['shurloc_test_options'][ Journey_Schema_Migrator::VERSION_OPTION ] =
+			Journey_Schema_Migrator::CURRENT_VERSION + 1;
 
 		$this->expectException( RuntimeException::class );
 		$this->expectExceptionMessage( 'A newer Journey schema cannot be retried' );
@@ -299,7 +302,8 @@ final class JourneySchemaAdminTest extends TestCase {
 	 * @return void
 	 */
 	public function test_retry_is_safe_when_schema_is_already_ready(): void {
-		$GLOBALS['shurloc_test_options'][ Journey_Schema_Migrator::VERSION_OPTION ] = 1;
+		$GLOBALS['shurloc_test_options'][ Journey_Schema_Migrator::VERSION_OPTION ] =
+			Journey_Schema_Migrator::CURRENT_VERSION;
 
 		try {
 			$this->controller->handle_retry();
