@@ -78,6 +78,15 @@ final class JourneyReportRendererTest extends TestCase {
 		self::assertStringContainsString( '<strong>Active time:</strong> 1m 2s', $output );
 		self::assertStringContainsString( 'Session 9 — 5:00 am–5:05 am — 1m 2s active', $output );
 		self::assertStringContainsString( '&lt;script&gt;campaign&lt;/script&gt;', $output );
+		self::assertStringContainsString( '<dt>Client type</dt>', $output );
+		self::assertStringContainsString( '<dd>browser</dd>', $output );
+		self::assertStringContainsString( '<dt>Client name</dt>', $output );
+		self::assertStringContainsString( '<dd>Example Browser</dd>', $output );
+		self::assertStringContainsString( '<dt>Device type</dt>', $output );
+		self::assertStringContainsString( '<dd>desktop</dd>', $output );
+		self::assertStringContainsString( '<dt>Classification version</dt>', $output );
+		self::assertStringContainsString( '<dd>1</dd>', $output );
+		self::assertStringContainsString( 'Mozilla/5.0 &lt;script&gt;raw&lt;/script&gt;', $output );
 		self::assertStringContainsString( '/welcome/&lt;script&gt;alert(1)&lt;/script&gt;', $output );
 		self::assertStringNotContainsString( '<script>', $output );
 		self::assertStringContainsString( 'Viewed — &lt;1s active', $output );
@@ -92,6 +101,31 @@ final class JourneyReportRendererTest extends TestCase {
 		self::assertStringContainsString( 'Authenticated', $output );
 		self::assertSame( 1, substr_count( $output, 'name="journey_session_id"' ) );
 		self::assertLessThan( strpos( $output, 'Order record created' ), strpos( $output, 'Viewed — &lt;1s active' ) );
+	}
+
+	/**
+	 * Migrated sessions explain absent user-agent and classification data.
+	 *
+	 * @return void
+	 */
+	public function test_renders_legacy_unknown_client_snapshot(): void {
+		$event                             = $this->event( id: 1, event_type: Journey_Event_Type::PAGE_VIEW, occurred_at: '2026-09-18 12:00:00', page_path: '/' );
+		$totals                            = $this->empty_totals();
+		$totals['sessions']                = 1;
+		$context                           = $this->context();
+		$context['user_agent']             = null;
+		$context['client_type']            = 'unknown';
+		$context['client_name']            = null;
+		$context['device_type']            = 'unknown';
+		$context['classification_version'] = 0;
+
+		$output = $this->render( page: $this->page( events: array( $event ), context: $context, totals: $totals ), customer_report: false );
+
+		self::assertStringContainsString( '<dt>Client type</dt>', $output );
+		self::assertSame( 2, substr_count( $output, '<dd>unknown</dd>' ) );
+		self::assertStringContainsString( '<dd>Not identified</dd>', $output );
+		self::assertStringContainsString( '<dd>0 (legacy/unclassified)</dd>', $output );
+		self::assertStringContainsString( '<dd>Not recorded</dd>', $output );
 	}
 
 	/**
@@ -335,7 +369,7 @@ final class JourneyReportRendererTest extends TestCase {
 			'utm_campaign'           => 'autumn',
 			'utm_term'               => null,
 			'utm_content'            => null,
-			'user_agent'             => 'Mozilla/5.0 Example Browser',
+			'user_agent'             => 'Mozilla/5.0 <script>raw</script>',
 			'client_type'            => 'browser',
 			'client_name'            => 'Example Browser',
 			'device_type'            => 'desktop',

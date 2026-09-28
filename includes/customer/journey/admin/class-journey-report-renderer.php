@@ -226,14 +226,17 @@ final class Journey_Report_Renderer {
 	}
 
 	/**
-	 * Render session landing and campaign context without arbitrary metadata.
+	 * Render session attribution and bounded client inspection data.
 	 *
 	 * @param array $context Validated session context.
 	 * @return void
 	 * @phpstan-param SessionContext $context
 	 */
 	private function render_attribution( array $context ): void {
-		$fields = array(
+		$classification_version = 0 === $context['classification_version']
+			? __( '0 (legacy/unclassified)', 'shurloc-site-tools' )
+			: (string) $context['classification_version'];
+		$fields                 = array(
 			__( 'Landing page', 'shurloc-site-tools' ) => $context['landing_path'],
 			__( 'Referrer', 'shurloc-site-tools' )     => $context['referrer_host'],
 			__( 'UTM source', 'shurloc-site-tools' )   => $context['utm_source'],
@@ -241,6 +244,11 @@ final class Journey_Report_Renderer {
 			__( 'UTM campaign', 'shurloc-site-tools' ) => $context['utm_campaign'],
 			__( 'UTM term', 'shurloc-site-tools' )     => $context['utm_term'],
 			__( 'UTM content', 'shurloc-site-tools' )  => $context['utm_content'],
+			__( 'Client type', 'shurloc-site-tools' )  => $context['client_type'],
+			__( 'Client name', 'shurloc-site-tools' )  => $context['client_name'] ?? __( 'Not identified', 'shurloc-site-tools' ),
+			__( 'Device type', 'shurloc-site-tools' )  => $context['device_type'],
+			__( 'Classification version', 'shurloc-site-tools' ) => $classification_version,
+			__( 'User agent', 'shurloc-site-tools' )   => $context['user_agent'] ?? __( 'Not recorded', 'shurloc-site-tools' ),
 		);
 
 		$fields = array_filter( $fields, static fn ( ?string $value ): bool => null !== $value && '' !== $value );
