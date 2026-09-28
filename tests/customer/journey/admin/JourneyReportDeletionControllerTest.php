@@ -18,6 +18,7 @@ use Shurloc\SiteTools\Customer\Journey\Migrations\Journey_Schema_Migrator;
 use Shurloc\SiteTools\Customer\Journey\Repositories\Journey_Report_Repository;
 use Shurloc\SiteTools\Customer\Journey\Repositories\Journey_Report_Session_Repository;
 use Shurloc\SiteTools\Customer\Journey\Repositories\Journey_Report_Visitor_Repository;
+use Shurloc\SiteTools\Customer\Journey\Repositories\Journey_Session_Deletion_Repository;
 use Shurloc_Test_WPDB;
 
 /**
@@ -93,7 +94,7 @@ final class JourneyReportDeletionControllerTest extends TestCase {
 		parent::tearDown();
 	}
 
-	/** The controller registers both of its admin hooks. */
+	/** The controller registers its asset and deletion hooks. */
 	public function test_registers_deletion_and_asset_hooks(): void {
 		$this->controller->register();
 
@@ -102,9 +103,107 @@ final class JourneyReportDeletionControllerTest extends TestCase {
 			$GLOBALS['shurloc_test_actions'][ 'admin_post_' . Journey_Report_Controller::DELETE_ACTION ][0]
 		);
 		self::assertSame(
+			array( $this->controller, 'handle_bulk_delete' ),
+			$GLOBALS['shurloc_test_actions'][ 'admin_post_' . Journey_Report_Controller::BULK_DELETE_ACTION ][0]
+		);
+		self::assertSame(
 			array( $this->controller, 'enqueue_assets' ),
 			$GLOBALS['shurloc_test_actions']['admin_enqueue_scripts'][0]
 		);
+	}
+
+	/** Selected customers and visitors delete all matching sessions and retain list filters. */
+	public function test_bulk_deletes_selected_subjects_and_redirects_to_the_first_filtered_page(): void {
+		$_POST                              = array(
+			'journey_bulk_action' => Journey_Report_Controller::BULK_ACTION_DELETE,
+			'journey_subjects'    => array( 'customer:7', 'visitor:12' ),
+			'journey_subject'     => 'customer',
+			'journey_from'        => '2026-09-01',
+			'journey_to'          => '2026-09-21',
+			'journey_page'        => '3',
+		);
+		$this->database->result_queue       = array(
+			array( (object) array( 'id' => '20' ), (object) array( 'id' => '21' ) ),
+			array( (object) array( 'id' => '22' ) ),
+		);
+		$this->database->query_result_queue = array( 3, 3 );
+
+		$redirect = $this->handle_bulk_and_capture_redirect();
+
+		self::assertSame( array( Journey_Report_Controller::BULK_DELETE_ACTION ), $GLOBALS['shurloc_test_admin_referer_checks'] );
+		self::assertStringContainsString( 'page=shurloc-site-tools-customers', $redirect );
+		self::assertStringContainsString( 'tab=journeys', $redirect );
+		self::assertStringContainsString( 'journey_delete_result=bulk_deleted', $redirect );
+		self::assertStringContainsString( 'journey_deleted_count=3', $redirect );
+		self::assertStringContainsString( 'journey_subject=customer', $redirect );
+		self::assertStringContainsString( 'journey_from=2026-09-01', $redirect );
+		self::assertStringContainsString( 'journey_to=2026-09-21', $redirect );
+		self::assertStringNotContainsString( 'journey_page=', $redirect );
+		self::assertStringNotContainsString( 'journey_user_id=', $redirect );
+		self::assertSame( 'COMMIT', $this->database->queries[ count( $this->database->queries ) - 1 ] );
+
+		$customer_query = $this->database->prepared_queries[0];
+		self::assertStringContainsString( 'p.user_id = %d OR s.user_id_at_start = %d', $customer_query['query'] );
+		self::assertSame( array( 'shop_shurloc_journey_sessions', 'shop_shurloc_journey_identity_periods', 7, 7, 'shop_shurloc_journey_events', 7 ), $customer_query['args'] );
+		$visitor_query = $this->database->prepared_queries[1];
+		self::assertStringContainsString( 'NOT EXISTS', $visitor_query['query'] );
+		self::assertSame( array( 'shop_shurloc_journey_sessions', 'shop_shurloc_journey_visitors', 12, 'shop_shurloc_journey_identity_periods' ), $visitor_query['args'] );
+	}
+
+	/** Bulk requests distinguish already-absent subjects from atomic failures. */
+	public function test_bulk_redirects_with_missing_and_failed_results(): void {
+		$_POST                        = array(
+			'journey_bulk_action' => Journey_Report_Controller::BULK_ACTION_DELETE,
+			'journey_subjects'    => array( 'customer:7' ),
+		);
+		$this->database->result_queue = array( array() );
+		self::assertStringContainsString( 'journey_delete_result=bulk_missing', $this->handle_bulk_and_capture_redirect() );
+		self::assertStringNotContainsString( 'journey_deleted_count=', (string) end( $GLOBALS['shurloc_test_redirects'] ) );
+
+		$GLOBALS['shurloc_test_redirects'] = array();
+		$this->database->result_queue      = array( null );
+		self::assertStringContainsString( 'journey_delete_result=bulk_failed', $this->handle_bulk_and_capture_redirect() );
+		self::assertSame( 'ROLLBACK', $this->database->queries[ count( $this->database->queries ) - 1 ] );
+	}
+
+	/** Bulk requests reject invalid authorization, actions, and selections before database work. */
+	public function test_bulk_rejects_unauthorized_unverified_and_invalid_requests(): void {
+		$_POST = array(
+			'journey_bulk_action' => Journey_Report_Controller::BULK_ACTION_DELETE,
+			'journey_subjects'    => array( 'customer:7' ),
+		);
+		$GLOBALS['shurloc_test_user_capabilities'][ Journey_Report_Controller::CAPABILITY ] = false;
+		$this->assert_bulk_handler_dies_with( 'permission to delete Customer Journeys' );
+
+		$GLOBALS['shurloc_test_user_capabilities'][ Journey_Report_Controller::CAPABILITY ] = true;
+		$GLOBALS['shurloc_test_nonce_valid'] = false;
+		$this->assert_bulk_handler_dies_with( 'bulk deletion request could not be verified' );
+
+		$GLOBALS['shurloc_test_nonce_valid'] = true;
+		$_POST['journey_bulk_action']        = 'invalid';
+		$this->assert_bulk_handler_dies_with( 'valid Customer Journey bulk action' );
+
+		$_POST['journey_bulk_action'] = Journey_Report_Controller::BULK_ACTION_DELETE;
+		$invalid_selections           = array(
+			array(),
+			array( 'customer:0' ),
+			array( 'customer:07' ),
+			array( 'unknown:7' ),
+			array( 'customer:7', 'customer:7' ),
+			array_fill( 0, Journey_Session_Deletion_Repository::MAX_SUBJECTS + 1, 'customer:7' ),
+			array( array( 'customer:7' ) ),
+			array( 2 => 'customer:7' ),
+		);
+		foreach ( $invalid_selections as $selection ) {
+			$_POST['journey_subjects'] = $selection;
+			$this->assert_bulk_handler_dies_with( 'valid customer or anonymous visitor' );
+		}
+
+		$_POST['journey_subjects'] = 'customer:7';
+		$this->assert_bulk_handler_dies_with( 'valid customer or anonymous visitor' );
+
+		self::assertSame( array(), $this->database->queries );
+		self::assertSame( array(), $GLOBALS['shurloc_test_redirects'] );
 	}
 
 	/** An authorized, verified request deletes one session and keeps report context. */
@@ -169,9 +268,11 @@ final class JourneyReportDeletionControllerTest extends TestCase {
 	/** Report rendering displays only recognized deletion feedback. */
 	public function test_renders_deletion_result_notices(): void {
 		$expectations = array(
-			'deleted' => array( 'notice-success', 'Customer Journey deleted.' ),
-			'missing' => array( 'notice-warning', 'already been deleted' ),
-			'failed'  => array( 'notice-error', 'could not be deleted' ),
+			'deleted'      => array( 'notice-success', 'Customer Journey deleted.' ),
+			'missing'      => array( 'notice-warning', 'already been deleted' ),
+			'failed'       => array( 'notice-error', 'could not be deleted' ),
+			'bulk_missing' => array( 'notice-warning', 'no longer have recorded journeys' ),
+			'bulk_failed'  => array( 'notice-error', 'No journeys were removed' ),
 		);
 
 		foreach ( $expectations as $result => $expected ) {
@@ -182,9 +283,25 @@ final class JourneyReportDeletionControllerTest extends TestCase {
 			self::assertStringContainsString( $expected[1], $output );
 		}
 
+		$_GET                         = array(
+			'journey_delete_result' => 'bulk_deleted',
+			'journey_deleted_count' => '3',
+		);
+		$this->database->result_queue = array( array(), array() );
+		$output                       = $this->render();
+		self::assertStringContainsString( 'notice-success', $output );
+		self::assertStringContainsString( '3 Customer Journeys deleted.', $output );
+
 		$_GET                         = array( 'journey_delete_result' => 'forged' );
 		$this->database->result_queue = array( array(), array() );
 		self::assertStringNotContainsString( 'Customer Journey deleted.', $this->render() );
+
+		$_GET                         = array(
+			'journey_delete_result' => 'bulk_deleted',
+			'journey_deleted_count' => 'invalid',
+		);
+		$this->database->result_queue = array( array(), array() );
+		self::assertStringNotContainsString( 'Customer Journeys deleted.', $this->render() );
 	}
 
 	/** Seed one session and event for an individual deletion request. */
@@ -236,6 +353,20 @@ final class JourneyReportDeletionControllerTest extends TestCase {
 		return $redirect;
 	}
 
+	/** Execute a valid bulk handler through the redirect boundary. */
+	private function handle_bulk_and_capture_redirect(): string {
+		try {
+			$this->controller->handle_bulk_delete();
+			self::fail( 'Expected the redirect test double to stop before exit.' );
+		} catch ( RuntimeException $exception ) {
+			self::assertSame( 'Test safe redirect', $exception->getMessage() );
+		}
+
+		$redirect = end( $GLOBALS['shurloc_test_redirects'] );
+		self::assertIsString( $redirect );
+		return $redirect;
+	}
+
 	/**
 	 * Assert one invalid request terminates through wp_die().
 	 *
@@ -245,6 +376,21 @@ final class JourneyReportDeletionControllerTest extends TestCase {
 	private function assert_handler_dies_with( string $message ): void {
 		try {
 			$this->controller->handle_delete();
+			self::fail( 'Expected wp_die() to terminate the request.' );
+		} catch ( RuntimeException $exception ) {
+			self::assertStringContainsString( $message, $exception->getMessage() );
+		}
+	}
+
+	/**
+	 * Assert one invalid bulk request terminates through wp_die().
+	 *
+	 * @param string $message Expected error message fragment.
+	 * @return void
+	 */
+	private function assert_bulk_handler_dies_with( string $message ): void {
+		try {
+			$this->controller->handle_bulk_delete();
 			self::fail( 'Expected wp_die() to terminate the request.' );
 		} catch ( RuntimeException $exception ) {
 			self::assertStringContainsString( $message, $exception->getMessage() );

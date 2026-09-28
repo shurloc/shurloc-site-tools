@@ -38,6 +38,12 @@ final class Journey_Report_Controller {
 	/** WordPress admin-post action for deleting one Journey session. */
 	public const DELETE_ACTION = 'shurloc_delete_journey_session';
 
+	/** WordPress admin-post action for deleting selected Journey subjects. */
+	public const BULK_DELETE_ACTION = 'shurloc_bulk_delete_journey_subjects';
+
+	/** Bulk action value for deleting selected Journey subjects. */
+	public const BULK_ACTION_DELETE = 'delete';
+
 	/** Query argument carrying a deletion result notice. */
 	private const DELETE_RESULT_KEY = 'journey_delete_result';
 
@@ -49,6 +55,18 @@ final class Journey_Report_Controller {
 
 	/** Failed deletion result. */
 	private const DELETE_RESULT_FAILED = 'failed';
+
+	/** Successful bulk deletion result. */
+	private const DELETE_RESULT_BULK_DELETED = 'bulk_deleted';
+
+	/** Already-absent bulk deletion result. */
+	private const DELETE_RESULT_BULK_MISSING = 'bulk_missing';
+
+	/** Failed bulk deletion result. */
+	private const DELETE_RESULT_BULK_FAILED = 'bulk_failed';
+
+	/** Query argument carrying the successful bulk deletion count. */
+	private const DELETE_COUNT_KEY = 'journey_deleted_count';
 
 	/** Events loaded in one report request. */
 	private const EVENT_PAGE_SIZE = 50;
@@ -155,6 +173,7 @@ final class Journey_Report_Controller {
 	public function register(): void {
 		add_action( 'admin_enqueue_scripts', array( $this, 'enqueue_assets' ) );
 		add_action( 'admin_post_' . self::DELETE_ACTION, array( $this, 'handle_delete' ) );
+		add_action( 'admin_post_' . self::BULK_DELETE_ACTION, array( $this, 'handle_bulk_delete' ) );
 	}
 
 	/**
@@ -184,6 +203,49 @@ final class Journey_Report_Controller {
 		};
 
 		wp_safe_redirect( $this->deletion_redirect_url( result: $result ) );
+		exit;
+	}
+
+	/**
+	 * Process an authorized bulk deletion and return to the filtered list.
+	 *
+	 * Each selected customer removes all of that customer's Journey sessions.
+	 * Anonymous selections remove all sessions for the selected never-linked
+	 * visitor. The report date range only controls the list being viewed.
+	 *
+	 * @return void
+	 */
+	public function handle_bulk_delete(): void {
+		if ( ! current_user_can( self::CAPABILITY ) ) {
+			wp_die( esc_html__( 'You do not have permission to delete Customer Journeys.', 'shurloc-site-tools' ) );
+		}
+
+		if ( false === check_admin_referer( self::BULK_DELETE_ACTION ) ) {
+			wp_die( esc_html__( 'The Customer Journey bulk deletion request could not be verified.', 'shurloc-site-tools' ) );
+		}
+
+		if ( self::BULK_ACTION_DELETE !== sanitize_key( $this->post_value( key: 'journey_bulk_action' ) ) ) {
+			wp_die( esc_html__( 'Select a valid Customer Journey bulk action.', 'shurloc-site-tools' ) );
+		}
+
+		$subjects = $this->bulk_subjects();
+		if ( null === $subjects ) {
+			wp_die( esc_html__( 'Select at least one valid customer or anonymous visitor.', 'shurloc-site-tools' ) );
+		}
+
+		$deleted = $this->deletion_repository->delete_by_subjects( subjects: $subjects );
+		$result  = match ( $deleted ) {
+			null    => self::DELETE_RESULT_BULK_FAILED,
+			0       => self::DELETE_RESULT_BULK_MISSING,
+			default => self::DELETE_RESULT_BULK_DELETED,
+		};
+
+		wp_safe_redirect(
+			$this->bulk_deletion_redirect_url(
+				result: $result,
+				deleted: $deleted,
+			)
+		);
 		exit;
 	}
 
@@ -864,9 +926,58 @@ final class Journey_Report_Controller {
 	 * @return string Sanitized value or an empty string.
 	 */
 	private function post_value( string $key ): string {
-		// phpcs:ignore WordPress.Security.NonceVerification.Missing -- handle_delete() verifies the action nonce before calling this helper.
+		// phpcs:ignore WordPress.Security.NonceVerification.Missing -- The deletion handlers verify their action nonce before calling this helper.
 		$value = $_POST[ $key ] ?? '';
 		return is_string( $value ) ? sanitize_text_field( wp_unslash( $value ) ) : '';
+	}
+
+	/**
+	 * Parse the bounded list of selected customer and anonymous subjects.
+	 *
+	 * @return list<array{type:'customer'|'visitor',id:int}>|null Valid subjects, or null.
+	 */
+	private function bulk_subjects(): ?array {
+		// phpcs:ignore WordPress.Security.NonceVerification.Missing -- handle_bulk_delete() verifies its action nonce before calling this helper.
+		$values = $_POST['journey_subjects'] ?? null;
+		if (
+			! is_array( $values ) ||
+			array() === $values ||
+			! array_is_list( $values ) ||
+			Journey_Session_Deletion_Repository::MAX_SUBJECTS < count( $values )
+		) {
+			return null;
+		}
+
+		$subjects = array();
+		$selected = array();
+		foreach ( $values as $value ) {
+			if ( ! is_string( $value ) ) {
+				return null;
+			}
+
+			$parts = explode( ':', sanitize_text_field( wp_unslash( $value ) ) );
+			if ( 2 !== count( $parts ) || ! in_array( $parts[0], array( 'customer', 'visitor' ), true ) ) {
+				return null;
+			}
+
+			$id = $this->positive_integer( value: $parts[1] );
+			if ( null === $id || (string) $id !== $parts[1] ) {
+				return null;
+			}
+
+			$key = $parts[0] . ':' . $id;
+			if ( isset( $selected[ $key ] ) ) {
+				return null;
+			}
+
+			$subjects[]       = array(
+				'type' => $parts[0],
+				'id'   => $id,
+			);
+			$selected[ $key ] = true;
+		}
+
+		return $subjects;
 	}
 
 	/**
@@ -893,6 +1004,39 @@ final class Journey_Report_Controller {
 		);
 		if ( null !== $subject_id ) {
 			$args[ 'customer' === $subject ? 'journey_user_id' : 'journey_visitor_id' ] = $subject_id;
+		}
+
+		$from_date = $this->post_value( key: 'journey_from' );
+		$to_date   = $this->post_value( key: 'journey_to' );
+		if ( null !== $this->utc_range( from_date: $from_date, to_date: $to_date ) ) {
+			$args['journey_from'] = $from_date;
+			$args['journey_to']   = $to_date;
+		}
+
+		return add_query_arg( $args, admin_url( 'admin.php' ) );
+	}
+
+	/**
+	 * Build a bulk-deletion redirect to the first filtered list page.
+	 *
+	 * @param string   $result  Deletion result.
+	 * @param int|null $deleted Deleted Journey session count, or null on failure.
+	 * @return string Customer Journey list URL.
+	 */
+	private function bulk_deletion_redirect_url( string $result, ?int $deleted ): string {
+		$args = array(
+			'page'                  => self::PAGE_SLUG,
+			'tab'                   => self::TAB_SLUG,
+			self::DELETE_RESULT_KEY => $result,
+		);
+
+		if ( self::DELETE_RESULT_BULK_DELETED === $result && null !== $deleted && 0 < $deleted ) {
+			$args[ self::DELETE_COUNT_KEY ] = $deleted;
+		}
+
+		$subject = sanitize_key( $this->post_value( key: 'journey_subject' ) );
+		if ( 'customer' === $subject || 'visitor' === $subject ) {
+			$args['journey_subject'] = $subject;
 		}
 
 		$from_date = $this->post_value( key: 'journey_from' );
@@ -993,6 +1137,24 @@ final class Journey_Report_Controller {
 		} elseif ( self::DELETE_RESULT_FAILED === $result ) {
 			$class   = 'notice notice-error inline';
 			$message = __( 'The Customer Journey could not be deleted. Verify the Journey schema and retry.', 'shurloc-site-tools' );
+		} elseif ( self::DELETE_RESULT_BULK_DELETED === $result ) {
+			$deleted = $this->positive_integer( value: $this->request_value( key: self::DELETE_COUNT_KEY ) );
+			if ( null === $deleted ) {
+				return;
+			}
+
+			$class   = 'notice notice-success inline is-dismissible';
+			$message = sprintf(
+				/* translators: %d: number of deleted Customer Journey sessions. */
+				_n( '%d Customer Journey deleted.', '%d Customer Journeys deleted.', $deleted, 'shurloc-site-tools' ),
+				$deleted
+			);
+		} elseif ( self::DELETE_RESULT_BULK_MISSING === $result ) {
+			$class   = 'notice notice-warning inline is-dismissible';
+			$message = __( 'The selected customers or anonymous visitors no longer have recorded journeys.', 'shurloc-site-tools' );
+		} elseif ( self::DELETE_RESULT_BULK_FAILED === $result ) {
+			$class   = 'notice notice-error inline';
+			$message = __( 'The selected Customer Journeys could not be deleted. No journeys were removed.', 'shurloc-site-tools' );
 		} else {
 			return;
 		}
