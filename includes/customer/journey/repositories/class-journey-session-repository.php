@@ -61,6 +61,11 @@ final class Journey_Session_Repository {
 	 * @param string|null $utm_campaign      Sanitized UTM campaign.
 	 * @param string|null $utm_term          Sanitized UTM term.
 	 * @param string|null $utm_content       Sanitized UTM content.
+	 * @param string|null $user_agent        Bounded user-agent at session start.
+	 * @param string      $client_type       Normalized client type.
+	 * @param string|null $client_name       Normalized client name.
+	 * @param string      $device_type       Normalized device type.
+	 * @param int         $classification_version Classifier rules version.
 	 * @return int|null Session ID, or null when storage is unavailable.
 	 */
 	public function resolve_current(
@@ -75,7 +80,12 @@ final class Journey_Session_Repository {
 		?string $utm_medium = null,
 		?string $utm_campaign = null,
 		?string $utm_term = null,
-		?string $utm_content = null
+		?string $utm_content = null,
+		?string $user_agent = null,
+		string $client_type = 'unknown',
+		?string $client_name = null,
+		string $device_type = 'unknown',
+		int $classification_version = 0
 	): ?int {
 		$observed_timestamp = $this->timestamp( value: $observed_at );
 		if (
@@ -84,6 +94,13 @@ final class Journey_Session_Repository {
 			( null !== $user_id_at_start && 0 >= $user_id_at_start ) ||
 			0 >= $timeout_seconds ||
 			null === $observed_timestamp ||
+			! $this->is_valid_client_snapshot(
+				user_agent: $user_agent,
+				client_type: $client_type,
+				client_name: $client_name,
+				device_type: $device_type,
+				classification_version: $classification_version,
+			) ||
 			! $this->schema_migrator->is_ready()
 		) {
 			return null;
@@ -145,6 +162,11 @@ final class Journey_Session_Repository {
 					utm_campaign: $utm_campaign,
 					utm_term: $utm_term,
 					utm_content: $utm_content,
+					user_agent: $user_agent,
+					client_type: $client_type,
+					client_name: $client_name,
+					device_type: $device_type,
+					classification_version: $classification_version,
 				);
 			}
 
@@ -306,6 +328,11 @@ final class Journey_Session_Repository {
 	 * @param string|null $utm_campaign       Sanitized UTM campaign.
 	 * @param string|null $utm_term           Sanitized UTM term.
 	 * @param string|null $utm_content        Sanitized UTM content.
+	 * @param string|null $user_agent         Bounded user-agent at session start.
+	 * @param string      $client_type        Normalized client type.
+	 * @param string|null $client_name        Normalized client name.
+	 * @param string      $device_type        Normalized device type.
+	 * @param int         $classification_version Classifier rules version.
 	 * @return int New session ID.
 	 * @throws RuntimeException When insertion fails.
 	 */
@@ -320,28 +347,38 @@ final class Journey_Session_Repository {
 		?string $utm_medium,
 		?string $utm_campaign,
 		?string $utm_term,
-		?string $utm_content
+		?string $utm_content,
+		?string $user_agent,
+		string $client_type,
+		?string $client_name,
+		string $device_type,
+		int $classification_version
 	): int {
 		global $wpdb;
 
 		$inserted = $wpdb->insert(
 			$this->table_name(),
 			array(
-				'visitor_id'          => $visitor_id,
-				'identity_period_id'  => $identity_period_id,
-				'user_id_at_start'    => $user_id_at_start,
-				'began_authenticated' => null === $user_id_at_start ? 0 : 1,
-				'started_at'          => $started_at,
-				'last_activity_at'    => $started_at,
-				'landing_path'        => $landing_path,
-				'referrer_host'       => $referrer_host,
-				'utm_source'          => $utm_source,
-				'utm_medium'          => $utm_medium,
-				'utm_campaign'        => $utm_campaign,
-				'utm_term'            => $utm_term,
-				'utm_content'         => $utm_content,
+				'visitor_id'             => $visitor_id,
+				'identity_period_id'     => $identity_period_id,
+				'user_id_at_start'       => $user_id_at_start,
+				'began_authenticated'    => null === $user_id_at_start ? 0 : 1,
+				'started_at'             => $started_at,
+				'last_activity_at'       => $started_at,
+				'landing_path'           => $landing_path,
+				'referrer_host'          => $referrer_host,
+				'utm_source'             => $utm_source,
+				'utm_medium'             => $utm_medium,
+				'utm_campaign'           => $utm_campaign,
+				'utm_term'               => $utm_term,
+				'utm_content'            => $utm_content,
+				'user_agent'             => $user_agent,
+				'client_type'            => $client_type,
+				'client_name'            => $client_name,
+				'device_type'            => $device_type,
+				'classification_version' => $classification_version,
 			),
-			array( '%d', '%d', '%d', '%d', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s' )
+			array( '%d', '%d', '%d', '%d', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%d' )
 		);
 
 		if ( 1 !== $inserted || 0 >= $wpdb->insert_id ) {
@@ -349,6 +386,55 @@ final class Journey_Session_Repository {
 		}
 
 		return (int) $wpdb->insert_id;
+	}
+
+	/**
+	 * Confirm a client snapshot fits the V3 session columns.
+	 *
+	 * @param string|null $user_agent        Bounded user-agent.
+	 * @param string      $client_type       Normalized client type.
+	 * @param string|null $client_name       Normalized client name.
+	 * @param string      $device_type       Normalized device type.
+	 * @param int         $classification_version Classifier rules version.
+	 * @return bool Whether the complete snapshot is safe to store.
+	 */
+	private function is_valid_client_snapshot(
+		?string $user_agent,
+		string $client_type,
+		?string $client_name,
+		string $device_type,
+		int $classification_version
+	): bool {
+		if (
+			0 > $classification_version ||
+			65535 < $classification_version ||
+			1 !== preg_match( '/\A[a-z][a-z0-9_]{0,31}\z/', $client_type ) ||
+			1 !== preg_match( '/\A[a-z][a-z0-9_]{0,31}\z/', $device_type )
+		) {
+			return false;
+		}
+
+		if ( null !== $user_agent && ! $this->is_valid_snapshot_text( value: $user_agent, max_bytes: 1024 ) ) {
+			return false;
+		}
+
+		return null === $client_name ||
+			$this->is_valid_snapshot_text( value: $client_name, max_bytes: 64 );
+	}
+
+	/**
+	 * Validate one non-empty, trimmed, printable UTF-8 snapshot value.
+	 *
+	 * @param string $value     Snapshot value.
+	 * @param int    $max_bytes Database byte limit used by this repository.
+	 * @return bool Whether the value is safe to store.
+	 */
+	private function is_valid_snapshot_text( string $value, int $max_bytes ): bool {
+		return '' !== $value &&
+			trim( $value ) === $value &&
+			$max_bytes >= strlen( $value ) &&
+			wp_check_invalid_utf8( $value ) === $value &&
+			1 !== preg_match( '/[\x00-\x1F\x7F]/', $value );
 	}
 
 	/**

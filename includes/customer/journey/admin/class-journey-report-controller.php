@@ -17,6 +17,7 @@ use Shurloc\SiteTools\Customer\Journey\Journey_Report_Page_Builder;
 use Shurloc\SiteTools\Customer\Journey\Repositories\Journey_Report_Repository;
 use Shurloc\SiteTools\Customer\Journey\Repositories\Journey_Report_Session_Repository;
 use Shurloc\SiteTools\Customer\Journey\Repositories\Journey_Report_Visitor_Repository;
+use Shurloc\SiteTools\Customer\Journey\Repositories\Journey_Session_Deletion_Repository;
 use WP_User;
 
 /**
@@ -34,11 +35,44 @@ final class Journey_Report_Controller {
 	/** Capability required to view behavioral reports. */
 	public const CAPABILITY = 'manage_options';
 
+	/** WordPress admin-post action for deleting one Journey session. */
+	public const DELETE_ACTION = 'shurloc_delete_journey_session';
+
+	/** WordPress admin-post action for deleting selected Journey subjects. */
+	public const BULK_DELETE_ACTION = 'shurloc_bulk_delete_journey_subjects';
+
+	/** Bulk action value for deleting selected Journey subjects. */
+	public const BULK_ACTION_DELETE = 'delete';
+
+	/** Query argument carrying a deletion result notice. */
+	private const DELETE_RESULT_KEY = 'journey_delete_result';
+
+	/** Successful deletion result. */
+	private const DELETE_RESULT_DELETED = 'deleted';
+
+	/** Already-absent deletion result. */
+	private const DELETE_RESULT_MISSING = 'missing';
+
+	/** Failed deletion result. */
+	private const DELETE_RESULT_FAILED = 'failed';
+
+	/** Successful bulk deletion result. */
+	private const DELETE_RESULT_BULK_DELETED = 'bulk_deleted';
+
+	/** Already-absent bulk deletion result. */
+	private const DELETE_RESULT_BULK_MISSING = 'bulk_missing';
+
+	/** Failed bulk deletion result. */
+	private const DELETE_RESULT_BULK_FAILED = 'bulk_failed';
+
+	/** Query argument carrying the successful bulk deletion count. */
+	private const DELETE_COUNT_KEY = 'journey_deleted_count';
+
 	/** Events loaded in one report request. */
 	private const EVENT_PAGE_SIZE = 50;
 
-	/** Recent report subjects shown on the landing page. */
-	private const RECENT_SUBJECT_LIMIT = 50;
+	/** Recent report subjects shown on one list page. */
+	private const RECENT_SUBJECT_PAGE_SIZE = 50;
 
 	/** Anonymous visitors offered in one selector page. */
 	private const VISITOR_PAGE_SIZE = 50;
@@ -63,6 +97,13 @@ final class Journey_Report_Controller {
 	 * @var Journey_Report_Visitor_Repository
 	 */
 	private Journey_Report_Visitor_Repository $visitor_repository;
+
+	/**
+	 * Individual Journey deletion.
+	 *
+	 * @var Journey_Session_Deletion_Repository
+	 */
+	private Journey_Session_Deletion_Repository $deletion_repository;
 
 	/**
 	 * Report page grouping.
@@ -95,13 +136,14 @@ final class Journey_Report_Controller {
 	/**
 	 * Constructor.
 	 *
-	 * @param Journey_Report_Repository         $report_repository  Event report reads.
-	 * @param Journey_Report_Session_Repository $session_repository Session context reads.
-	 * @param Journey_Report_Visitor_Repository $visitor_repository Anonymous visitor reads.
-	 * @param Journey_Report_Page_Builder       $page_builder       Report grouping.
-	 * @param Journey_Report_Renderer           $renderer           Report presentation.
-	 * @param DateTimeZone                      $timezone           Site timezone.
-	 * @param DateTimeImmutable|null            $now                Current time override.
+	 * @param Journey_Report_Repository                $report_repository  Event report reads.
+	 * @param Journey_Report_Session_Repository        $session_repository Session context reads.
+	 * @param Journey_Report_Visitor_Repository        $visitor_repository Anonymous visitor reads.
+	 * @param Journey_Report_Page_Builder              $page_builder       Report grouping.
+	 * @param Journey_Report_Renderer                  $renderer           Report presentation.
+	 * @param DateTimeZone                             $timezone           Site timezone.
+	 * @param DateTimeImmutable|null                   $now                Current time override.
+	 * @param Journey_Session_Deletion_Repository|null $deletion_repository Individual Journey deletion.
 	 */
 	public function __construct(
 		Journey_Report_Repository $report_repository,
@@ -110,15 +152,17 @@ final class Journey_Report_Controller {
 		Journey_Report_Page_Builder $page_builder,
 		Journey_Report_Renderer $renderer,
 		DateTimeZone $timezone,
-		?DateTimeImmutable $now = null
+		?DateTimeImmutable $now = null,
+		?Journey_Session_Deletion_Repository $deletion_repository = null
 	) {
-		$this->report_repository  = $report_repository;
-		$this->session_repository = $session_repository;
-		$this->visitor_repository = $visitor_repository;
-		$this->page_builder       = $page_builder;
-		$this->renderer           = $renderer;
-		$this->timezone           = $timezone;
-		$this->now                = $now ?? new DateTimeImmutable( 'now', $timezone );
+		$this->report_repository   = $report_repository;
+		$this->session_repository  = $session_repository;
+		$this->visitor_repository  = $visitor_repository;
+		$this->deletion_repository = $deletion_repository ?? new Journey_Session_Deletion_Repository();
+		$this->page_builder        = $page_builder;
+		$this->renderer            = $renderer;
+		$this->timezone            = $timezone;
+		$this->now                 = $now ?? new DateTimeImmutable( 'now', $timezone );
 	}
 
 	/**
@@ -128,6 +172,81 @@ final class Journey_Report_Controller {
 	 */
 	public function register(): void {
 		add_action( 'admin_enqueue_scripts', array( $this, 'enqueue_assets' ) );
+		add_action( 'admin_post_' . self::DELETE_ACTION, array( $this, 'handle_delete' ) );
+		add_action( 'admin_post_' . self::BULK_DELETE_ACTION, array( $this, 'handle_bulk_delete' ) );
+	}
+
+	/**
+	 * Process an authorized deletion and return to a stable report page.
+	 *
+	 * @return void
+	 */
+	public function handle_delete(): void {
+		if ( ! current_user_can( self::CAPABILITY ) ) {
+			wp_die( esc_html__( 'You do not have permission to delete Customer Journeys.', 'shurloc-site-tools' ) );
+		}
+
+		if ( false === check_admin_referer( self::DELETE_ACTION ) ) {
+			wp_die( esc_html__( 'The Customer Journey deletion request could not be verified.', 'shurloc-site-tools' ) );
+		}
+
+		$session_id = $this->positive_integer( value: $this->post_value( key: 'journey_session_id' ) );
+		if ( null === $session_id ) {
+			wp_die( esc_html__( 'Select a valid Customer Journey to delete.', 'shurloc-site-tools' ) );
+		}
+
+		$deleted = $this->deletion_repository->delete_by_id( session_id: $session_id );
+		$result  = match ( $deleted ) {
+			1       => self::DELETE_RESULT_DELETED,
+			0       => self::DELETE_RESULT_MISSING,
+			default => self::DELETE_RESULT_FAILED,
+		};
+
+		wp_safe_redirect( $this->deletion_redirect_url( result: $result ) );
+		exit;
+	}
+
+	/**
+	 * Process an authorized bulk deletion and return to the filtered list.
+	 *
+	 * Each selected customer removes all of that customer's Journey sessions.
+	 * Anonymous selections remove all sessions for the selected never-linked
+	 * visitor. The report date range only controls the list being viewed.
+	 *
+	 * @return void
+	 */
+	public function handle_bulk_delete(): void {
+		if ( ! current_user_can( self::CAPABILITY ) ) {
+			wp_die( esc_html__( 'You do not have permission to delete Customer Journeys.', 'shurloc-site-tools' ) );
+		}
+
+		if ( false === check_admin_referer( self::BULK_DELETE_ACTION ) ) {
+			wp_die( esc_html__( 'The Customer Journey bulk deletion request could not be verified.', 'shurloc-site-tools' ) );
+		}
+
+		if ( self::BULK_ACTION_DELETE !== sanitize_key( $this->post_value( key: 'journey_bulk_action' ) ) ) {
+			wp_die( esc_html__( 'Select a valid Customer Journey bulk action.', 'shurloc-site-tools' ) );
+		}
+
+		$subjects = $this->bulk_subjects();
+		if ( null === $subjects ) {
+			wp_die( esc_html__( 'Select at least one valid customer or anonymous visitor.', 'shurloc-site-tools' ) );
+		}
+
+		$deleted = $this->deletion_repository->delete_by_subjects( subjects: $subjects );
+		$result  = match ( $deleted ) {
+			null    => self::DELETE_RESULT_BULK_FAILED,
+			0       => self::DELETE_RESULT_BULK_MISSING,
+			default => self::DELETE_RESULT_BULK_DELETED,
+		};
+
+		wp_safe_redirect(
+			$this->bulk_deletion_redirect_url(
+				result: $result,
+				deleted: $deleted,
+			)
+		);
+		exit;
 	}
 
 	/**
@@ -155,6 +274,7 @@ final class Journey_Report_Controller {
 	 */
 	public function render(): void {
 		$this->verify_permissions();
+		$this->render_delete_notice();
 
 		$subject   = sanitize_key( $this->request_value( key: 'journey_subject' ) );
 		$from_date = $this->request_value( key: 'journey_from' );
@@ -213,17 +333,41 @@ final class Journey_Report_Controller {
 			( 'customer' === $subject && null === $user_id ) ||
 			( 'visitor' === $subject && null === $visitor_id )
 		) {
+			$page = $this->subject_page_number();
+			if ( false === $page ) {
+				$this->render_error( message: __( 'Select a valid Journey page number.', 'shurloc-site-tools' ) );
+				return;
+			}
+
 			$subjects = $this->visitor_repository->recent_subjects(
-				limit: self::RECENT_SUBJECT_LIMIT,
+				limit: self::RECENT_SUBJECT_PAGE_SIZE + 1,
 				from_utc: $range['from_utc'],
-				until_utc: $range['until_utc']
+				until_utc: $range['until_utc'],
+				offset: ( $page - 1 ) * self::RECENT_SUBJECT_PAGE_SIZE
 			);
 			if ( null === $subjects ) {
 				$this->render_unavailable();
 				return;
 			}
 
-			$this->render_recent_subjects( subjects: $subjects, from_date: $from_date, to_date: $to_date );
+			$has_next = self::RECENT_SUBJECT_PAGE_SIZE < count( $subjects );
+			if ( $has_next ) {
+				array_pop( $subjects );
+			}
+
+			$this->render_recent_subjects(
+				subjects: $subjects,
+				from_date: $from_date,
+				to_date: $to_date,
+				subject: $subject
+			);
+			$this->render_subject_pagination(
+				page: $page,
+				has_next: $has_next,
+				from_date: $from_date,
+				to_date: $to_date,
+				subject: $subject
+			);
 			return;
 		}
 
@@ -293,19 +437,18 @@ final class Journey_Report_Controller {
 	 * @return void
 	 */
 	private function render_landing( string $from_date, string $to_date ): void {
-		$cursor = $this->cursor( at_key: 'journey_visitor_before_at', id_key: 'journey_visitor_before_id' );
-		if ( false === $cursor ) {
+		$page = $this->subject_page_number();
+		if ( false === $page ) {
 			$this->render_controls( from_date: $from_date, to_date: $to_date, selected_user: null, selected_visitor_id: null, visitors: array() );
-			$this->render_error( message: __( 'The anonymous visitor page cursor is invalid.', 'shurloc-site-tools' ) );
+			$this->render_error( message: __( 'Select a valid Journey page number.', 'shurloc-site-tools' ) );
 			return;
 		}
 
-		$visitors = $this->visitor_repository->anonymous_visitors(
-			limit: self::VISITOR_PAGE_SIZE,
-			before_at: $cursor['at'],
-			before_id: $cursor['id']
+		$visitors = $this->visitor_repository->anonymous_visitors( limit: self::VISITOR_PAGE_SIZE );
+		$subjects = $this->visitor_repository->recent_subjects(
+			limit: self::RECENT_SUBJECT_PAGE_SIZE + 1,
+			offset: ( $page - 1 ) * self::RECENT_SUBJECT_PAGE_SIZE
 		);
-		$subjects = $this->visitor_repository->recent_subjects( limit: self::RECENT_SUBJECT_LIMIT );
 		$this->render_controls(
 			from_date: $from_date,
 			to_date: $to_date,
@@ -319,8 +462,18 @@ final class Journey_Report_Controller {
 			return;
 		}
 
+		$has_next = self::RECENT_SUBJECT_PAGE_SIZE < count( $subjects );
+		if ( $has_next ) {
+			array_pop( $subjects );
+		}
+
 		$this->render_recent_subjects( subjects: $subjects );
-		$this->render_visitor_pagination( visitors: $visitors, from_date: $from_date, to_date: $to_date );
+		$this->render_subject_pagination(
+			page: $page,
+			has_next: $has_next,
+			from_date: $from_date,
+			to_date: $to_date
+		);
 	}
 
 	/**
@@ -395,10 +548,16 @@ final class Journey_Report_Controller {
 	 * @param array       $subjects  Validated recent report subjects.
 	 * @param string|null $from_date Optional inclusive local report date.
 	 * @param string|null $to_date   Optional inclusive local report date.
+	 * @param string|null $subject   Optional report subject filter.
 	 * @return void
 	 * @phpstan-param list<RecentSubject> $subjects
 	 */
-	private function render_recent_subjects( array $subjects, ?string $from_date = null, ?string $to_date = null ): void {
+	private function render_recent_subjects(
+		array $subjects,
+		?string $from_date = null,
+		?string $to_date = null,
+		?string $subject = null
+	): void {
 		$range_selected = null !== $from_date && null !== $to_date;
 		$heading        = $range_selected
 			? __( 'Journeys in Selected Date Range', 'shurloc-site-tools' )
@@ -413,20 +572,53 @@ final class Journey_Report_Controller {
 			<?php return; ?>
 		<?php endif; ?>
 
-		<table class="widefat striped shurloc-journey-subjects">
-			<thead>
-				<tr>
-					<th scope="col"><?php echo esc_html__( 'Customer or visitor', 'shurloc-site-tools' ); ?></th>
-					<th scope="col"><?php echo esc_html__( 'Type', 'shurloc-site-tools' ); ?></th>
-					<th scope="col"><?php echo esc_html__( 'Latest activity', 'shurloc-site-tools' ); ?></th>
-				</tr>
-			</thead>
-			<tbody>
-				<?php foreach ( $subjects as $subject ) : ?>
-					<?php $this->render_recent_subject_row( subject: $subject, from_date: $from_date, to_date: $to_date ); ?>
-				<?php endforeach; ?>
-			</tbody>
-		</table>
+		<form method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>" class="shurloc-journey-bulk-delete">
+			<input type="hidden" name="action" value="<?php echo esc_attr( self::BULK_DELETE_ACTION ); ?>">
+			<?php if ( 'customer' === $subject || 'visitor' === $subject ) : ?>
+				<input type="hidden" name="journey_subject" value="<?php echo esc_attr( $subject ); ?>">
+			<?php endif; ?>
+			<?php if ( $range_selected ) : ?>
+				<input type="hidden" name="journey_from" value="<?php echo esc_attr( $from_date ); ?>">
+				<input type="hidden" name="journey_to" value="<?php echo esc_attr( $to_date ); ?>">
+			<?php endif; ?>
+			<?php wp_nonce_field( self::BULK_DELETE_ACTION ); ?>
+
+			<p class="description">
+				<?php echo esc_html__( 'Deleting a selected customer or visitor permanently deletes all journeys for that selection, including journeys outside the displayed date range. This action cannot be undone.', 'shurloc-site-tools' ); ?>
+			</p>
+			<div class="tablenav top">
+				<div class="alignleft actions bulkactions">
+					<label for="shurloc-journey-bulk-action" class="screen-reader-text"><?php echo esc_html__( 'Select bulk action', 'shurloc-site-tools' ); ?></label>
+					<select name="journey_bulk_action" id="shurloc-journey-bulk-action">
+						<option value=""><?php echo esc_html__( 'Bulk actions', 'shurloc-site-tools' ); ?></option>
+						<option value="<?php echo esc_attr( self::BULK_ACTION_DELETE ); ?>"><?php echo esc_html__( 'Delete all journeys', 'shurloc-site-tools' ); ?></option>
+					</select>
+					<button type="submit" class="button action"><?php echo esc_html__( 'Apply', 'shurloc-site-tools' ); ?></button>
+				</div>
+				<br class="clear">
+			</div>
+
+			<table class="wp-list-table widefat fixed striped table-view-list shurloc-journey-subjects">
+				<thead>
+					<tr>
+						<td id="cb" class="manage-column column-cb check-column">
+							<input id="cb-select-all-1" type="checkbox">
+							<label for="cb-select-all-1"><span class="screen-reader-text"><?php echo esc_html__( 'Select all journeys', 'shurloc-site-tools' ); ?></span></label>
+						</td>
+						<th scope="col"><?php echo esc_html__( 'Customer or visitor', 'shurloc-site-tools' ); ?></th>
+						<th scope="col"><?php echo esc_html__( 'Type', 'shurloc-site-tools' ); ?></th>
+						<th scope="col"><?php echo esc_html__( 'Latest activity', 'shurloc-site-tools' ); ?></th>
+						<th scope="col"><?php echo esc_html__( 'Total time spent', 'shurloc-site-tools' ); ?></th>
+						<th scope="col"><?php echo esc_html__( 'Page views / events', 'shurloc-site-tools' ); ?></th>
+					</tr>
+				</thead>
+				<tbody>
+					<?php foreach ( $subjects as $recent_subject ) : ?>
+						<?php $this->render_recent_subject_row( subject: $recent_subject, from_date: $from_date, to_date: $to_date ); ?>
+					<?php endforeach; ?>
+				</tbody>
+			</table>
+		</form>
 		<?php
 	}
 
@@ -448,8 +640,30 @@ final class Journey_Report_Controller {
 		$type_label  = 'customer' === $subject['subject_type']
 			? __( 'Authenticated customer', 'shurloc-site-tools' )
 			: __( 'Anonymous visitor', 'shurloc-site-tools' );
+		$checkbox_id = 'shurloc-journey-subject-' . $subject['subject_type'] . '-' . $subject['subject_id'];
 		?>
 		<tr>
+			<th scope="row" class="check-column">
+				<input
+					id="<?php echo esc_attr( $checkbox_id ); ?>"
+					type="checkbox"
+					name="journey_subjects[]"
+					value="<?php echo esc_attr( $subject['subject_type'] . ':' . $subject['subject_id'] ); ?>"
+				>
+				<label for="<?php echo esc_attr( $checkbox_id ); ?>">
+					<span class="screen-reader-text">
+						<?php
+						echo esc_html(
+							sprintf(
+								/* translators: %s: customer or anonymous visitor label. */
+								__( 'Select %s', 'shurloc-site-tools' ),
+								$label
+							)
+						);
+						?>
+					</span>
+				</label>
+			</th>
 			<td>
 				<?php if ( 'visitor' === $subject['subject_type'] || $is_customer ) : ?>
 					<a href="<?php echo esc_url( $this->recent_subject_url( subject: $subject, from_date: $from_date, to_date: $to_date ) ); ?>"><?php echo esc_html( $label ); ?></a>
@@ -467,8 +681,41 @@ final class Journey_Report_Controller {
 			</td>
 			<td><?php echo esc_html( $type_label ); ?></td>
 			<td><?php echo esc_html( $this->local_datetime( utc: $subject['last_activity_at'] ) ); ?></td>
+			<td><?php echo esc_html( $this->format_duration( milliseconds: $subject['total_active_ms'] ) ); ?></td>
+			<td><?php echo esc_html( $subject['total_page_view_count'] . ' / ' . $subject['total_event_count'] ); ?></td>
 		</tr>
 		<?php
+	}
+
+	/**
+	 * Format estimated active milliseconds without overstating partial seconds.
+	 *
+	 * @param int $milliseconds Estimated visible time.
+	 * @return string Compact duration.
+	 */
+	private function format_duration( int $milliseconds ): string {
+		if ( 0 === $milliseconds ) {
+			return '0s';
+		}
+
+		if ( 1000 > $milliseconds ) {
+			return '<1s';
+		}
+
+		$seconds = intdiv( $milliseconds, 1000 );
+		$hours   = intdiv( $seconds, 3600 );
+		$minutes = intdiv( $seconds % 3600, 60 );
+		$seconds = $seconds % 60;
+
+		if ( 0 < $hours ) {
+			return $hours . 'h ' . $minutes . 'm ' . $seconds . 's';
+		}
+
+		if ( 0 < $minutes ) {
+			return $minutes . 'm ' . $seconds . 's';
+		}
+
+		return $seconds . 's';
 	}
 
 	/**
@@ -584,26 +831,69 @@ final class Journey_Report_Controller {
 	}
 
 	/**
-	 * Render an older anonymous visitor page link when the selector page is full.
+	 * Render previous and next links for a Journey subject-list page.
 	 *
-	 * @param array  $visitors Visitors ordered by last seen time.
-	 * @param string $from_date Inclusive local report date.
-	 * @param string $to_date   Inclusive local report date.
+	 * @param int         $page      Current page number.
+	 * @param bool        $has_next  Whether another page is available.
+	 * @param string      $from_date Inclusive local report date.
+	 * @param string      $to_date   Inclusive local report date.
+	 * @param string|null $subject   Optional report subject filter.
 	 * @return void
-	 * @phpstan-param list<array{id:int,last_seen_at:string}> $visitors
 	 */
-	private function render_visitor_pagination( array $visitors, string $from_date, string $to_date ): void {
-		if ( self::VISITOR_PAGE_SIZE !== count( $visitors ) ) {
+	private function render_subject_pagination(
+		int $page,
+		bool $has_next,
+		string $from_date,
+		string $to_date,
+		?string $subject = null
+	): void {
+		if ( 1 === $page && ! $has_next ) {
 			return;
 		}
 
-		$last                              = $visitors[ count( $visitors ) - 1 ];
-		$args                              = $this->base_url_args( from_date: $from_date, to_date: $to_date );
-		$args['journey_visitor_before_at'] = $last['last_seen_at'];
-		$args['journey_visitor_before_id'] = $last['id'];
+		$args = $this->base_url_args( from_date: $from_date, to_date: $to_date );
+		if ( null !== $subject ) {
+			$args['journey_subject'] = $subject;
+		}
 		?>
-		<p><a class="button" href="<?php echo esc_url( add_query_arg( $args, admin_url( 'admin.php' ) ) ); ?>"><?php echo esc_html__( 'Older anonymous visitors', 'shurloc-site-tools' ); ?></a></p>
+		<div class="tablenav bottom shurloc-journey-pagination">
+			<div class="tablenav-pages">
+				<span class="paging-input"><?php echo esc_html( sprintf( /* translators: %d: current Journey list page. */ __( 'Page %d', 'shurloc-site-tools' ), $page ) ); ?></span>
+				<?php if ( 1 < $page ) : ?>
+					<?php
+					$previous_args = $args;
+					if ( 2 < $page ) {
+						$previous_args['journey_page'] = $page - 1;
+					}
+					?>
+					<a class="button" href="<?php echo esc_url( add_query_arg( $previous_args, admin_url( 'admin.php' ) ) ); ?>"><?php echo esc_html__( 'Previous journeys', 'shurloc-site-tools' ); ?></a>
+				<?php endif; ?>
+				<?php if ( $has_next ) : ?>
+					<?php $args['journey_page'] = $page + 1; ?>
+					<a class="button" href="<?php echo esc_url( add_query_arg( $args, admin_url( 'admin.php' ) ) ); ?>"><?php echo esc_html__( 'Next journeys', 'shurloc-site-tools' ); ?></a>
+				<?php endif; ?>
+			</div>
+		</div>
 		<?php
+	}
+
+	/**
+	 * Read a bounded Journey subject-list page number.
+	 *
+	 * @return int|false Page number or false when invalid.
+	 */
+	private function subject_page_number(): int|false {
+		$value = $this->request_value( key: 'journey_page' );
+		if ( '' === $value ) {
+			return 1;
+		}
+
+		$page = $this->positive_integer( value: $value );
+		if ( null === $page || intdiv( PHP_INT_MAX, self::RECENT_SUBJECT_PAGE_SIZE ) < $page ) {
+			return false;
+		}
+
+		return $page;
 	}
 
 	/**
@@ -694,6 +984,136 @@ final class Journey_Report_Controller {
 	}
 
 	/**
+	 * Read one scalar POST value after the deletion nonce is verified.
+	 *
+	 * @param string $key Request key.
+	 * @return string Sanitized value or an empty string.
+	 */
+	private function post_value( string $key ): string {
+		// phpcs:ignore WordPress.Security.NonceVerification.Missing -- The deletion handlers verify their action nonce before calling this helper.
+		$value = $_POST[ $key ] ?? '';
+		return is_string( $value ) ? sanitize_text_field( wp_unslash( $value ) ) : '';
+	}
+
+	/**
+	 * Parse the bounded list of selected customer and anonymous subjects.
+	 *
+	 * @return list<array{type:'customer'|'visitor',id:int}>|null Valid subjects, or null.
+	 */
+	private function bulk_subjects(): ?array {
+		// phpcs:ignore WordPress.Security.NonceVerification.Missing -- handle_bulk_delete() verifies its action nonce before calling this helper.
+		$values = $_POST['journey_subjects'] ?? null;
+		if (
+			! is_array( $values ) ||
+			array() === $values ||
+			! array_is_list( $values ) ||
+			Journey_Session_Deletion_Repository::MAX_SUBJECTS < count( $values )
+		) {
+			return null;
+		}
+
+		$subjects = array();
+		$selected = array();
+		foreach ( $values as $value ) {
+			if ( ! is_string( $value ) ) {
+				return null;
+			}
+
+			$parts = explode( ':', sanitize_text_field( wp_unslash( $value ) ) );
+			if ( 2 !== count( $parts ) || ! in_array( $parts[0], array( 'customer', 'visitor' ), true ) ) {
+				return null;
+			}
+
+			$id = $this->positive_integer( value: $parts[1] );
+			if ( null === $id || (string) $id !== $parts[1] ) {
+				return null;
+			}
+
+			$key = $parts[0] . ':' . $id;
+			if ( isset( $selected[ $key ] ) ) {
+				return null;
+			}
+
+			$subjects[]       = array(
+				'type' => $parts[0],
+				'id'   => $id,
+			);
+			$selected[ $key ] = true;
+		}
+
+		return $subjects;
+	}
+
+	/**
+	 * Build a deletion redirect without retaining event pagination cursors.
+	 *
+	 * @param string $result Deletion result.
+	 * @return string Customer Journey report URL.
+	 */
+	private function deletion_redirect_url( string $result ): string {
+		$args = array(
+			'page'                  => self::PAGE_SLUG,
+			'tab'                   => self::TAB_SLUG,
+			self::DELETE_RESULT_KEY => $result,
+		);
+
+		$subject = sanitize_key( $this->post_value( key: 'journey_subject' ) );
+		if ( 'customer' !== $subject && 'visitor' !== $subject ) {
+			return add_query_arg( $args, admin_url( 'admin.php' ) );
+		}
+
+		$args['journey_subject'] = $subject;
+		$subject_id              = $this->positive_integer(
+			value: $this->post_value( key: 'customer' === $subject ? 'journey_user_id' : 'journey_visitor_id' )
+		);
+		if ( null !== $subject_id ) {
+			$args[ 'customer' === $subject ? 'journey_user_id' : 'journey_visitor_id' ] = $subject_id;
+		}
+
+		$from_date = $this->post_value( key: 'journey_from' );
+		$to_date   = $this->post_value( key: 'journey_to' );
+		if ( null !== $this->utc_range( from_date: $from_date, to_date: $to_date ) ) {
+			$args['journey_from'] = $from_date;
+			$args['journey_to']   = $to_date;
+		}
+
+		return add_query_arg( $args, admin_url( 'admin.php' ) );
+	}
+
+	/**
+	 * Build a bulk-deletion redirect to the first filtered list page.
+	 *
+	 * @param string   $result  Deletion result.
+	 * @param int|null $deleted Deleted Journey session count, or null on failure.
+	 * @return string Customer Journey list URL.
+	 */
+	private function bulk_deletion_redirect_url( string $result, ?int $deleted ): string {
+		$args = array(
+			'page'                  => self::PAGE_SLUG,
+			'tab'                   => self::TAB_SLUG,
+			self::DELETE_RESULT_KEY => $result,
+		);
+
+		if ( self::DELETE_RESULT_BULK_DELETED === $result && null !== $deleted && 0 < $deleted ) {
+			$args[ self::DELETE_COUNT_KEY ] = $deleted;
+		}
+
+		$subject = sanitize_key( $this->post_value( key: 'journey_subject' ) );
+		if ( 'customer' === $subject || 'visitor' === $subject ) {
+			$args['journey_subject'] = $subject;
+		}
+
+		$from_date = $this->post_value( key: 'journey_from' );
+		$to_date   = $this->post_value( key: 'journey_to' );
+		if ( null !== $this->utc_range( from_date: $from_date, to_date: $to_date ) ) {
+			$args['journey_from'] = $from_date;
+			$args['journey_to']   = $to_date;
+		}
+
+		return add_query_arg( $args, admin_url( 'admin.php' ) );
+	}
+
+	/**
 	 * Parse a canonical positive request integer.
 	 *
 	 * @param string $value Request value.
@@ -762,6 +1182,48 @@ final class Journey_Report_Controller {
 	private function render_error( string $message ): void {
 		?>
 		<div class="notice notice-error inline"><p><?php echo esc_html( $message ); ?></p></div>
+		<?php
+	}
+
+	/**
+	 * Render feedback from the preceding deletion request.
+	 *
+	 * @return void
+	 */
+	private function render_delete_notice(): void {
+		$result = sanitize_key( $this->request_value( key: self::DELETE_RESULT_KEY ) );
+		if ( self::DELETE_RESULT_DELETED === $result ) {
+			$class   = 'notice notice-success inline is-dismissible';
+			$message = __( 'Customer Journey deleted.', 'shurloc-site-tools' );
+		} elseif ( self::DELETE_RESULT_MISSING === $result ) {
+			$class   = 'notice notice-warning inline is-dismissible';
+			$message = __( 'That Customer Journey had already been deleted.', 'shurloc-site-tools' );
+		} elseif ( self::DELETE_RESULT_FAILED === $result ) {
+			$class   = 'notice notice-error inline';
+			$message = __( 'The Customer Journey could not be deleted. Verify the Journey schema and retry.', 'shurloc-site-tools' );
+		} elseif ( self::DELETE_RESULT_BULK_DELETED === $result ) {
+			$deleted = $this->positive_integer( value: $this->request_value( key: self::DELETE_COUNT_KEY ) );
+			if ( null === $deleted ) {
+				return;
+			}
+
+			$class   = 'notice notice-success inline is-dismissible';
+			$message = sprintf(
+				/* translators: %d: number of deleted Customer Journey sessions. */
+				_n( '%d Customer Journey deleted.', '%d Customer Journeys deleted.', $deleted, 'shurloc-site-tools' ),
+				$deleted
+			);
+		} elseif ( self::DELETE_RESULT_BULK_MISSING === $result ) {
+			$class   = 'notice notice-warning inline is-dismissible';
+			$message = __( 'The selected customers or anonymous visitors no longer have recorded journeys.', 'shurloc-site-tools' );
+		} elseif ( self::DELETE_RESULT_BULK_FAILED === $result ) {
+			$class   = 'notice notice-error inline';
+			$message = __( 'The selected Customer Journeys could not be deleted. No journeys were removed.', 'shurloc-site-tools' );
+		} else {
+			return;
+		}
+		?>
+		<div class="<?php echo esc_attr( $class ); ?>"><p><?php echo esc_html( $message ); ?></p></div>
 		<?php
 	}
 

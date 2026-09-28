@@ -9,6 +9,7 @@ declare( strict_types=1 );
 
 use Shurloc\SiteTools\Customer\Journey\Migrations\Journey_Schema_V1;
 use Shurloc\SiteTools\Customer\Journey\Migrations\Journey_Schema_V2;
+use Shurloc\SiteTools\Customer\Journey\Migrations\Journey_Schema_V3;
 
 /**
  * WordPress database test double.
@@ -37,7 +38,13 @@ use Shurloc\SiteTools\Customer\Journey\Migrations\Journey_Schema_V2;
  *     removed_quantity:string,
  *     checkout_started_count:int,
  *     order_created_count:int,
- *     active_ms:int
+ *     active_ms:int,
+ *     user_agent?:string|null,
+ *     client_type?:string,
+ *     client_name?:string|null,
+ *     device_type?:string,
+ *     classification_version?:int,
+ *     event_count?:int
  * }
  * @phpstan-type VisitorRow array{
  *     id:int,
@@ -62,6 +69,12 @@ use Shurloc\SiteTools\Customer\Journey\Migrations\Journey_Schema_V2;
  * }
  */
 final class Shurloc_Test_WPDB {
+	/**
+	 * Most recent simulated database error.
+	 *
+	 * @var string
+	 */
+	public string $last_error = '';
 
 	/**
 	 * WordPress database table prefix.
@@ -151,6 +164,13 @@ final class Shurloc_Test_WPDB {
 	 * @var string
 	 */
 	public string $missing_column = '';
+
+	/**
+	 * SHOW COLUMNS type substitutions keyed by column name.
+	 *
+	 * @var array<string,string>
+	 */
+	public array $column_type_overrides = array();
 
 	/**
 	 * Unique index presented as non-unique.
@@ -330,6 +350,13 @@ final class Shurloc_Test_WPDB {
 	public bool $fail_session_close = false;
 
 	/**
+	 * Simulate deletion failure for one session.
+	 *
+	 * @var bool
+	 */
+	public bool $fail_session_delete = false;
+
+	/**
 	 * Simulate an event insertion failure.
 	 *
 	 * @var bool
@@ -342,6 +369,13 @@ final class Shurloc_Test_WPDB {
 	 * @var bool
 	 */
 	public bool $fail_event_select = false;
+
+	/**
+	 * Simulate deletion failure for events belonging to one session.
+	 *
+	 * @var bool
+	 */
+	public bool $fail_event_delete = false;
 
 	/**
 	 * Simulate a cart-link upsert failure.
@@ -377,6 +411,13 @@ final class Shurloc_Test_WPDB {
 	 * @var bool
 	 */
 	public bool $fail_event_summary_update = false;
+
+	/**
+	 * Simulate failure while backfilling v3 session event totals.
+	 *
+	 * @var bool
+	 */
+	public bool $fail_event_count_backfill = false;
 
 	/**
 	 * Arguments of the latest prepared query.
@@ -670,6 +711,24 @@ final class Shurloc_Test_WPDB {
 			return array_slice( $rows, 0, 2 );
 		}
 
+		if ( str_starts_with( $query, 'SELECT id, visitor_id FROM %i WHERE id = %d LIMIT 2 FOR UPDATE' ) ) {
+			if ( $this->fail_session_select ) {
+				return null;
+			}
+
+			$session_id = (int) $this->last_args[1];
+			if ( ! isset( $this->sessions[ $session_id ] ) ) {
+				return array();
+			}
+
+			return array(
+				(object) array(
+					'id'         => (string) $session_id,
+					'visitor_id' => (string) $this->sessions[ $session_id ]['visitor_id'],
+				),
+			);
+		}
+
 		if ( str_starts_with( $query, 'SELECT id, visitor_id, event_type, order_id, page_path, post_id, product_id, variation_id, quantity, active_ms, source FROM %i WHERE idempotency_key = %s' ) ) {
 			if ( $this->fail_event_select ) {
 				return null;
@@ -827,6 +886,12 @@ final class Shurloc_Test_WPDB {
 				'checkout_started_count' => 0,
 				'order_created_count'    => 0,
 				'active_ms'              => 0,
+				'user_agent'             => null === ( $data['user_agent'] ?? null ) ? null : (string) $data['user_agent'],
+				'client_type'            => (string) ( $data['client_type'] ?? 'unknown' ),
+				'client_name'            => null === ( $data['client_name'] ?? null ) ? null : (string) $data['client_name'],
+				'device_type'            => (string) ( $data['device_type'] ?? 'unknown' ),
+				'classification_version' => (int) ( $data['classification_version'] ?? 0 ),
+				'event_count'            => 0,
 			);
 			return 1;
 		}
@@ -942,6 +1007,30 @@ final class Shurloc_Test_WPDB {
 			return 0;
 		}
 
+		if ( str_starts_with( $query, 'UPDATE %i SET event_count = page_view_count + cart_add_count + cart_remove_count + checkout_started_count + order_created_count' ) ) {
+			if ( $this->fail_event_count_backfill ) {
+				$this->last_error = 'Simulated Journey event-count backfill failure.';
+				return false;
+			}
+			$this->last_error = '';
+
+			$updated = 0;
+			foreach ( $this->sessions as $session_id => $session ) {
+				$event_count = $session['page_view_count'] +
+					$session['cart_add_count'] +
+					$session['cart_remove_count'] +
+					$session['checkout_started_count'] +
+					$session['order_created_count'];
+
+				if ( ( $session['event_count'] ?? 0 ) !== $event_count ) {
+					$this->sessions[ $session_id ]['event_count'] = $event_count;
+					++$updated;
+				}
+			}
+
+			return $updated;
+		}
+
 		if ( str_starts_with( $query, 'INSERT INTO %i (cart_token_hash, visitor_id, session_id, linked_at, last_seen_at)' ) ) {
 			if ( $this->fail_cart_link_upsert ) {
 				return false;
@@ -1019,6 +1108,41 @@ final class Shurloc_Test_WPDB {
 			return $deleted;
 		}
 
+		if ( 'DELETE FROM %i WHERE session_id = %d' === $query &&
+			str_ends_with( (string) $this->last_args[0], 'shurloc_journey_events' ) ) {
+			if ( $this->fail_event_delete ) {
+				return false;
+			}
+
+			$session_id = (int) $this->last_args[1];
+			$deleted    = 0;
+			foreach ( $this->events as $event_id => $event ) {
+				if ( $session_id === $event['session_id'] ) {
+					unset( $this->events[ $event_id ] );
+					++$deleted;
+				}
+			}
+
+			return $deleted;
+		}
+
+		if ( 'DELETE FROM %i WHERE id = %d AND visitor_id = %d' === $query &&
+			str_ends_with( (string) $this->last_args[0], 'shurloc_journey_sessions' ) ) {
+			if ( $this->fail_session_delete ) {
+				return false;
+			}
+
+			$session_id = (int) $this->last_args[1];
+			$visitor_id = (int) $this->last_args[2];
+			if ( ! isset( $this->sessions[ $session_id ] ) ||
+				$visitor_id !== $this->sessions[ $session_id ]['visitor_id'] ) {
+				return 0;
+			}
+
+			unset( $this->sessions[ $session_id ] );
+			return 1;
+		}
+
 		if ( str_starts_with( $query, 'UPDATE %i SET %i = %i + ' ) &&
 			str_ends_with( $query, ' WHERE id = %d AND visitor_id = %d' ) &&
 			str_ends_with( (string) $this->last_args[0], 'shurloc_journey_sessions' ) ) {
@@ -1059,6 +1183,9 @@ final class Shurloc_Test_WPDB {
 				}
 
 				switch ( $column ) {
+					case 'event_count':
+						$this->sessions[ $session_id ]['event_count'] = ( $this->sessions[ $session_id ]['event_count'] ?? 0 ) + (int) $increment;
+						break;
 					case 'page_view_count':
 						$this->sessions[ $session_id ]['page_view_count'] += (int) $increment;
 						break;
@@ -1267,6 +1394,9 @@ final class Shurloc_Test_WPDB {
 			Journey_Schema_V1::get_table_definitions(),
 			Journey_Schema_V2::get_table_definitions(),
 		);
+		if ( 'shurloc_journey_sessions' === $table_suffix && str_contains( $sql, 'classification_version' ) ) {
+			$definitions[ $table_suffix ] = Journey_Schema_V3::get_table_definitions()[ $table_suffix ];
+		}
 		if ( isset( $definitions[ $table_suffix ] ) ) {
 			$definition = $definitions[ $table_suffix ];
 
@@ -1299,7 +1429,7 @@ final class Shurloc_Test_WPDB {
 
 			$rows[] = (object) array(
 				'Field' => $name,
-				'Type'  => $matches[0],
+				'Type'  => $this->column_type_overrides[ $name ] ?? $matches[0],
 				'Null'  => str_contains( $sql, 'DEFAULT NULL' ) ? 'YES' : 'NO',
 				'Extra' => str_contains( $sql, 'AUTO_INCREMENT' ) ? 'auto_increment' : '',
 			);

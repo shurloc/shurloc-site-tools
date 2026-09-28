@@ -10,6 +10,7 @@ declare( strict_types=1 );
 namespace Shurloc\SiteTools\Customer\Journey\Repositories;
 
 use PHPUnit\Framework\TestCase;
+use Shurloc\SiteTools\Customer\Journey\Journey_Event_Type;
 use Shurloc\SiteTools\Customer\Journey\Migrations\Journey_Schema_Migrator;
 use Shurloc_Test_WPDB;
 use stdClass;
@@ -65,14 +66,20 @@ final class JourneyReportVisitorRepositoryTest extends TestCase {
 		$this->database->prefix  = 'shop_';
 		$this->database->results = array(
 			(object) array(
-				'subject_type'     => 'customer',
-				'subject_id'       => '7',
-				'last_activity_at' => '2026-09-18 12:00:00',
+				'subject_type'          => 'customer',
+				'subject_id'            => '7',
+				'last_activity_at'      => '2026-09-18 12:00:00',
+				'total_active_ms'       => '125000',
+				'total_page_view_count' => '4',
+				'total_event_count'     => '7',
 			),
 			(object) array(
-				'subject_type'     => 'visitor',
-				'subject_id'       => '12',
-				'last_activity_at' => '2026-09-17 12:00:00',
+				'subject_type'          => 'visitor',
+				'subject_id'            => '12',
+				'last_activity_at'      => '2026-09-17 12:00:00',
+				'total_active_ms'       => '0',
+				'total_page_view_count' => '1',
+				'total_event_count'     => '1',
 			),
 		);
 
@@ -81,14 +88,20 @@ final class JourneyReportVisitorRepositoryTest extends TestCase {
 		self::assertSame(
 			array(
 				array(
-					'subject_type'     => 'customer',
-					'subject_id'       => 7,
-					'last_activity_at' => '2026-09-18 12:00:00',
+					'subject_type'          => 'customer',
+					'subject_id'            => 7,
+					'last_activity_at'      => '2026-09-18 12:00:00',
+					'total_active_ms'       => 125000,
+					'total_page_view_count' => 4,
+					'total_event_count'     => 7,
 				),
 				array(
-					'subject_type'     => 'visitor',
-					'subject_id'       => 12,
-					'last_activity_at' => '2026-09-17 12:00:00',
+					'subject_type'          => 'visitor',
+					'subject_id'            => 12,
+					'last_activity_at'      => '2026-09-17 12:00:00',
+					'total_active_ms'       => 0,
+					'total_page_view_count' => 1,
+					'total_event_count'     => 1,
 				),
 			),
 			$subjects
@@ -97,6 +110,8 @@ final class JourneyReportVisitorRepositoryTest extends TestCase {
 		$query = $this->database->prepared_queries[0];
 		self::assertSame(
 			array(
+				Journey_Event_Type::PAGE_VIEW,
+				Journey_Event_Type::PRODUCT_VIEW,
 				'shop_shurloc_journey_events',
 				'1000-01-01 00:00:00',
 				'9999-12-31 23:59:59',
@@ -105,6 +120,7 @@ final class JourneyReportVisitorRepositoryTest extends TestCase {
 				'9999-12-31 23:59:59',
 				'shop_shurloc_journey_identity_periods',
 				25,
+				0,
 			),
 			$query['args']
 		);
@@ -113,7 +129,30 @@ final class JourneyReportVisitorRepositoryTest extends TestCase {
 		self::assertStringContainsString( 'p.user_id IS NOT NULL', $query['query'] );
 		self::assertStringContainsString( 'GROUP BY recent.subject_type, recent.subject_id', $query['query'] );
 		self::assertStringContainsString( 'ORDER BY last_activity_at DESC', $query['query'] );
+		self::assertStringContainsString( 'SUM(recent.active_ms) AS total_active_ms', $query['query'] );
+		self::assertStringContainsString( 'SUM(CASE WHEN recent.event_type IN (%s, %s) THEN 1 ELSE 0 END) AS total_page_view_count', $query['query'] );
+		self::assertStringContainsString( 'COUNT(*) AS total_event_count', $query['query'] );
+		self::assertStringContainsString( 'LIMIT %d OFFSET %d', $query['query'] );
 		self::assertStringNotContainsString( 'visitor_uuid', $query['query'] );
+	}
+
+	/**
+	 * Recent subject pages can skip earlier matching subjects.
+	 *
+	 * @return void
+	 */
+	public function test_offsets_recent_subject_pages(): void {
+		$this->database->results = array( $this->recent_subject_row() );
+
+		$subjects = ( new Journey_Report_Visitor_Repository() )->recent_subjects(
+			limit: 25,
+			offset: 50
+		);
+
+		self::assertSame( 7, $subjects[0]['subject_id'] ?? null );
+		$query = $this->database->prepared_queries[0];
+		self::assertSame( 25, $query['args'][9] );
+		self::assertSame( 50, $query['args'][10] );
 	}
 
 	/**
@@ -134,6 +173,8 @@ final class JourneyReportVisitorRepositoryTest extends TestCase {
 		$query = $this->database->prepared_queries[0];
 		self::assertSame(
 			array(
+				Journey_Event_Type::PAGE_VIEW,
+				Journey_Event_Type::PRODUCT_VIEW,
 				'wp_shurloc_journey_events',
 				'2026-09-01 07:00:00',
 				'2026-10-01 07:00:00',
@@ -142,6 +183,7 @@ final class JourneyReportVisitorRepositoryTest extends TestCase {
 				'2026-10-01 07:00:00',
 				'wp_shurloc_journey_identity_periods',
 				25,
+				0,
 			),
 			$query['args']
 		);
@@ -226,6 +268,7 @@ final class JourneyReportVisitorRepositoryTest extends TestCase {
 
 		self::assertNull( $repository->recent_subjects( limit: 0 ) );
 		self::assertNull( $repository->recent_subjects( limit: 101 ) );
+		self::assertNull( $repository->recent_subjects( offset: -1 ) );
 		self::assertNull( $repository->recent_subjects( from_utc: '2026-09-01 00:00:00' ) );
 		self::assertNull( $repository->recent_subjects( until_utc: '2026-10-01 00:00:00' ) );
 		self::assertNull( $repository->recent_subjects( from_utc: 'invalid', until_utc: '2026-10-01 00:00:00' ) );
@@ -296,6 +339,19 @@ final class JourneyReportVisitorRepositoryTest extends TestCase {
 		$row->last_activity_at = '2026-02-30 12:00:00';
 		self::assertNull( $repository->recent_subjects() );
 
+		$row                     = $this->recent_subject_row();
+		$row->total_active_ms    = '-1';
+		$this->database->results = array( $row );
+		self::assertNull( $repository->recent_subjects() );
+
+		$row->total_active_ms       = '1000';
+		$row->total_page_view_count = '-1';
+		self::assertNull( $repository->recent_subjects() );
+
+		$row->total_page_view_count = '1';
+		$row->total_event_count     = '0';
+		self::assertNull( $repository->recent_subjects() );
+
 		$this->database->results = array_fill(
 			0,
 			2,
@@ -311,10 +367,13 @@ final class JourneyReportVisitorRepositoryTest extends TestCase {
 	 * @return stdClass Database row.
 	 */
 	private function recent_subject_row( string $subject_type = 'customer' ): stdClass {
-		$row                   = new stdClass();
-		$row->subject_type     = $subject_type;
-		$row->subject_id       = '7';
-		$row->last_activity_at = '2026-09-18 12:00:00';
+		$row                        = new stdClass();
+		$row->subject_type          = $subject_type;
+		$row->subject_id            = '7';
+		$row->last_activity_at      = '2026-09-18 12:00:00';
+		$row->total_active_ms       = '125000';
+		$row->total_page_view_count = '4';
+		$row->total_event_count     = '7';
 
 		return $row;
 	}

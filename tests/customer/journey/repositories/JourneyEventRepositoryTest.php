@@ -63,6 +63,7 @@ final class JourneyEventRepositoryTest extends TestCase {
 			'checkout_started_count' => 0,
 			'order_created_count'    => 0,
 			'active_ms'              => 0,
+			'event_count'            => 0,
 		);
 
 		// phpcs:ignore WordPress.WP.GlobalVariablesOverride.Prohibited -- Test-only wpdb replacement.
@@ -127,6 +128,7 @@ final class JourneyEventRepositoryTest extends TestCase {
 		self::assertCount( 15, $this->database->insert_calls[0]['formats'] );
 		self::assertSame( 1, $this->database->sessions[20]['page_view_count'] );
 		self::assertSame( 1, $this->database->sessions[20]['product_view_count'] );
+		$this->assert_event_count( expected: 1 );
 		self::assertSame( 1234, $this->database->sessions[20]['active_ms'] );
 		self::assertSame( '2026-09-16 12:00:00', $this->database->sessions[20]['last_activity_at'] );
 		self::assertSame( 'START TRANSACTION', $this->database->queries[0] );
@@ -159,6 +161,7 @@ final class JourneyEventRepositoryTest extends TestCase {
 		);
 		self::assertCount( 2, $this->database->events );
 		self::assertSame( 2, $this->database->sessions[20]['page_view_count'] );
+		$this->assert_event_count( expected: 2 );
 	}
 
 	/**
@@ -189,6 +192,7 @@ final class JourneyEventRepositoryTest extends TestCase {
 		);
 		self::assertCount( 1, $this->database->events );
 		self::assertSame( 1, $this->database->sessions[20]['page_view_count'] );
+		$this->assert_event_count( expected: 1 );
 		self::assertSame( 750, $this->database->sessions[20]['active_ms'] );
 	}
 
@@ -242,6 +246,8 @@ final class JourneyEventRepositoryTest extends TestCase {
 		self::assertSame( 1, $summary['checkout_started_count'] );
 		self::assertSame( 1, $summary['order_created_count'] );
 		self::assertSame( 0, $summary['active_ms'] );
+		self::assertArrayHasKey( 'event_count', $summary );
+		self::assertSame( 5, $summary['event_count'] );
 		self::assertCount( 5, $this->database->events );
 	}
 
@@ -516,6 +522,7 @@ final class JourneyEventRepositoryTest extends TestCase {
 		self::assertSame( 1200, $this->database->events[1]['active_ms'] );
 		self::assertSame( 1200, $this->database->sessions[20]['active_ms'] );
 		self::assertSame( 1, $this->database->sessions[20]['page_view_count'] );
+		$this->assert_event_count( expected: 1 );
 		self::assertSame( '2026-09-16 12:00:00', $this->database->sessions[20]['last_activity_at'] );
 
 		self::assertTrue( $repository->record_view_duration( event_id: 1, visitor_id: 12, total_active_ms: 1200 ) );
@@ -525,6 +532,7 @@ final class JourneyEventRepositoryTest extends TestCase {
 		self::assertSame( 2000, $this->database->events[1]['active_ms'] );
 		self::assertSame( 2000, $this->database->sessions[20]['active_ms'] );
 		self::assertSame( 1, $this->database->sessions[20]['page_view_count'] );
+		$this->assert_event_count( expected: 1 );
 	}
 
 	/**
@@ -671,6 +679,19 @@ final class JourneyEventRepositoryTest extends TestCase {
 		self::assertTrue( $repository->record_view_duration( event_id: 1, visitor_id: 12, total_active_ms: 500 ) );
 		self::assertSame( 500, $this->database->events[1]['active_ms'] );
 		self::assertSame( 500, $this->database->sessions[20]['active_ms'] );
+	}
+
+	/**
+	 * Assert the v3 counter after proving it exists on the compatible fixture.
+	 *
+	 * @param int $expected Expected total event count.
+	 * @return void
+	 */
+	private function assert_event_count( int $expected ): void {
+		$session = $this->database->sessions[20];
+
+		self::assertArrayHasKey( 'event_count', $session );
+		self::assertSame( $expected, $session['event_count'] );
 	}
 
 	/**

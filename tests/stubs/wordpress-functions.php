@@ -206,6 +206,11 @@ $GLOBALS['shurloc_test_admin_referer_checks'] = array();
 $GLOBALS['shurloc_test_redirects'] = array();
 
 /**
+ * Whether a safe redirect should throw before a tested handler exits.
+ */
+$GLOBALS['shurloc_test_throw_on_redirect'] = false;
+
+/**
  * Messages passed to wp_die() during tests.
  */
 $GLOBALS['shurloc_test_wp_die_messages'] = array();
@@ -963,6 +968,27 @@ if ( ! function_exists( 'wp_strip_all_tags' ) ) {
 	): string {
 		// phpcs:ignore WordPress.WP.AlternativeFunctions.strip_tags_strip_tags -- Test stub implements wp_strip_all_tags().
 		return strip_tags( $text );
+	}
+}
+
+if ( ! function_exists( 'wp_check_invalid_utf8' ) ) {
+	/**
+	 * Check a test string for valid UTF-8 and optionally strip invalid bytes.
+	 *
+	 * @param string $text  Text to validate.
+	 * @param bool   $strip Whether to strip invalid bytes.
+	 * @return string Validated text.
+	 */
+	function wp_check_invalid_utf8( string $text, bool $strip = false ): string {
+		if ( 1 === preg_match( '//u', $text ) ) {
+			return $text;
+		}
+
+		if ( ! $strip ) {
+			return '';
+		}
+
+		return preg_replace( '/[^\x00-\x7F]/', '', $text ) ?? '';
 	}
 }
 
@@ -1748,6 +1774,32 @@ if ( ! function_exists( 'admin_url' ) ) {
 			$path,
 			'/'
 		);
+	}
+}
+
+if ( ! function_exists( 'wp_safe_redirect' ) ) {
+	/**
+	 * Record a safe redirect and optionally stop before the handler exits.
+	 *
+	 * @param string $location      Redirect destination.
+	 * @param int    $status        HTTP response status.
+	 * @param string $x_redirect_by Redirect source.
+	 * @return bool Whether the redirect was accepted.
+	 * @throws RuntimeException When a test needs to stop before exit.
+	 */
+	function wp_safe_redirect(
+		string $location,
+		int $status = 302,
+		string $x_redirect_by = 'WordPress'
+	): bool {
+		unset( $status, $x_redirect_by );
+
+		$GLOBALS['shurloc_test_redirects'][] = $location;
+		if ( $GLOBALS['shurloc_test_throw_on_redirect'] ) {
+			throw new RuntimeException( 'Test safe redirect' );
+		}
+
+		return true;
 	}
 }
 

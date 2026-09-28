@@ -10,7 +10,7 @@ declare( strict_types=1 );
 namespace Shurloc\SiteTools\Customer\Journey;
 
 use PHPUnit\Framework\TestCase;
-use Shurloc\SiteTools\Customer\Journey\Migrations\Journey_Schema_V1;
+use Shurloc\SiteTools\Customer\Journey\Migrations\Journey_Schema_V3;
 
 /**
  * Tests one event-to-summary mapping without database rounding.
@@ -23,11 +23,15 @@ final class JourneyEventSummaryDeltaTest extends TestCase {
 	 */
 	public function test_page_and_product_views_have_distinct_counter_deltas(): void {
 		self::assertSame(
-			array( 'page_view_count' => 1 ),
+			array(
+				'event_count'     => 1,
+				'page_view_count' => 1,
+			),
 			Journey_Event_Summary_Delta::for_event( Journey_Event_Type::PAGE_VIEW )
 		);
 		self::assertSame(
 			array(
+				'event_count'     => 1,
 				'page_view_count' => 1,
 				'active_ms'       => 1200,
 			),
@@ -35,6 +39,7 @@ final class JourneyEventSummaryDeltaTest extends TestCase {
 		);
 		self::assertSame(
 			array(
+				'event_count'        => 1,
 				'page_view_count'    => 1,
 				'product_view_count' => 1,
 				'active_ms'          => 1500,
@@ -62,6 +67,7 @@ final class JourneyEventSummaryDeltaTest extends TestCase {
 	public function test_cart_changes_map_count_and_exact_quantity(): void {
 		self::assertSame(
 			array(
+				'event_count'    => 1,
 				'cart_add_count' => 1,
 				'added_quantity' => '2.5000',
 			),
@@ -69,6 +75,7 @@ final class JourneyEventSummaryDeltaTest extends TestCase {
 		);
 		self::assertSame(
 			array(
+				'event_count'       => 1,
 				'cart_remove_count' => 1,
 				'removed_quantity'  => '0.0001',
 			),
@@ -76,6 +83,7 @@ final class JourneyEventSummaryDeltaTest extends TestCase {
 		);
 		self::assertSame(
 			array(
+				'event_count'    => 1,
 				'cart_add_count' => 1,
 				'added_quantity' => '999999999999.9999',
 			),
@@ -90,11 +98,17 @@ final class JourneyEventSummaryDeltaTest extends TestCase {
 	 */
 	public function test_checkout_and_order_creation_have_single_counters(): void {
 		self::assertSame(
-			array( 'checkout_started_count' => 1 ),
+			array(
+				'event_count'            => 1,
+				'checkout_started_count' => 1,
+			),
 			Journey_Event_Summary_Delta::for_event( Journey_Event_Type::CHECKOUT_STARTED )
 		);
 		self::assertSame(
-			array( 'order_created_count' => 1 ),
+			array(
+				'event_count'         => 1,
+				'order_created_count' => 1,
+			),
 			Journey_Event_Summary_Delta::for_event( Journey_Event_Type::ORDER_CREATED )
 		);
 	}
@@ -125,8 +139,8 @@ final class JourneyEventSummaryDeltaTest extends TestCase {
 	 *
 	 * @return void
 	 */
-	public function test_delta_columns_match_the_v1_session_schema(): void {
-		$columns = Journey_Schema_V1::get_table_definitions()['shurloc_journey_sessions']['columns'];
+	public function test_delta_columns_match_the_current_session_schema(): void {
+		$columns = Journey_Schema_V3::get_table_definitions()['shurloc_journey_sessions']['columns'];
 		$events  = array(
 			array( Journey_Event_Type::PAGE_VIEW, null, 1 ),
 			array( Journey_Event_Type::PRODUCT_VIEW, null, 1 ),

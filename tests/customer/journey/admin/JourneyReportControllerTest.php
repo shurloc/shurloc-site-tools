@@ -57,6 +57,7 @@ final class JourneyReportControllerTest extends TestCase {
 		$GLOBALS['shurloc_test_wp_die_messages']   = array();
 		$GLOBALS['shurloc_test_styles']            = array();
 		$GLOBALS['shurloc_test_enqueued_scripts']  = array();
+		$GLOBALS['shurloc_test_nonce_fields']      = array();
 		$_GET                                      = array();
 
 		$this->database = new Shurloc_Test_WPDB();
@@ -88,6 +89,7 @@ final class JourneyReportControllerTest extends TestCase {
 		$GLOBALS['shurloc_test_wp_die_messages']   = array();
 		$GLOBALS['shurloc_test_styles']            = array();
 		$GLOBALS['shurloc_test_enqueued_scripts']  = array();
+		$GLOBALS['shurloc_test_nonce_fields']      = array();
 		$_GET                                      = array();
 
 		// phpcs:ignore WordPress.WP.GlobalVariablesOverride.Prohibited -- Test-only database replacement.
@@ -116,19 +118,26 @@ final class JourneyReportControllerTest extends TestCase {
 			),
 			array(
 				(object) array(
-					'subject_type'     => 'customer',
-					'subject_id'       => '7',
-					'last_activity_at' => '2026-09-18 12:00:00',
+					'subject_type'          => 'customer',
+					'subject_id'            => '7',
+					'last_activity_at'      => '2026-09-18 12:00:00',
+					'total_active_ms'       => '125000',
+					'total_page_view_count' => '4',
+					'total_event_count'     => '7',
 				),
 				(object) array(
-					'subject_type'     => 'visitor',
-					'subject_id'       => '12',
-					'last_activity_at' => '2026-09-18 12:00:00',
+					'subject_type'          => 'visitor',
+					'subject_id'            => '12',
+					'last_activity_at'      => '2026-09-18 12:00:00',
+					'total_active_ms'       => '500',
+					'total_page_view_count' => '1',
+					'total_event_count'     => '2',
 				),
 			),
 		);
 
 		$output = $this->render();
+		$bulk   = $this->bulk_form( output: $output );
 
 		self::assertStringContainsString( 'class="wc-customer-search"', $output );
 		self::assertStringContainsString( 'data-action="woocommerce_json_search_customers"', $output );
@@ -140,6 +149,29 @@ final class JourneyReportControllerTest extends TestCase {
 		self::assertStringContainsString( '>Anonymous Visitor #12</a>', $output );
 		self::assertStringContainsString( '<td>Authenticated customer</td>', $output );
 		self::assertStringContainsString( '<td>Anonymous visitor</td>', $output );
+		self::assertStringContainsString( '<th scope="col">Total time spent</th>', $output );
+		self::assertStringContainsString( '<th scope="col">Page views / events</th>', $output );
+		self::assertStringContainsString( '<td>2m 5s</td>', $output );
+		self::assertStringContainsString( '<td>4 / 7</td>', $output );
+		self::assertStringContainsString( '<td>&lt;1s</td>', $output );
+		self::assertStringContainsString( '<td>1 / 2</td>', $output );
+		self::assertStringContainsString( 'method="post" action="https://example.com/wp-admin/admin-post.php"', $bulk );
+		self::assertStringContainsString( 'name="action" value="shurloc_bulk_delete_journey_subjects"', $bulk );
+		self::assertStringContainsString( 'name="journey_bulk_action"', $bulk );
+		self::assertStringContainsString( '<option value="delete">Delete all journeys</option>', $bulk );
+		self::assertStringContainsString( '>Apply</button>', $bulk );
+		self::assertStringContainsString( 'id="cb-select-all-1" type="checkbox"', $bulk );
+		self::assertStringContainsString( 'name="journey_subjects[]"', $bulk );
+		self::assertStringContainsString( 'value="customer:7"', $bulk );
+		self::assertStringContainsString( 'value="visitor:12"', $bulk );
+		self::assertStringContainsString( 'including journeys outside the displayed date range', $bulk );
+		self::assertSame(
+			array(
+				'action' => Journey_Report_Controller::BULK_DELETE_ACTION,
+				'name'   => '_wpnonce',
+			),
+			$GLOBALS['shurloc_test_nonce_fields'][0]
+		);
 		self::assertStringContainsString( 'journey_from=2026-09-12&amp;journey_to=2026-09-18&amp;journey_subject=customer&amp;journey_user_id=7', $output );
 		self::assertStringContainsString( 'journey_from=2026-09-12&amp;journey_to=2026-09-18&amp;journey_subject=visitor&amp;journey_visitor_id=12', $output );
 		self::assertStringNotContainsString( 'visitor_uuid', $output );
@@ -148,6 +180,8 @@ final class JourneyReportControllerTest extends TestCase {
 		self::assertSame( 50, $this->database->prepared_queries[0]['args'][6] );
 		self::assertSame(
 			array(
+				Journey_Event_Type::PAGE_VIEW,
+				Journey_Event_Type::PRODUCT_VIEW,
 				'shop_shurloc_journey_events',
 				'1000-01-01 00:00:00',
 				'9999-12-31 23:59:59',
@@ -155,10 +189,68 @@ final class JourneyReportControllerTest extends TestCase {
 				'1000-01-01 00:00:00',
 				'9999-12-31 23:59:59',
 				'shop_shurloc_journey_identity_periods',
-				50,
+				51,
+				0,
 			),
 			$this->database->prepared_queries[1]['args']
 		);
+	}
+
+	/**
+	 * A full landing page links to the next Journey page and hides its lookahead row.
+	 *
+	 * @return void
+	 */
+	public function test_paginates_recent_journeys_on_the_landing_page(): void {
+		$subjects = array();
+		for ( $id = 1; 51 >= $id; ++$id ) {
+			$subjects[] = (object) array(
+				'subject_type'          => 'visitor',
+				'subject_id'            => (string) $id,
+				'last_activity_at'      => '2026-09-18 12:00:00',
+				'total_active_ms'       => '1000',
+				'total_page_view_count' => '1',
+				'total_event_count'     => '1',
+			);
+		}
+		$this->database->result_queue = array( array(), $subjects );
+
+		$output = $this->render();
+
+		self::assertStringContainsString( '>Page 1</span>', $output );
+		self::assertStringContainsString( '>Next journeys</a>', $output );
+		self::assertStringContainsString( 'journey_from=2026-09-15&amp;journey_to=2026-09-21&amp;journey_page=2', $output );
+		self::assertStringNotContainsString( '>Previous journeys</a>', $output );
+		self::assertStringContainsString( '>Anonymous Visitor #50</a>', $output );
+		self::assertStringNotContainsString( '>Anonymous Visitor #51</a>', $output );
+		self::assertSame( 50, substr_count( $output, 'name="journey_subjects[]"' ) );
+		self::assertSame( 51, $this->database->prepared_queries[1]['args'][9] );
+		self::assertSame( 0, $this->database->prepared_queries[1]['args'][10] );
+	}
+
+	/**
+	 * Later filtered pages preserve the report type and date range.
+	 *
+	 * @return void
+	 */
+	public function test_renders_previous_link_for_a_later_filtered_journey_page(): void {
+		$_GET                    = array(
+			'journey_subject' => 'customer',
+			'journey_from'    => '2026-09-01',
+			'journey_to'      => '2026-09-18',
+			'journey_page'    => '2',
+		);
+		$this->database->results = array();
+
+		$output = $this->render();
+
+		self::assertStringContainsString( '>Page 2</span>', $output );
+		self::assertStringContainsString( '>Previous journeys</a>', $output );
+		self::assertStringContainsString( 'journey_from=2026-09-01&amp;journey_to=2026-09-18&amp;journey_subject=customer', $output );
+		self::assertStringNotContainsString( 'journey_page=', $output );
+		self::assertStringNotContainsString( '>Next journeys</a>', $output );
+		self::assertSame( 51, $this->database->prepared_queries[0]['args'][9] );
+		self::assertSame( 50, $this->database->prepared_queries[0]['args'][10] );
 	}
 
 	/**
@@ -171,9 +263,12 @@ final class JourneyReportControllerTest extends TestCase {
 			array(),
 			array(
 				(object) array(
-					'subject_type'     => 'customer',
-					'subject_id'       => '9',
-					'last_activity_at' => '2026-09-18 12:00:00',
+					'subject_type'          => 'customer',
+					'subject_id'            => '9',
+					'last_activity_at'      => '2026-09-18 12:00:00',
+					'total_active_ms'       => '0',
+					'total_page_view_count' => '0',
+					'total_event_count'     => '1',
 				),
 			),
 		);
@@ -182,6 +277,9 @@ final class JourneyReportControllerTest extends TestCase {
 
 		self::assertStringContainsString( 'Unavailable customer (#9)', $output );
 		self::assertStringNotContainsString( 'journey_user_id=9', $output );
+		self::assertStringContainsString( 'value="customer:9"', $output );
+		self::assertStringContainsString( '<td>0s</td>', $output );
+		self::assertStringContainsString( '<td>0 / 1</td>', $output );
 	}
 
 	/**
@@ -199,18 +297,25 @@ final class JourneyReportControllerTest extends TestCase {
 		$GLOBALS['shurloc_test_user_data'][7] = array( 'display_name' => 'alice' );
 		$this->database->results              = array(
 			(object) array(
-				'subject_type'     => 'customer',
-				'subject_id'       => '7',
-				'last_activity_at' => '2026-09-18 12:00:00',
+				'subject_type'          => 'customer',
+				'subject_id'            => '7',
+				'last_activity_at'      => '2026-09-18 12:00:00',
+				'total_active_ms'       => '3723000',
+				'total_page_view_count' => '5',
+				'total_event_count'     => '9',
 			),
 			(object) array(
-				'subject_type'     => 'visitor',
-				'subject_id'       => '12',
-				'last_activity_at' => '2026-09-17 12:00:00',
+				'subject_type'          => 'visitor',
+				'subject_id'            => '12',
+				'last_activity_at'      => '2026-09-17 12:00:00',
+				'total_active_ms'       => '1000',
+				'total_page_view_count' => '1',
+				'total_event_count'     => '3',
 			),
 		);
 
 		$output = $this->render();
+		$bulk   = $this->bulk_form( output: $output );
 
 		self::assertStringContainsString( 'Customer (optional)', $output );
 		self::assertStringContainsString( 'data-placeholder="All journeys"', $output );
@@ -218,12 +323,19 @@ final class JourneyReportControllerTest extends TestCase {
 		self::assertStringContainsString( '<h3>Journeys in Selected Date Range</h3>', $output );
 		self::assertStringContainsString( '>alice (#7)</a>', $output );
 		self::assertStringContainsString( '>Anonymous Visitor #12</a>', $output );
+		self::assertStringContainsString( '<td>1h 2m 3s</td>', $output );
+		self::assertStringContainsString( '<td>5 / 9</td>', $output );
+		self::assertStringContainsString( 'name="journey_subject" value="customer"', $bulk );
+		self::assertStringContainsString( 'name="journey_from" value="2026-09-01"', $bulk );
+		self::assertStringContainsString( 'name="journey_to" value="2026-09-18"', $bulk );
 		self::assertStringNotContainsString( 'Select a valid WordPress customer.', $output );
 		self::assertStringContainsString( 'journey_from=2026-09-01&amp;journey_to=2026-09-18&amp;journey_subject=customer&amp;journey_user_id=7', $output );
 		self::assertStringContainsString( 'journey_from=2026-09-01&amp;journey_to=2026-09-18&amp;journey_subject=visitor&amp;journey_visitor_id=12', $output );
 		self::assertCount( 1, $this->database->prepared_queries );
 		self::assertSame(
 			array(
+				Journey_Event_Type::PAGE_VIEW,
+				Journey_Event_Type::PRODUCT_VIEW,
 				'wp_shurloc_journey_events',
 				'2026-09-01 07:00:00',
 				'2026-09-19 07:00:00',
@@ -231,7 +343,8 @@ final class JourneyReportControllerTest extends TestCase {
 				'2026-09-01 07:00:00',
 				'2026-09-19 07:00:00',
 				'wp_shurloc_journey_identity_periods',
-				50,
+				51,
+				0,
 			),
 			$this->database->prepared_queries[0]['args']
 		);
@@ -252,6 +365,8 @@ final class JourneyReportControllerTest extends TestCase {
 		$output = $this->render();
 
 		self::assertStringContainsString( 'No journeys were found in this date range.', $output );
+		self::assertStringNotContainsString( 'class="shurloc-journey-bulk-delete"', $output );
+		self::assertSame( array(), $GLOBALS['shurloc_test_nonce_fields'] );
 		self::assertCount( 1, $this->database->prepared_queries );
 	}
 
@@ -268,9 +383,12 @@ final class JourneyReportControllerTest extends TestCase {
 		);
 		$this->database->results = array(
 			(object) array(
-				'subject_type'     => 'visitor',
-				'subject_id'       => '12',
-				'last_activity_at' => '2026-09-17 12:00:00',
+				'subject_type'          => 'visitor',
+				'subject_id'            => '12',
+				'last_activity_at'      => '2026-09-17 12:00:00',
+				'total_active_ms'       => '1000',
+				'total_page_view_count' => '1',
+				'total_event_count'     => '2',
 			),
 		);
 
@@ -283,8 +401,8 @@ final class JourneyReportControllerTest extends TestCase {
 		self::assertStringNotContainsString( 'Select a valid anonymous visitor.', $output );
 		self::assertStringContainsString( 'journey_from=2026-09-01&amp;journey_to=2026-09-18&amp;journey_subject=visitor&amp;journey_visitor_id=12', $output );
 		self::assertCount( 1, $this->database->prepared_queries );
-		self::assertSame( '2026-09-01 07:00:00', $this->database->prepared_queries[0]['args'][1] );
-		self::assertSame( '2026-09-19 07:00:00', $this->database->prepared_queries[0]['args'][2] );
+		self::assertSame( '2026-09-01 07:00:00', $this->database->prepared_queries[0]['args'][3] );
+		self::assertSame( '2026-09-19 07:00:00', $this->database->prepared_queries[0]['args'][4] );
 	}
 
 	/**
@@ -457,6 +575,10 @@ final class JourneyReportControllerTest extends TestCase {
 				'journey_visitor_id' => '12',
 				'journey_before_id'  => 'invalid',
 			),
+			array(
+				'journey_subject' => 'customer',
+				'journey_page'    => '0',
+			),
 		);
 
 		foreach ( $requests as $request ) {
@@ -534,6 +656,19 @@ final class JourneyReportControllerTest extends TestCase {
 	}
 
 	/**
+	 * Extract the bulk-deletion form from rendered report markup.
+	 *
+	 * @param string $output Rendered report markup.
+	 * @return string Bulk-deletion form markup.
+	 */
+	private function bulk_form( string $output ): string {
+		$matched = preg_match( '/<form[^>]*class="shurloc-journey-bulk-delete"[^>]*>.*?<\/form>/s', $output, $matches );
+		self::assertSame( 1, $matched );
+
+		return $matches[0];
+	}
+
+	/**
 	 * Build a report event database row.
 	 *
 	 * @param string      $id      Event ID.
@@ -567,21 +702,26 @@ final class JourneyReportControllerTest extends TestCase {
 	 */
 	private function session_row(): stdClass {
 		return (object) array(
-			'id'                  => '9',
-			'visitor_id'          => '12',
-			'identity_period_id'  => '4',
-			'user_id_at_start'    => null,
-			'began_authenticated' => '0',
-			'started_at'          => '2026-09-18 12:00:00',
-			'last_activity_at'    => '2026-09-18 12:01:00',
-			'ended_at'            => null,
-			'landing_path'        => '/products',
-			'referrer_host'       => 'example.org',
-			'utm_source'          => 'newsletter',
-			'utm_medium'          => 'email',
-			'utm_campaign'        => 'autumn',
-			'utm_term'            => null,
-			'utm_content'         => null,
+			'id'                     => '9',
+			'visitor_id'             => '12',
+			'identity_period_id'     => '4',
+			'user_id_at_start'       => null,
+			'began_authenticated'    => '0',
+			'started_at'             => '2026-09-18 12:00:00',
+			'last_activity_at'       => '2026-09-18 12:01:00',
+			'ended_at'               => null,
+			'landing_path'           => '/products',
+			'referrer_host'          => 'example.org',
+			'utm_source'             => 'newsletter',
+			'utm_medium'             => 'email',
+			'utm_campaign'           => 'autumn',
+			'utm_term'               => null,
+			'utm_content'            => null,
+			'user_agent'             => 'Mozilla/5.0 Example Browser',
+			'client_type'            => 'browser',
+			'client_name'            => 'Example Browser',
+			'device_type'            => 'desktop',
+			'classification_version' => '1',
 		);
 	}
 }

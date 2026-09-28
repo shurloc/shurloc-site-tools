@@ -16,7 +16,7 @@ use DateTimeZone;
 use Shurloc\SiteTools\Customer\Journey\Migrations\Journey_Schema_Migrator;
 
 /**
- * Fetch session headings and attribution for one bounded event page.
+ * Fetch session headings, attribution, and client inspection data.
  *
  * A session may contain activity from more than one identity period. Its
  * summary counters describe the whole session, so customer-specific totals
@@ -38,7 +38,12 @@ use Shurloc\SiteTools\Customer\Journey\Migrations\Journey_Schema_Migrator;
  *     utm_medium:string|null,
  *     utm_campaign:string|null,
  *     utm_term:string|null,
- *     utm_content:string|null
+ *     utm_content:string|null,
+ *     user_agent:string|null,
+ *     client_type:string,
+ *     client_name:string|null,
+ *     device_type:string,
+ *     classification_version:int
  * }
  */
 final class Journey_Report_Session_Repository {
@@ -94,7 +99,7 @@ final class Journey_Report_Session_Repository {
 		global $wpdb;
 
 		$placeholders = implode( ', ', array_fill( 0, count( $unique_ids ), '%d' ) );
-		$sql          = 'SELECT id, visitor_id, identity_period_id, user_id_at_start, began_authenticated, started_at, last_activity_at, ended_at, landing_path, referrer_host, utm_source, utm_medium, utm_campaign, utm_term, utm_content FROM %i WHERE id IN (' . $placeholders . ') ORDER BY id ASC';
+		$sql          = 'SELECT id, visitor_id, identity_period_id, user_id_at_start, began_authenticated, started_at, last_activity_at, ended_at, landing_path, referrer_host, utm_source, utm_medium, utm_campaign, utm_term, utm_content, user_agent, client_type, client_name, device_type, classification_version FROM %i WHERE id IN (' . $placeholders . ') ORDER BY id ASC';
 		// phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared -- The dynamic fragment contains only fixed %d placeholders.
 		$rows = $wpdb->get_results( $wpdb->prepare( $sql, $wpdb->prefix . 'shurloc_journey_sessions', ...$unique_ids ) );
 
@@ -126,13 +131,22 @@ final class Journey_Report_Session_Repository {
 			return null;
 		}
 
-		$id                  = $this->positive_id( value: $row->id ?? null );
-		$visitor_id          = $this->positive_id( value: $row->visitor_id ?? null );
-		$identity_period_id  = $this->positive_id( value: $row->identity_period_id ?? null );
-		$began_authenticated = $this->flag( value: $row->began_authenticated ?? null );
+		$id                     = $this->positive_id( value: $row->id ?? null );
+		$visitor_id             = $this->positive_id( value: $row->visitor_id ?? null );
+		$identity_period_id     = $this->positive_id( value: $row->identity_period_id ?? null );
+		$began_authenticated    = $this->flag( value: $row->began_authenticated ?? null );
+		$client_type            = $this->normalized_token( value: $row->client_type ?? null );
+		$device_type            = $this->normalized_token( value: $row->device_type ?? null );
+		$classification_version = $this->integer(
+			value: $row->classification_version ?? null,
+			minimum: 0,
+			maximum: 65535
+		);
 
 		if (
 			null === $id || null === $visitor_id || null === $identity_period_id || null === $began_authenticated ||
+			null === $client_type || null === $device_type || null === $classification_version ||
+			! property_exists( $row, 'user_agent' ) || ! property_exists( $row, 'client_name' ) ||
 			! isset( $row->started_at, $row->last_activity_at ) ||
 			! is_string( $row->started_at ) || ! is_string( $row->last_activity_at ) ||
 			! $this->valid_time( value: $row->started_at ) || ! $this->valid_time( value: $row->last_activity_at ) ||
@@ -160,22 +174,36 @@ final class Journey_Report_Session_Repository {
 			}
 		}
 
+		$user_agent  = $row->user_agent;
+		$client_name = $row->client_name;
+		if (
+			( null !== $user_agent && ( ! is_string( $user_agent ) || ! $this->valid_snapshot_text( value: $user_agent, max_bytes: 1024 ) ) ) ||
+			( null !== $client_name && ( ! is_string( $client_name ) || ! $this->valid_snapshot_text( value: $client_name, max_bytes: 64 ) ) )
+		) {
+			return null;
+		}
+
 		return array(
-			'id'                  => $id,
-			'visitor_id'          => $visitor_id,
-			'identity_period_id'  => $identity_period_id,
-			'user_id_at_start'    => $user_id,
-			'began_authenticated' => $began_authenticated,
-			'started_at'          => $row->started_at,
-			'last_activity_at'    => $row->last_activity_at,
-			'ended_at'            => $row->ended_at ?? null,
-			'landing_path'        => $row->landing_path ?? null,
-			'referrer_host'       => $row->referrer_host ?? null,
-			'utm_source'          => $row->utm_source ?? null,
-			'utm_medium'          => $row->utm_medium ?? null,
-			'utm_campaign'        => $row->utm_campaign ?? null,
-			'utm_term'            => $row->utm_term ?? null,
-			'utm_content'         => $row->utm_content ?? null,
+			'id'                     => $id,
+			'visitor_id'             => $visitor_id,
+			'identity_period_id'     => $identity_period_id,
+			'user_id_at_start'       => $user_id,
+			'began_authenticated'    => $began_authenticated,
+			'started_at'             => $row->started_at,
+			'last_activity_at'       => $row->last_activity_at,
+			'ended_at'               => $row->ended_at ?? null,
+			'landing_path'           => $row->landing_path ?? null,
+			'referrer_host'          => $row->referrer_host ?? null,
+			'utm_source'             => $row->utm_source ?? null,
+			'utm_medium'             => $row->utm_medium ?? null,
+			'utm_campaign'           => $row->utm_campaign ?? null,
+			'utm_term'               => $row->utm_term ?? null,
+			'utm_content'            => $row->utm_content ?? null,
+			'user_agent'             => $user_agent,
+			'client_type'            => $client_type,
+			'client_name'            => $client_name,
+			'device_type'            => $device_type,
+			'classification_version' => $classification_version,
 		);
 	}
 
@@ -192,6 +220,59 @@ final class Journey_Report_Session_Repository {
 
 		$parsed = filter_var( $value, FILTER_VALIDATE_INT, array( 'options' => array( 'min_range' => 1 ) ) );
 		return false === $parsed ? null : $parsed;
+	}
+
+	/**
+	 * Parse a bounded stored integer without lossy coercion.
+	 *
+	 * @param mixed $value   Stored value.
+	 * @param int   $minimum Minimum accepted value.
+	 * @param int   $maximum Maximum accepted value.
+	 * @return int|null Valid integer or null.
+	 */
+	private function integer( mixed $value, int $minimum, int $maximum ): ?int {
+		if ( ! is_int( $value ) && ! is_string( $value ) ) {
+			return null;
+		}
+
+		$parsed = filter_var(
+			$value,
+			FILTER_VALIDATE_INT,
+			array(
+				'options' => array(
+					'min_range' => $minimum,
+					'max_range' => $maximum,
+				),
+			)
+		);
+		return false === $parsed ? null : $parsed;
+	}
+
+	/**
+	 * Parse a normalized client or device token.
+	 *
+	 * @param mixed $value Stored token.
+	 * @return string|null Valid token or null.
+	 */
+	private function normalized_token( mixed $value ): ?string {
+		return is_string( $value ) && 1 === preg_match( '/\A[a-z][a-z0-9_]{0,31}\z/', $value )
+			? $value
+			: null;
+	}
+
+	/**
+	 * Validate one bounded printable UTF-8 client snapshot value.
+	 *
+	 * @param string $value     Stored snapshot value.
+	 * @param int    $max_bytes Column byte limit.
+	 * @return bool Whether the stored value is valid.
+	 */
+	private function valid_snapshot_text( string $value, int $max_bytes ): bool {
+		return '' !== $value &&
+			trim( $value ) === $value &&
+			$max_bytes >= strlen( $value ) &&
+			wp_check_invalid_utf8( $value ) === $value &&
+			1 !== preg_match( '/[\x00-\x1F\x7F]/', $value );
 	}
 
 	/**

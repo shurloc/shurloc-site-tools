@@ -58,7 +58,7 @@ final class JourneySessionRepositoryTest extends TestCase {
 	}
 
 	/**
-	 * A first activity creates a session with start identity and attribution.
+	 * A first activity creates a session with immutable start snapshots.
 	 *
 	 * @return void
 	 */
@@ -78,6 +78,11 @@ final class JourneySessionRepositoryTest extends TestCase {
 			utm_campaign: 'autumn',
 			utm_term: 'widget',
 			utm_content: 'button',
+			user_agent: 'Mozilla/5.0 Chrome/140.0.0.0',
+			client_type: 'browser',
+			client_name: 'Chrome',
+			device_type: 'desktop',
+			classification_version: 1,
 		);
 
 		self::assertSame( 1, $id );
@@ -95,12 +100,22 @@ final class JourneySessionRepositoryTest extends TestCase {
 		self::assertSame( 'autumn', $this->database->sessions[1]['utm_campaign'] );
 		self::assertSame( 'widget', $this->database->sessions[1]['utm_term'] );
 		self::assertSame( 'button', $this->database->sessions[1]['utm_content'] );
+		$this->assert_client_snapshot(
+			session_id: 1,
+			expected: array(
+				'user_agent'             => 'Mozilla/5.0 Chrome/140.0.0.0',
+				'client_type'            => 'browser',
+				'client_name'            => 'Chrome',
+				'device_type'            => 'desktop',
+				'classification_version' => 1,
+			)
+		);
 		self::assertSame( 'shop_shurloc_journey_visitors', $this->database->prepared_queries[0]['args'][0] );
 		self::assertSame( 'shop_shurloc_journey_sessions', $this->database->prepared_queries[1]['args'][0] );
 		self::assertStringContainsString( 'FOR UPDATE', $this->database->prepared_queries[0]['query'] );
 		self::assertStringContainsString( 'LIMIT 2 FOR UPDATE', $this->database->prepared_queries[1]['query'] );
 		self::assertSame( 'shop_shurloc_journey_sessions', $this->database->insert_calls[0]['table'] );
-		self::assertCount( 13, $this->database->insert_calls[0]['formats'] );
+		self::assertCount( 18, $this->database->insert_calls[0]['formats'] );
 		self::assertSame( array( 'START TRANSACTION', 'COMMIT' ), $this->database->queries );
 	}
 
@@ -122,6 +137,11 @@ final class JourneySessionRepositoryTest extends TestCase {
 				observed_at: '2026-09-16 12:29:59',
 				timeout_seconds: 1800,
 				landing_path: '/later',
+				user_agent: 'AcmeMonitor/1.0',
+				client_type: 'http_client',
+				client_name: 'Acme Monitor',
+				device_type: 'server',
+				classification_version: 21,
 			)
 		);
 
@@ -132,6 +152,16 @@ final class JourneySessionRepositoryTest extends TestCase {
 		self::assertNull( $this->database->sessions[1]['user_id_at_start'] );
 		self::assertSame( 0, $this->database->sessions[1]['began_authenticated'] );
 		self::assertNull( $this->database->sessions[1]['landing_path'] );
+		$this->assert_client_snapshot(
+			session_id: 1,
+			expected: array(
+				'user_agent'             => null,
+				'client_type'            => 'unknown',
+				'client_name'            => null,
+				'device_type'            => 'unknown',
+				'classification_version' => 0,
+			)
+		);
 		self::assertCount( 1, $this->database->insert_calls );
 	}
 
@@ -153,6 +183,11 @@ final class JourneySessionRepositoryTest extends TestCase {
 				observed_at: '2026-09-16 12:30:00',
 				timeout_seconds: 1800,
 				landing_path: '/return',
+				user_agent: 'Mozilla/5.0 Firefox/142.0',
+				client_type: 'browser',
+				client_name: 'Firefox',
+				device_type: 'desktop',
+				classification_version: 1,
 			)
 		);
 
@@ -162,7 +197,60 @@ final class JourneySessionRepositoryTest extends TestCase {
 		self::assertSame( 37, $this->database->sessions[2]['user_id_at_start'] );
 		self::assertSame( 1, $this->database->sessions[2]['began_authenticated'] );
 		self::assertSame( '/return', $this->database->sessions[2]['landing_path'] );
+		$this->assert_client_snapshot(
+			session_id: 2,
+			expected: array(
+				'user_agent'             => 'Mozilla/5.0 Firefox/142.0',
+				'client_type'            => 'browser',
+				'client_name'            => 'Firefox',
+				'device_type'            => 'desktop',
+				'classification_version' => 1,
+			)
+		);
 		self::assertCount( 2, $this->database->insert_calls );
+	}
+
+	/**
+	 * Client snapshots outside V3 column contracts fail before database work.
+	 *
+	 * @return void
+	 */
+	public function test_invalid_client_snapshots_prevent_database_work(): void {
+		$repository = new Journey_Session_Repository();
+		/**
+		 * Invalid snapshots keyed by the field under test.
+		 *
+		 * @var list<array{user_agent?:string,client_type?:string,client_name?:string,device_type?:string,classification_version?:int}> $invalid
+		 */
+		$invalid = array(
+			array( 'user_agent' => str_repeat( 'A', 1025 ) ),
+			array( 'user_agent' => "Agent\nName" ),
+			array( 'client_type' => 'HTTP Client' ),
+			array( 'client_name' => str_repeat( 'A', 65 ) ),
+			array( 'device_type' => 'mobile phone' ),
+			array( 'classification_version' => -1 ),
+			array( 'classification_version' => 65536 ),
+		);
+
+		foreach ( $invalid as $snapshot ) {
+			self::assertNull(
+				$repository->resolve_current(
+					visitor_id: 12,
+					identity_period_id: 3,
+					user_id_at_start: null,
+					observed_at: '2026-09-16 12:00:00',
+					timeout_seconds: 1800,
+					user_agent: $snapshot['user_agent'] ?? null,
+					client_type: $snapshot['client_type'] ?? 'unknown',
+					client_name: $snapshot['client_name'] ?? null,
+					device_type: $snapshot['device_type'] ?? 'unknown',
+					classification_version: $snapshot['classification_version'] ?? 0,
+				)
+			);
+		}
+
+		self::assertSame( array(), $this->database->queries );
+		self::assertSame( array(), $this->database->insert_calls );
 	}
 
 	/**
@@ -331,6 +419,20 @@ final class JourneySessionRepositoryTest extends TestCase {
 		self::assertNull( $this->resolve( repository: $repository, observed_at: '2026-09-16 12:30:00' ) );
 		self::assertCount( 1, $this->database->sessions );
 		self::assertNull( $this->database->sessions[1]['ended_at'] );
+	}
+
+	/**
+	 * Assert the complete client snapshot while older fixtures remain compatible.
+	 *
+	 * @param int                           $session_id Session ID.
+	 * @param array<string,int|string|null> $expected   Expected snapshot fields.
+	 * @return void
+	 */
+	private function assert_client_snapshot( int $session_id, array $expected ): void {
+		self::assertSame(
+			$expected,
+			array_intersect_key( $this->database->sessions[ $session_id ], $expected )
+		);
 	}
 
 	/**

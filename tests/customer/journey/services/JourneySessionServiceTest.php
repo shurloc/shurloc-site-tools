@@ -52,6 +52,7 @@ final class JourneySessionServiceTest extends TestCase {
 		$this->original_cookies = $_COOKIE;
 		$this->original_server  = $_SERVER;
 		$_COOKIE                = array();
+		unset( $_SERVER['HTTP_USER_AGENT'] );
 
 		$GLOBALS['shurloc_test_options']                     = array(
 			Journey_Schema_Migrator::VERSION_OPTION => Journey_Schema_Migrator::CURRENT_VERSION,
@@ -103,8 +104,9 @@ final class JourneySessionServiceTest extends TestCase {
 	 * @return void
 	 */
 	public function test_first_activity_creates_session_with_sanitized_page_context(): void {
-		$_SERVER['REQUEST_URI'] = '/wp-json/shurloc/v1/journey';
-		$this->database->prefix = 'shop_';
+		$_SERVER['REQUEST_URI']     = '/wp-json/shurloc/v1/journey';
+		$_SERVER['HTTP_USER_AGENT'] = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/140.0.0.0 Safari/537.36';
+		$this->database->prefix     = 'shop_';
 
 		$before  = gmdate( 'Y-m-d H:i:s' );
 		$context = ( new Journey_Session_Service() )->resolve_for_activity(
@@ -124,6 +126,16 @@ final class JourneySessionServiceTest extends TestCase {
 		self::assertSame( 'example.org', $this->database->sessions[1]['referrer_host'] );
 		self::assertSame( 'newsletter', $this->database->sessions[1]['utm_source'] );
 		self::assertSame( 'email', $this->database->sessions[1]['utm_medium'] );
+		$this->assert_client_snapshot(
+			session_id: 1,
+			expected: array(
+				'user_agent'             => $_SERVER['HTTP_USER_AGENT'],
+				'client_type'            => 'browser',
+				'client_name'            => 'Chrome',
+				'device_type'            => 'desktop',
+				'classification_version' => 1,
+			)
+		);
 		$visitor = $this->database->visitor_rows[ $context['visitor_uuid'] ];
 		self::assertSame( $this->database->sessions[1]['started_at'], $visitor['first_touch_at'] ?? null );
 		self::assertSame( '/product/widget', $visitor['first_landing_path'] ?? null );
@@ -142,12 +154,14 @@ final class JourneySessionServiceTest extends TestCase {
 	 * @return void
 	 */
 	public function test_returning_activity_reuses_session_and_preserves_start_attribution(): void {
-		$service = new Journey_Session_Service();
-		$first   = $service->resolve_for_activity( '/first?utm_source=initial' );
+		$_SERVER['HTTP_USER_AGENT'] = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) Chrome/140.0.0.0 Safari/537.36';
+		$service                    = new Journey_Session_Service();
+		$first                      = $service->resolve_for_activity( '/first?utm_source=initial' );
 		self::assertIsArray( $first );
 
 		$_COOKIE[ Journey_Visitor_Cookie::NAME ]      = $first['visitor_uuid'];
 		$GLOBALS['shurloc_journey_test_current_user'] = new Journey_Collection_Test_User( 37 );
+		$_SERVER['HTTP_USER_AGENT']                   = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) Firefox/142.0';
 		$second                                       = $service->resolve_for_activity( '/later?utm_source=later' );
 
 		self::assertIsArray( $second );
@@ -160,6 +174,16 @@ final class JourneySessionServiceTest extends TestCase {
 		self::assertNull( $this->database->sessions[1]['user_id_at_start'] );
 		self::assertSame( '/first', $this->database->sessions[1]['landing_path'] );
 		self::assertSame( 'initial', $this->database->sessions[1]['utm_source'] );
+		$this->assert_client_snapshot(
+			session_id: 1,
+			expected: array(
+				'user_agent'             => 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) Chrome/140.0.0.0 Safari/537.36',
+				'client_type'            => 'browser',
+				'client_name'            => 'Chrome',
+				'device_type'            => 'desktop',
+				'classification_version' => 1,
+			)
+		);
 		self::assertSame( '/first', $this->database->visitor_rows[ $first['visitor_uuid'] ]['first_landing_path'] ?? null );
 		self::assertSame( 'initial', $this->database->visitor_rows[ $first['visitor_uuid'] ]['first_utm_source'] ?? null );
 	}
@@ -170,8 +194,9 @@ final class JourneySessionServiceTest extends TestCase {
 	 * @return void
 	 */
 	public function test_positive_integer_timeout_filter_controls_new_session(): void {
-		$service = new Journey_Session_Service();
-		$first   = $service->resolve_for_activity( '/first' );
+		$_SERVER['HTTP_USER_AGENT'] = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) Chrome/140.0.0.0 Safari/537.36';
+		$service                    = new Journey_Session_Service();
+		$first                      = $service->resolve_for_activity( '/first' );
 		self::assertIsArray( $first );
 
 		$_COOKIE[ Journey_Visitor_Cookie::NAME ] = $first['visitor_uuid'];
@@ -181,6 +206,7 @@ final class JourneySessionServiceTest extends TestCase {
 		$row['last_activity_at']                 = $past;
 		$this->database->sessions[1]             = $row;
 		add_filter( Journey_Session_Service::TIMEOUT_FILTER, static fn (): int => 60 );
+		$_SERVER['HTTP_USER_AGENT'] = 'Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X) Version/18.0 Mobile/15E148 Safari/604.1';
 
 		$second = $service->resolve_for_activity( '/return' );
 
@@ -188,6 +214,16 @@ final class JourneySessionServiceTest extends TestCase {
 		self::assertSame( 2, $second['session_id'] );
 		self::assertSame( $past, $this->database->sessions[1]['ended_at'] );
 		self::assertSame( '/return', $this->database->sessions[2]['landing_path'] );
+		$this->assert_client_snapshot(
+			session_id: 2,
+			expected: array(
+				'user_agent'             => $_SERVER['HTTP_USER_AGENT'],
+				'client_type'            => 'browser',
+				'client_name'            => 'Safari',
+				'device_type'            => 'mobile',
+				'classification_version' => 1,
+			)
+		);
 		self::assertSame( '/first', $this->database->visitor_rows[ $first['visitor_uuid'] ]['first_landing_path'] ?? null );
 	}
 
@@ -215,6 +251,16 @@ final class JourneySessionServiceTest extends TestCase {
 		self::assertSame( 1, $second['session_id'] );
 		self::assertCount( 1, $this->database->sessions );
 		self::assertNull( $this->database->sessions[1]['landing_path'] );
+		$this->assert_client_snapshot(
+			session_id: 1,
+			expected: array(
+				'user_agent'             => null,
+				'client_type'            => 'unknown',
+				'client_name'            => null,
+				'device_type'            => 'unknown',
+				'classification_version' => 1,
+			)
+		);
 		self::assertArrayNotHasKey( 'first_touch_at', $this->database->visitor_rows[ $first['visitor_uuid'] ] );
 	}
 
@@ -293,5 +339,19 @@ final class JourneySessionServiceTest extends TestCase {
 		self::assertSame( array(), $this->database->sessions );
 		self::assertArrayNotHasKey( 'first_touch_at', array_values( $this->database->visitor_rows )[0] );
 		self::assertSame( 'ROLLBACK', $this->database->queries[ count( $this->database->queries ) - 1 ] );
+	}
+
+	/**
+	 * Assert the complete stored client snapshot.
+	 *
+	 * @param int                           $session_id Session ID.
+	 * @param array<string,int|string|null> $expected   Expected snapshot fields.
+	 * @return void
+	 */
+	private function assert_client_snapshot( int $session_id, array $expected ): void {
+		self::assertSame(
+			$expected,
+			array_intersect_key( $this->database->sessions[ $session_id ], $expected )
+		);
 	}
 }

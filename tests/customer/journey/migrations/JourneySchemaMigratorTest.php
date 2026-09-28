@@ -9,7 +9,9 @@ declare( strict_types=1 );
 
 namespace Shurloc\SiteTools\Customer\Journey\Migrations;
 
+use Closure;
 use PHPUnit\Framework\TestCase;
+use RuntimeException;
 use Shurloc_Test_WPDB;
 
 /**
@@ -24,6 +26,13 @@ final class JourneySchemaMigratorTest extends TestCase {
 	private Shurloc_Test_WPDB $database;
 
 	/**
+	 * Structured migration failure entries.
+	 *
+	 * @var list<string>
+	 */
+	private array $migration_logs;
+
+	/**
 	 * Prepare each test.
 	 *
 	 * @return void
@@ -34,6 +43,7 @@ final class JourneySchemaMigratorTest extends TestCase {
 		$GLOBALS['shurloc_test_options']          = array();
 		$GLOBALS['shurloc_journey_dbdelta_calls'] = array();
 		$GLOBALS['shurloc_journey_dbdelta_apply'] = true;
+		$this->migration_logs                     = array();
 
 		$this->database = new Shurloc_Test_WPDB();
 
@@ -50,6 +60,7 @@ final class JourneySchemaMigratorTest extends TestCase {
 		$GLOBALS['shurloc_test_options']          = array();
 		$GLOBALS['shurloc_journey_dbdelta_calls'] = array();
 		$GLOBALS['shurloc_journey_dbdelta_apply'] = true;
+		$this->migration_logs                     = array();
 
 		// phpcs:ignore WordPress.WP.GlobalVariablesOverride.Prohibited -- Test-only wpdb replacement.
 		$GLOBALS['wpdb'] = new Shurloc_Test_WPDB();
@@ -60,9 +71,10 @@ final class JourneySchemaMigratorTest extends TestCase {
 	/**
 	 * Construct the migrator with a simulated dbDelta boundary.
 	 *
+	 * @param Closure(string):void|null $failure_logger Optional diagnostic logger.
 	 * @return Journey_Schema_Migrator Migrator under test.
 	 */
-	private function create_migrator(): Journey_Schema_Migrator {
+	private function create_migrator( ?Closure $failure_logger = null ): Journey_Schema_Migrator {
 		return new Journey_Schema_Migrator(
 			schema_updater: function ( string $statement ): void {
 				$GLOBALS['shurloc_journey_dbdelta_calls'][] = $statement;
@@ -71,6 +83,21 @@ final class JourneySchemaMigratorTest extends TestCase {
 					$this->database->install_table( sql: $statement );
 				}
 			},
+			failure_logger: $failure_logger ?? function ( string $entry ): void {
+				$this->migration_logs[] = $entry;
+			},
+		);
+	}
+
+	/**
+	 * The default logger uses its own predictable file under wp-content.
+	 *
+	 * @return void
+	 */
+	public function test_uses_a_dedicated_migration_log_path(): void {
+		self::assertStringEndsWith(
+			DIRECTORY_SEPARATOR . Journey_Schema_Migrator::LOG_FILENAME,
+			Journey_Schema_Migrator::get_log_path()
 		);
 	}
 
@@ -93,6 +120,26 @@ final class JourneySchemaMigratorTest extends TestCase {
 	}
 
 	/**
+	 * Install the V1 and V2 schemas and record their completed version.
+	 *
+	 * @return void
+	 */
+	private function install_v2_schema(): void {
+		$this->install_v1_schema();
+
+		$statements = Journey_Schema_V2::get_create_table_statements(
+			table_prefix: $this->database->prefix,
+			charset_collate: $this->database->get_charset_collate(),
+		);
+
+		foreach ( $statements as $statement ) {
+			$this->database->install_table( sql: $statement );
+		}
+
+		$GLOBALS['shurloc_test_options'][ Journey_Schema_Migrator::VERSION_OPTION ] = 2;
+	}
+
+	/**
 	 * Verify a fresh install creates and verifies every table.
 	 *
 	 * @return void
@@ -101,9 +148,9 @@ final class JourneySchemaMigratorTest extends TestCase {
 		$migrator = $this->create_migrator();
 
 		self::assertTrue( $migrator->migrate() );
-		self::assertSame( 2, $migrator->get_installed_version() );
+		self::assertSame( 3, $migrator->get_installed_version() );
 		self::assertTrue( $migrator->is_ready() );
-		self::assertCount( 5, $GLOBALS['shurloc_journey_dbdelta_calls'] );
+		self::assertCount( 6, $GLOBALS['shurloc_journey_dbdelta_calls'] );
 		self::assertSame(
 			array(
 				'wp_shurloc_journey_visitors',
@@ -135,7 +182,7 @@ final class JourneySchemaMigratorTest extends TestCase {
 
 		self::assertTrue( $migrator->migrate() );
 		self::assertSame( array(), $GLOBALS['shurloc_journey_dbdelta_calls'] );
-		self::assertSame( 2, $migrator->get_installed_version() );
+		self::assertSame( 3, $migrator->get_installed_version() );
 	}
 
 	/**
@@ -166,7 +213,7 @@ final class JourneySchemaMigratorTest extends TestCase {
 		$migrator = $this->create_migrator();
 
 		self::assertTrue( $migrator->migrate() );
-		self::assertSame( 2, $migrator->get_installed_version() );
+		self::assertSame( 3, $migrator->get_installed_version() );
 		self::assertArrayNotHasKey(
 			Journey_Schema_Migrator::LOCK_OPTION,
 			$GLOBALS['shurloc_test_options']
@@ -174,24 +221,149 @@ final class JourneySchemaMigratorTest extends TestCase {
 	}
 
 	/**
-	 * Verify an existing V1 installation applies only V2 and becomes ready.
+	 * Verify an existing V1 installation applies V2 and V3 in order.
 	 *
 	 * @return void
 	 */
-	public function test_v1_installation_applies_only_v2(): void {
+	public function test_v1_installation_applies_v2_and_v3(): void {
 		$this->install_v1_schema();
 		$this->database->charset_collate_calls = 0;
 		$migrator                              = $this->create_migrator();
 
 		self::assertTrue( $migrator->migrate() );
-		self::assertSame( 2, $migrator->get_installed_version() );
+		self::assertSame( 3, $migrator->get_installed_version() );
 		self::assertTrue( $migrator->is_ready() );
-		self::assertCount( 1, $GLOBALS['shurloc_journey_dbdelta_calls'] );
+		self::assertCount( 2, $GLOBALS['shurloc_journey_dbdelta_calls'] );
 		self::assertStringStartsWith(
 			'CREATE TABLE wp_shurloc_journey_cart_links',
 			$GLOBALS['shurloc_journey_dbdelta_calls'][0]
 		);
+		self::assertStringStartsWith(
+			'CREATE TABLE wp_shurloc_journey_sessions',
+			$GLOBALS['shurloc_journey_dbdelta_calls'][1]
+		);
+		self::assertSame( 2, $this->database->charset_collate_calls );
+	}
+
+	/**
+	 * Verify V3 evolves sessions and backfills totals without double-counting products.
+	 *
+	 * @return void
+	 */
+	public function test_v2_installation_applies_only_v3_and_backfills_event_count(): void {
+		$this->install_v2_schema();
+		$this->database->sessions[20]          = array(
+			'id'                     => 20,
+			'visitor_id'             => 12,
+			'identity_period_id'     => 7,
+			'user_id_at_start'       => null,
+			'began_authenticated'    => 0,
+			'started_at'             => '2026-09-01 12:00:00',
+			'last_activity_at'       => '2026-09-01 12:30:00',
+			'ended_at'               => null,
+			'landing_path'           => '/products',
+			'referrer_host'          => null,
+			'utm_source'             => null,
+			'utm_medium'             => null,
+			'utm_campaign'           => null,
+			'utm_term'               => null,
+			'utm_content'            => null,
+			'page_view_count'        => 3,
+			'product_view_count'     => 2,
+			'cart_add_count'         => 4,
+			'cart_remove_count'      => 1,
+			'added_quantity'         => '4.0000',
+			'removed_quantity'       => '1.0000',
+			'checkout_started_count' => 2,
+			'order_created_count'    => 1,
+			'active_ms'              => 120000,
+		);
+		$this->database->charset_collate_calls = 0;
+		$migrator                              = $this->create_migrator();
+
+		self::assertTrue( $migrator->migrate() );
+		self::assertSame( 3, $migrator->get_installed_version() );
+		self::assertTrue( $migrator->is_ready() );
+		self::assertCount( 1, $GLOBALS['shurloc_journey_dbdelta_calls'] );
+		self::assertStringStartsWith(
+			'CREATE TABLE wp_shurloc_journey_sessions',
+			$GLOBALS['shurloc_journey_dbdelta_calls'][0]
+		);
+		self::assertArrayHasKey( 'event_count', $this->database->sessions[20] );
+		self::assertSame( 11, $this->database->sessions[20]['event_count'] );
 		self::assertSame( 1, $this->database->charset_collate_calls );
+	}
+
+	/**
+	 * MySQL may omit the SMALLINT display width from SHOW COLUMNS.
+	 *
+	 * @return void
+	 */
+	public function test_v3_accepts_an_omitted_smallint_display_width(): void {
+		$this->install_v2_schema();
+		$this->database->column_type_overrides['classification_version'] = 'smallint unsigned';
+
+		$migrator = $this->create_migrator();
+
+		self::assertTrue( $migrator->migrate() );
+		self::assertSame( 3, $migrator->get_installed_version() );
+		self::assertTrue( $migrator->is_ready() );
+	}
+
+	/**
+	 * Verify a failed V3 backfill leaves V2 installed for a safe retry.
+	 *
+	 * @return void
+	 */
+	public function test_failed_v3_backfill_does_not_advance_version(): void {
+		$this->install_v2_schema();
+		$this->database->fail_event_count_backfill = true;
+		$migrator                                  = $this->create_migrator();
+
+		self::assertFalse( $migrator->migrate() );
+		self::assertSame( 2, $migrator->get_installed_version() );
+		self::assertFalse( $migrator->is_ready() );
+		self::assertSame( 'migration_failed', $migrator->get_failure_code() );
+		self::assertCount( 1, $this->migration_logs );
+
+		$entry = json_decode( $this->migration_logs[0], true, flags: JSON_THROW_ON_ERROR );
+		self::assertSame( 'journey_schema_migration_failed', $entry['event'] ?? null );
+		self::assertMatchesRegularExpression( '/\A[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z\z/', $entry['timestamp_utc'] ?? '' );
+		self::assertSame( 2, $entry['installed_version'] ?? null );
+		self::assertSame( 3, $entry['attempted_version'] ?? null );
+		self::assertSame( Journey_Schema_Migrator::CURRENT_VERSION, $entry['target_version'] ?? null );
+		self::assertSame( RuntimeException::class, $entry['exception_class'] ?? null );
+		self::assertSame( 'Journey event totals could not be backfilled.', $entry['exception_message'] ?? null );
+		self::assertSame( 'Simulated Journey event-count backfill failure.', $entry['database_error'] ?? null );
+
+		$this->database->fail_event_count_backfill = false;
+		self::assertTrue( $migrator->migrate() );
+		self::assertSame( 3, $migrator->get_installed_version() );
+		self::assertSame( '', $migrator->get_failure_code() );
+	}
+
+	/**
+	 * A logger failure cannot replace the migration's failure state.
+	 *
+	 * @return void
+	 */
+	public function test_logger_failure_does_not_change_migration_handling(): void {
+		$GLOBALS['shurloc_journey_dbdelta_apply'] = false;
+
+		$migrator = $this->create_migrator(
+			failure_logger: static function ( string $entry ): void {
+				unset( $entry );
+				throw new RuntimeException( 'Simulated logger failure.' );
+			}
+		);
+
+		self::assertFalse( $migrator->migrate() );
+		self::assertSame( 0, $migrator->get_installed_version() );
+		self::assertSame( 'migration_failed', $migrator->get_failure_code() );
+		self::assertArrayNotHasKey(
+			Journey_Schema_Migrator::LOCK_OPTION,
+			$GLOBALS['shurloc_test_options']
+		);
 	}
 
 	/**
@@ -302,6 +474,13 @@ final class JourneySchemaMigratorTest extends TestCase {
 		self::assertFalse( $migrator->migrate() );
 		self::assertSame( 0, $migrator->get_installed_version() );
 		self::assertCount( 4, $this->database->tables );
+		self::assertCount( 1, $this->migration_logs );
+
+		$entry = json_decode( $this->migration_logs[0], true, flags: JSON_THROW_ON_ERROR );
+		self::assertSame(
+			'Journey schema column "wp_shurloc_journey_sessions.identity_period_id" is unavailable.',
+			$entry['exception_message'] ?? null
+		);
 	}
 
 	/**
@@ -428,11 +607,11 @@ final class JourneySchemaMigratorTest extends TestCase {
 	 * @return void
 	 */
 	public function test_newer_installed_version_is_not_downgraded(): void {
-		$GLOBALS['shurloc_test_options'][ Journey_Schema_Migrator::VERSION_OPTION ] = 3;
+		$GLOBALS['shurloc_test_options'][ Journey_Schema_Migrator::VERSION_OPTION ] = 4;
 		$migrator = $this->create_migrator();
 
 		self::assertFalse( $migrator->migrate() );
-		self::assertSame( 3, $migrator->get_installed_version() );
+		self::assertSame( 4, $migrator->get_installed_version() );
 		self::assertFalse( $migrator->is_ready() );
 		self::assertSame( 'newer_schema', $migrator->get_failure_code() );
 		self::assertSame( array(), $GLOBALS['shurloc_journey_dbdelta_calls'] );
