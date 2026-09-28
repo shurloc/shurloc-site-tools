@@ -80,6 +80,11 @@ final class JourneyReportSessionRepositoryTest extends TestCase {
 		self::assertFalse( $contexts[8]['began_authenticated'] );
 		self::assertSame( '/products', $contexts[8]['landing_path'] );
 		self::assertSame( 'newsletter', $contexts[8]['utm_source'] );
+		self::assertSame( 'Mozilla/5.0 Example Browser', $contexts[8]['user_agent'] );
+		self::assertSame( 'browser', $contexts[8]['client_type'] );
+		self::assertSame( 'Example Browser', $contexts[8]['client_name'] );
+		self::assertSame( 'desktop', $contexts[8]['device_type'] );
+		self::assertSame( 1, $contexts[8]['classification_version'] );
 		self::assertSame( 37, $contexts[9]['user_id_at_start'] );
 		self::assertTrue( $contexts[9]['began_authenticated'] );
 		self::assertSame( '2026-09-16 12:17:00', $contexts[9]['ended_at'] );
@@ -88,8 +93,33 @@ final class JourneyReportSessionRepositoryTest extends TestCase {
 		$query = $this->database->prepared_queries[0];
 		self::assertSame( array( 'shop_shurloc_journey_sessions', 8, 9 ), $query['args'] );
 		self::assertStringContainsString( 'WHERE id IN (%d, %d) ORDER BY id ASC', $query['query'] );
+		self::assertStringContainsString( 'user_agent, client_type, client_name, device_type, classification_version', $query['query'] );
 		self::assertStringNotContainsString( 'page_view_count', $query['query'] );
 		self::assertStringNotContainsString( 'active_ms', $query['query'] );
+	}
+
+	/**
+	 * Sessions backfilled during the V3 migration retain explicit unknown data.
+	 *
+	 * @return void
+	 */
+	public function test_accepts_backfilled_unknown_client_snapshot(): void {
+		$row                         = $this->session_row( id: '8', user_id_at_start: null );
+		$row->user_agent             = null;
+		$row->client_type            = 'unknown';
+		$row->client_name            = null;
+		$row->device_type            = 'unknown';
+		$row->classification_version = '0';
+		$this->database->results     = array( $row );
+
+		$contexts = ( new Journey_Report_Session_Repository() )->get_by_ids( session_ids: array( 8 ) );
+
+		self::assertNotNull( $contexts );
+		self::assertNull( $contexts[8]['user_agent'] );
+		self::assertSame( 'unknown', $contexts[8]['client_type'] );
+		self::assertNull( $contexts[8]['client_name'] );
+		self::assertSame( 'unknown', $contexts[8]['device_type'] );
+		self::assertSame( 0, $contexts[8]['classification_version'] );
 	}
 
 	/**
@@ -157,7 +187,50 @@ final class JourneyReportSessionRepositoryTest extends TestCase {
 	}
 
 	/**
-	 * Build one representative session row from the v1 schema.
+	 * Invalid stored client snapshots fail closed before reaching presentation.
+	 *
+	 * @return void
+	 */
+	public function test_malformed_client_snapshots_fail_closed(): void {
+		$repository = new Journey_Report_Session_Repository();
+		$mutations  = array(
+			static function ( stdClass $row ): void {
+				$row->user_agent = str_repeat( 'a', 1025 );
+			},
+			static function ( stdClass $row ): void {
+				$row->user_agent = "Browser\nInjected";
+			},
+			static function ( stdClass $row ): void {
+				$row->client_type = 'Browser';
+			},
+			static function ( stdClass $row ): void {
+				$row->client_name = '';
+			},
+			static function ( stdClass $row ): void {
+				$row->client_name = str_repeat( 'a', 65 );
+			},
+			static function ( stdClass $row ): void {
+				$row->device_type = 'mobile phone';
+			},
+			static function ( stdClass $row ): void {
+				$row->classification_version = '-1';
+			},
+			static function ( stdClass $row ): void {
+				$row->classification_version = '65536';
+			},
+		);
+
+		foreach ( $mutations as $mutate ) {
+			$row = $this->session_row( id: '8', user_id_at_start: null );
+			$mutate( $row );
+			$this->database->results = array( $row );
+
+			self::assertNull( $repository->get_by_ids( session_ids: array( 8 ) ) );
+		}
+	}
+
+	/**
+	 * Build one representative session row from the current schema.
 	 *
 	 * @param string      $id               Session ID.
 	 * @param string|null $user_id_at_start User at session start.
@@ -165,21 +238,26 @@ final class JourneyReportSessionRepositoryTest extends TestCase {
 	 */
 	private function session_row( string $id, ?string $user_id_at_start ): stdClass {
 		return (object) array(
-			'id'                  => $id,
-			'visitor_id'          => '12',
-			'identity_period_id'  => '4',
-			'user_id_at_start'    => $user_id_at_start,
-			'began_authenticated' => null === $user_id_at_start ? '0' : '1',
-			'started_at'          => '2026-09-16 12:00:00',
-			'last_activity_at'    => '2026-09-16 12:17:00',
-			'ended_at'            => null,
-			'landing_path'        => '/products',
-			'referrer_host'       => 'example.org',
-			'utm_source'          => 'newsletter',
-			'utm_medium'          => 'email',
-			'utm_campaign'        => 'autumn',
-			'utm_term'            => null,
-			'utm_content'         => null,
+			'id'                     => $id,
+			'visitor_id'             => '12',
+			'identity_period_id'     => '4',
+			'user_id_at_start'       => $user_id_at_start,
+			'began_authenticated'    => null === $user_id_at_start ? '0' : '1',
+			'started_at'             => '2026-09-16 12:00:00',
+			'last_activity_at'       => '2026-09-16 12:17:00',
+			'ended_at'               => null,
+			'landing_path'           => '/products',
+			'referrer_host'          => 'example.org',
+			'utm_source'             => 'newsletter',
+			'utm_medium'             => 'email',
+			'utm_campaign'           => 'autumn',
+			'utm_term'               => null,
+			'utm_content'            => null,
+			'user_agent'             => 'Mozilla/5.0 Example Browser',
+			'client_type'            => 'browser',
+			'client_name'            => 'Example Browser',
+			'device_type'            => 'desktop',
+			'classification_version' => '1',
 		);
 	}
 }
