@@ -1,5 +1,23 @@
 # Changelog
 
+## [0.10.2] - 2026-09-28
+
+### Added
+
+- Added bounded raw user-agent storage and normalized client and device classification to Journey sessions, with inspection details in Journey reports.
+- Added individual and bulk Journey deletion controls with atomic cleanup of session events and cart-correlation links.
+- Added Journey list totals, pagination, and clickable page and product items in Journey details.
+- Added a dedicated structured diagnostic log for Journey schema migration failures.
+
+### Changed
+
+- Updated the Journey schema to version 3 with session client metadata and event-count summaries.
+- Unified automated-client collection exclusions with the Journey user-agent classifier.
+
+### Fixed
+
+- Corrected Journey schema verification for integer types reported with display widths.
+
 ## [0.10.1] - 2026-09-25
 
 ### Fixed
