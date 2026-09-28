@@ -169,10 +169,67 @@ final class JourneyReportControllerTest extends TestCase {
 				'1000-01-01 00:00:00',
 				'9999-12-31 23:59:59',
 				'shop_shurloc_journey_identity_periods',
-				50,
+				51,
+				0,
 			),
 			$this->database->prepared_queries[1]['args']
 		);
+	}
+
+	/**
+	 * A full landing page links to the next Journey page and hides its lookahead row.
+	 *
+	 * @return void
+	 */
+	public function test_paginates_recent_journeys_on_the_landing_page(): void {
+		$subjects = array();
+		for ( $id = 1; 51 >= $id; ++$id ) {
+			$subjects[] = (object) array(
+				'subject_type'          => 'visitor',
+				'subject_id'            => (string) $id,
+				'last_activity_at'      => '2026-09-18 12:00:00',
+				'total_active_ms'       => '1000',
+				'total_page_view_count' => '1',
+				'total_event_count'     => '1',
+			);
+		}
+		$this->database->result_queue = array( array(), $subjects );
+
+		$output = $this->render();
+
+		self::assertStringContainsString( '>Page 1</span>', $output );
+		self::assertStringContainsString( '>Next journeys</a>', $output );
+		self::assertStringContainsString( 'journey_from=2026-09-15&amp;journey_to=2026-09-21&amp;journey_page=2', $output );
+		self::assertStringNotContainsString( '>Previous journeys</a>', $output );
+		self::assertStringContainsString( '>Anonymous Visitor #50</a>', $output );
+		self::assertStringNotContainsString( '>Anonymous Visitor #51</a>', $output );
+		self::assertSame( 51, $this->database->prepared_queries[1]['args'][9] );
+		self::assertSame( 0, $this->database->prepared_queries[1]['args'][10] );
+	}
+
+	/**
+	 * Later filtered pages preserve the report type and date range.
+	 *
+	 * @return void
+	 */
+	public function test_renders_previous_link_for_a_later_filtered_journey_page(): void {
+		$_GET                    = array(
+			'journey_subject' => 'customer',
+			'journey_from'    => '2026-09-01',
+			'journey_to'      => '2026-09-18',
+			'journey_page'    => '2',
+		);
+		$this->database->results = array();
+
+		$output = $this->render();
+
+		self::assertStringContainsString( '>Page 2</span>', $output );
+		self::assertStringContainsString( '>Previous journeys</a>', $output );
+		self::assertStringContainsString( 'journey_from=2026-09-01&amp;journey_to=2026-09-18&amp;journey_subject=customer', $output );
+		self::assertStringNotContainsString( 'journey_page=', $output );
+		self::assertStringNotContainsString( '>Next journeys</a>', $output );
+		self::assertSame( 51, $this->database->prepared_queries[0]['args'][9] );
+		self::assertSame( 50, $this->database->prepared_queries[0]['args'][10] );
 	}
 
 	/**
@@ -260,7 +317,8 @@ final class JourneyReportControllerTest extends TestCase {
 				'2026-09-01 07:00:00',
 				'2026-09-19 07:00:00',
 				'wp_shurloc_journey_identity_periods',
-				50,
+				51,
+				0,
 			),
 			$this->database->prepared_queries[0]['args']
 		);
@@ -488,6 +546,10 @@ final class JourneyReportControllerTest extends TestCase {
 				'journey_subject'    => 'visitor',
 				'journey_visitor_id' => '12',
 				'journey_before_id'  => 'invalid',
+			),
+			array(
+				'journey_subject' => 'customer',
+				'journey_page'    => '0',
 			),
 		);
 

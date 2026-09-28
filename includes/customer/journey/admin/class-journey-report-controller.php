@@ -53,8 +53,8 @@ final class Journey_Report_Controller {
 	/** Events loaded in one report request. */
 	private const EVENT_PAGE_SIZE = 50;
 
-	/** Recent report subjects shown on the landing page. */
-	private const RECENT_SUBJECT_LIMIT = 50;
+	/** Recent report subjects shown on one list page. */
+	private const RECENT_SUBJECT_PAGE_SIZE = 50;
 
 	/** Anonymous visitors offered in one selector page. */
 	private const VISITOR_PAGE_SIZE = 50;
@@ -271,17 +271,36 @@ final class Journey_Report_Controller {
 			( 'customer' === $subject && null === $user_id ) ||
 			( 'visitor' === $subject && null === $visitor_id )
 		) {
+			$page = $this->subject_page_number();
+			if ( false === $page ) {
+				$this->render_error( message: __( 'Select a valid Journey page number.', 'shurloc-site-tools' ) );
+				return;
+			}
+
 			$subjects = $this->visitor_repository->recent_subjects(
-				limit: self::RECENT_SUBJECT_LIMIT,
+				limit: self::RECENT_SUBJECT_PAGE_SIZE + 1,
 				from_utc: $range['from_utc'],
-				until_utc: $range['until_utc']
+				until_utc: $range['until_utc'],
+				offset: ( $page - 1 ) * self::RECENT_SUBJECT_PAGE_SIZE
 			);
 			if ( null === $subjects ) {
 				$this->render_unavailable();
 				return;
 			}
 
+			$has_next = self::RECENT_SUBJECT_PAGE_SIZE < count( $subjects );
+			if ( $has_next ) {
+				array_pop( $subjects );
+			}
+
 			$this->render_recent_subjects( subjects: $subjects, from_date: $from_date, to_date: $to_date );
+			$this->render_subject_pagination(
+				page: $page,
+				has_next: $has_next,
+				from_date: $from_date,
+				to_date: $to_date,
+				subject: $subject
+			);
 			return;
 		}
 
@@ -351,19 +370,18 @@ final class Journey_Report_Controller {
 	 * @return void
 	 */
 	private function render_landing( string $from_date, string $to_date ): void {
-		$cursor = $this->cursor( at_key: 'journey_visitor_before_at', id_key: 'journey_visitor_before_id' );
-		if ( false === $cursor ) {
+		$page = $this->subject_page_number();
+		if ( false === $page ) {
 			$this->render_controls( from_date: $from_date, to_date: $to_date, selected_user: null, selected_visitor_id: null, visitors: array() );
-			$this->render_error( message: __( 'The anonymous visitor page cursor is invalid.', 'shurloc-site-tools' ) );
+			$this->render_error( message: __( 'Select a valid Journey page number.', 'shurloc-site-tools' ) );
 			return;
 		}
 
-		$visitors = $this->visitor_repository->anonymous_visitors(
-			limit: self::VISITOR_PAGE_SIZE,
-			before_at: $cursor['at'],
-			before_id: $cursor['id']
+		$visitors = $this->visitor_repository->anonymous_visitors( limit: self::VISITOR_PAGE_SIZE );
+		$subjects = $this->visitor_repository->recent_subjects(
+			limit: self::RECENT_SUBJECT_PAGE_SIZE + 1,
+			offset: ( $page - 1 ) * self::RECENT_SUBJECT_PAGE_SIZE
 		);
-		$subjects = $this->visitor_repository->recent_subjects( limit: self::RECENT_SUBJECT_LIMIT );
 		$this->render_controls(
 			from_date: $from_date,
 			to_date: $to_date,
@@ -377,8 +395,18 @@ final class Journey_Report_Controller {
 			return;
 		}
 
+		$has_next = self::RECENT_SUBJECT_PAGE_SIZE < count( $subjects );
+		if ( $has_next ) {
+			array_pop( $subjects );
+		}
+
 		$this->render_recent_subjects( subjects: $subjects );
-		$this->render_visitor_pagination( visitors: $visitors, from_date: $from_date, to_date: $to_date );
+		$this->render_subject_pagination(
+			page: $page,
+			has_next: $has_next,
+			from_date: $from_date,
+			to_date: $to_date
+		);
 	}
 
 	/**
@@ -677,26 +705,69 @@ final class Journey_Report_Controller {
 	}
 
 	/**
-	 * Render an older anonymous visitor page link when the selector page is full.
+	 * Render previous and next links for a Journey subject-list page.
 	 *
-	 * @param array  $visitors Visitors ordered by last seen time.
-	 * @param string $from_date Inclusive local report date.
-	 * @param string $to_date   Inclusive local report date.
+	 * @param int         $page      Current page number.
+	 * @param bool        $has_next  Whether another page is available.
+	 * @param string      $from_date Inclusive local report date.
+	 * @param string      $to_date   Inclusive local report date.
+	 * @param string|null $subject   Optional report subject filter.
 	 * @return void
-	 * @phpstan-param list<array{id:int,last_seen_at:string}> $visitors
 	 */
-	private function render_visitor_pagination( array $visitors, string $from_date, string $to_date ): void {
-		if ( self::VISITOR_PAGE_SIZE !== count( $visitors ) ) {
+	private function render_subject_pagination(
+		int $page,
+		bool $has_next,
+		string $from_date,
+		string $to_date,
+		?string $subject = null
+	): void {
+		if ( 1 === $page && ! $has_next ) {
 			return;
 		}
 
-		$last                              = $visitors[ count( $visitors ) - 1 ];
-		$args                              = $this->base_url_args( from_date: $from_date, to_date: $to_date );
-		$args['journey_visitor_before_at'] = $last['last_seen_at'];
-		$args['journey_visitor_before_id'] = $last['id'];
+		$args = $this->base_url_args( from_date: $from_date, to_date: $to_date );
+		if ( null !== $subject ) {
+			$args['journey_subject'] = $subject;
+		}
 		?>
-		<p><a class="button" href="<?php echo esc_url( add_query_arg( $args, admin_url( 'admin.php' ) ) ); ?>"><?php echo esc_html__( 'Older anonymous visitors', 'shurloc-site-tools' ); ?></a></p>
+		<div class="tablenav bottom shurloc-journey-pagination">
+			<div class="tablenav-pages">
+				<span class="paging-input"><?php echo esc_html( sprintf( /* translators: %d: current Journey list page. */ __( 'Page %d', 'shurloc-site-tools' ), $page ) ); ?></span>
+				<?php if ( 1 < $page ) : ?>
+					<?php
+					$previous_args = $args;
+					if ( 2 < $page ) {
+						$previous_args['journey_page'] = $page - 1;
+					}
+					?>
+					<a class="button" href="<?php echo esc_url( add_query_arg( $previous_args, admin_url( 'admin.php' ) ) ); ?>"><?php echo esc_html__( 'Previous journeys', 'shurloc-site-tools' ); ?></a>
+				<?php endif; ?>
+				<?php if ( $has_next ) : ?>
+					<?php $args['journey_page'] = $page + 1; ?>
+					<a class="button" href="<?php echo esc_url( add_query_arg( $args, admin_url( 'admin.php' ) ) ); ?>"><?php echo esc_html__( 'Next journeys', 'shurloc-site-tools' ); ?></a>
+				<?php endif; ?>
+			</div>
+		</div>
 		<?php
+	}
+
+	/**
+	 * Read a bounded Journey subject-list page number.
+	 *
+	 * @return int|false Page number or false when invalid.
+	 */
+	private function subject_page_number(): int|false {
+		$value = $this->request_value( key: 'journey_page' );
+		if ( '' === $value ) {
+			return 1;
+		}
+
+		$page = $this->positive_integer( value: $value );
+		if ( null === $page || intdiv( PHP_INT_MAX, self::RECENT_SUBJECT_PAGE_SIZE ) < $page ) {
+			return false;
+		}
+
+		return $page;
 	}
 
 	/**
