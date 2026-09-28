@@ -69,6 +69,12 @@ use Shurloc\SiteTools\Customer\Journey\Migrations\Journey_Schema_V3;
  * }
  */
 final class Shurloc_Test_WPDB {
+	/**
+	 * Most recent simulated database error.
+	 *
+	 * @var string
+	 */
+	public string $last_error = '';
 
 	/**
 	 * WordPress database table prefix.
@@ -158,6 +164,13 @@ final class Shurloc_Test_WPDB {
 	 * @var string
 	 */
 	public string $missing_column = '';
+
+	/**
+	 * SHOW COLUMNS type substitutions keyed by column name.
+	 *
+	 * @var array<string,string>
+	 */
+	public array $column_type_overrides = array();
 
 	/**
 	 * Unique index presented as non-unique.
@@ -996,8 +1009,10 @@ final class Shurloc_Test_WPDB {
 
 		if ( str_starts_with( $query, 'UPDATE %i SET event_count = page_view_count + cart_add_count + cart_remove_count + checkout_started_count + order_created_count' ) ) {
 			if ( $this->fail_event_count_backfill ) {
+				$this->last_error = 'Simulated Journey event-count backfill failure.';
 				return false;
 			}
+			$this->last_error = '';
 
 			$updated = 0;
 			foreach ( $this->sessions as $session_id => $session ) {
@@ -1414,7 +1429,7 @@ final class Shurloc_Test_WPDB {
 
 			$rows[] = (object) array(
 				'Field' => $name,
-				'Type'  => $matches[0],
+				'Type'  => $this->column_type_overrides[ $name ] ?? $matches[0],
 				'Null'  => str_contains( $sql, 'DEFAULT NULL' ) ? 'YES' : 'NO',
 				'Extra' => str_contains( $sql, 'AUTO_INCREMENT' ) ? 'auto_increment' : '',
 			);

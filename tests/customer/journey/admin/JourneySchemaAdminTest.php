@@ -53,7 +53,10 @@ final class JourneySchemaAdminTest extends TestCase {
 				unset( $statement );
 				++$GLOBALS['shurloc_journey_schema_updates'];
 				throw new RuntimeException( 'Simulated database error.' );
-			}
+			},
+			failure_logger: static function ( string $entry ): void {
+				unset( $entry );
+			},
 		);
 
 		$this->controller = new Journey_Schema_Admin( migrator: $migrator );
