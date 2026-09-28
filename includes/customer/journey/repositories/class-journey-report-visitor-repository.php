@@ -58,11 +58,12 @@ final class Journey_Report_Visitor_Repository {
 	 * @param int         $limit     Number of report subjects, at most MAX_PAGE_SIZE.
 	 * @param string|null $from_utc  Optional inclusive UTC datetime.
 	 * @param string|null $until_utc Optional exclusive UTC datetime.
+	 * @param int         $offset    Number of matching subjects to skip.
 	 * @return list<RecentSubject>|null Recent subjects or null on failure.
 	 */
-	public function recent_subjects( int $limit = 50, ?string $from_utc = null, ?string $until_utc = null ): ?array {
+	public function recent_subjects( int $limit = 50, ?string $from_utc = null, ?string $until_utc = null, int $offset = 0 ): ?array {
 		if (
-			1 > $limit || self::MAX_PAGE_SIZE < $limit ||
+			1 > $limit || self::MAX_PAGE_SIZE < $limit || 0 > $offset ||
 			( null === $from_utc ) !== ( null === $until_utc ) ||
 			! $this->schema_migrator->is_ready()
 		) {
@@ -101,7 +102,7 @@ final class Journey_Report_Visitor_Repository {
 				) recent
 				GROUP BY recent.subject_type, recent.subject_id
 				ORDER BY last_activity_at DESC, recent.subject_type ASC, recent.subject_id DESC
-				LIMIT %d',
+				LIMIT %d OFFSET %d',
 				Journey_Event_Type::PAGE_VIEW,
 				Journey_Event_Type::PRODUCT_VIEW,
 				$wpdb->prefix . 'shurloc_journey_events',
@@ -111,7 +112,8 @@ final class Journey_Report_Visitor_Repository {
 				$from_utc,
 				$until_utc,
 				$wpdb->prefix . 'shurloc_journey_identity_periods',
-				$limit
+				$limit,
+				$offset
 			)
 		);
 
