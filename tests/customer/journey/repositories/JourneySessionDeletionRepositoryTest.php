@@ -91,6 +91,210 @@ final class JourneySessionDeletionRepositoryTest extends TestCase {
 	}
 
 	/**
+	 * Selected customers and visitors delete every unique matching session.
+	 *
+	 * @return void
+	 */
+	public function test_deletes_all_journeys_for_selected_subjects_atomically(): void {
+		$this->database->result_queue       = array(
+			array(
+				(object) array( 'id' => '20' ),
+				(object) array( 'id' => '21' ),
+			),
+			array(
+				(object) array( 'id' => '21' ),
+				(object) array( 'id' => '22' ),
+			),
+		);
+		$this->database->query_result_queue = array( 6, 3 );
+
+		$deleted = $this->repository->delete_by_subjects(
+			array(
+				array(
+					'type' => 'customer',
+					'id'   => 7,
+				),
+				array(
+					'type' => 'visitor',
+					'id'   => 12,
+				),
+			)
+		);
+
+		self::assertSame( 3, $deleted );
+		self::assertSame(
+			array(
+				'START TRANSACTION',
+				'DELETE FROM %i WHERE session_id IN (%d, %d, %d)',
+				'DELETE FROM %i WHERE %i IN (%d, %d, %d)',
+				'DELETE FROM %i WHERE %i IN (%d, %d, %d)',
+				'COMMIT',
+			),
+			$this->database->queries
+		);
+
+		$customer_query = $this->database->prepared_queries[0];
+		self::assertSame(
+			array(
+				'shop_shurloc_journey_sessions',
+				'shop_shurloc_journey_identity_periods',
+				7,
+				7,
+				'shop_shurloc_journey_events',
+				7,
+			),
+			$customer_query['args']
+		);
+		self::assertStringContainsString( 'p.user_id = %d OR s.user_id_at_start = %d', $customer_query['query'] );
+		self::assertStringContainsString( 'e.user_id_at_event = %d', $customer_query['query'] );
+		self::assertStringContainsString( 'FOR UPDATE', $customer_query['query'] );
+
+		$visitor_query = $this->database->prepared_queries[1];
+		self::assertSame(
+			array(
+				'shop_shurloc_journey_sessions',
+				'shop_shurloc_journey_visitors',
+				12,
+				'shop_shurloc_journey_identity_periods',
+			),
+			$visitor_query['args']
+		);
+		self::assertStringContainsString( 'p.user_id IS NOT NULL', $visitor_query['query'] );
+		self::assertStringContainsString( 'FOR UPDATE', $visitor_query['query'] );
+
+		self::assertSame(
+			array( 'shop_shurloc_journey_cart_links', 20, 21, 22 ),
+			$this->database->prepared_queries[2]['args']
+		);
+		self::assertSame(
+			array( 'shop_shurloc_journey_events', 'session_id', 20, 21, 22 ),
+			$this->database->prepared_queries[3]['args']
+		);
+		self::assertSame(
+			array( 'shop_shurloc_journey_sessions', 'id', 20, 21, 22 ),
+			$this->database->prepared_queries[4]['args']
+		);
+	}
+
+	/**
+	 * A selected subject without sessions commits as a successful no-op.
+	 *
+	 * @return void
+	 */
+	public function test_bulk_deletion_with_no_matching_journeys_returns_zero(): void {
+		$this->database->result_queue = array( array() );
+
+		self::assertSame(
+			0,
+			$this->repository->delete_by_subjects(
+				array(
+					array(
+						'type' => 'customer',
+						'id'   => 7,
+					),
+				)
+			)
+		);
+		self::assertSame( array( 'START TRANSACTION', 'COMMIT' ), $this->database->queries );
+	}
+
+	/**
+	 * Invalid subject selections fail before starting a transaction.
+	 *
+	 * @return void
+	 */
+	public function test_invalid_bulk_subjects_fail_closed(): void {
+		$valid = array(
+			array(
+				'type' => 'customer',
+				'id'   => 7,
+			),
+		);
+
+		self::assertNull( $this->repository->delete_by_subjects( array() ) );
+		self::assertNull( $this->repository->delete_by_subjects( array_fill( 0, 51, $valid[0] ) ) );
+		self::assertNull( $this->repository->delete_by_subjects( array( $valid[0], $valid[0] ) ) );
+		self::assertNull(
+			$this->repository->delete_by_subjects(
+				array(
+					array(
+						'type' => 'unknown',
+						'id'   => 7,
+					),
+				)
+			)
+		);
+		self::assertNull(
+			$this->repository->delete_by_subjects(
+				array(
+					array(
+						'type' => 'visitor',
+						'id'   => 0,
+					),
+				)
+			)
+		);
+		self::assertNull(
+			$this->repository->delete_by_subjects(
+				array(
+					array(
+						'id'   => 7,
+						'type' => 'customer',
+					),
+				)
+			)
+		);
+
+		$GLOBALS['shurloc_test_options'] = array();
+		self::assertNull( $this->repository->delete_by_subjects( $valid ) );
+		self::assertSame( array(), $this->database->queries );
+	}
+
+	/**
+	 * Every bulk dependency failure rolls back the whole subject selection.
+	 *
+	 * @return void
+	 */
+	public function test_bulk_deletion_failures_roll_back(): void {
+		$subjects = array(
+			array(
+				'type' => 'customer',
+				'id'   => 7,
+			),
+		);
+		$failures = array(
+			static function ( Shurloc_Test_WPDB $database ): void {
+				$database->result_queue = array( null );
+			},
+			static function ( Shurloc_Test_WPDB $database ): void {
+				$database->result_queue         = array( array( (object) array( 'id' => '20' ) ) );
+				$database->fail_cart_link_delete = true;
+			},
+			static function ( Shurloc_Test_WPDB $database ): void {
+				$database->result_queue       = array( array( (object) array( 'id' => '20' ) ) );
+				$database->query_result_queue = array( false );
+			},
+			static function ( Shurloc_Test_WPDB $database ): void {
+				$database->result_queue       = array( array( (object) array( 'id' => '20' ) ) );
+				$database->query_result_queue = array( 2, 0 );
+			},
+			static function ( Shurloc_Test_WPDB $database ): void {
+				$database->result_queue       = array( array( (object) array( 'id' => '20' ) ) );
+				$database->query_result_queue = array( 2, 1 );
+				$database->fail_commit        = true;
+			},
+		);
+
+		foreach ( $failures as $failure ) {
+			$this->reset_fixture();
+			$failure( $this->database );
+
+			self::assertNull( $this->repository->delete_by_subjects( $subjects ) );
+			self::assertSame( 'ROLLBACK', $this->database->queries[ count( $this->database->queries ) - 1 ] );
+		}
+	}
+
+	/**
 	 * Repeating deletion for an absent journey is a successful no-op.
 	 *
 	 * @return void
