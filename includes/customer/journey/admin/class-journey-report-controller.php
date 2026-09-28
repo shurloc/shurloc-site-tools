@@ -355,7 +355,12 @@ final class Journey_Report_Controller {
 				array_pop( $subjects );
 			}
 
-			$this->render_recent_subjects( subjects: $subjects, from_date: $from_date, to_date: $to_date );
+			$this->render_recent_subjects(
+				subjects: $subjects,
+				from_date: $from_date,
+				to_date: $to_date,
+				subject: $subject
+			);
 			$this->render_subject_pagination(
 				page: $page,
 				has_next: $has_next,
@@ -543,10 +548,16 @@ final class Journey_Report_Controller {
 	 * @param array       $subjects  Validated recent report subjects.
 	 * @param string|null $from_date Optional inclusive local report date.
 	 * @param string|null $to_date   Optional inclusive local report date.
+	 * @param string|null $subject   Optional report subject filter.
 	 * @return void
 	 * @phpstan-param list<RecentSubject> $subjects
 	 */
-	private function render_recent_subjects( array $subjects, ?string $from_date = null, ?string $to_date = null ): void {
+	private function render_recent_subjects(
+		array $subjects,
+		?string $from_date = null,
+		?string $to_date = null,
+		?string $subject = null
+	): void {
 		$range_selected = null !== $from_date && null !== $to_date;
 		$heading        = $range_selected
 			? __( 'Journeys in Selected Date Range', 'shurloc-site-tools' )
@@ -561,22 +572,53 @@ final class Journey_Report_Controller {
 			<?php return; ?>
 		<?php endif; ?>
 
-		<table class="widefat striped shurloc-journey-subjects">
-			<thead>
-				<tr>
-					<th scope="col"><?php echo esc_html__( 'Customer or visitor', 'shurloc-site-tools' ); ?></th>
-					<th scope="col"><?php echo esc_html__( 'Type', 'shurloc-site-tools' ); ?></th>
-					<th scope="col"><?php echo esc_html__( 'Latest activity', 'shurloc-site-tools' ); ?></th>
-					<th scope="col"><?php echo esc_html__( 'Total time spent', 'shurloc-site-tools' ); ?></th>
-					<th scope="col"><?php echo esc_html__( 'Page views / events', 'shurloc-site-tools' ); ?></th>
-				</tr>
-			</thead>
-			<tbody>
-				<?php foreach ( $subjects as $subject ) : ?>
-					<?php $this->render_recent_subject_row( subject: $subject, from_date: $from_date, to_date: $to_date ); ?>
-				<?php endforeach; ?>
-			</tbody>
-		</table>
+		<form method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>" class="shurloc-journey-bulk-delete">
+			<input type="hidden" name="action" value="<?php echo esc_attr( self::BULK_DELETE_ACTION ); ?>">
+			<?php if ( 'customer' === $subject || 'visitor' === $subject ) : ?>
+				<input type="hidden" name="journey_subject" value="<?php echo esc_attr( $subject ); ?>">
+			<?php endif; ?>
+			<?php if ( $range_selected ) : ?>
+				<input type="hidden" name="journey_from" value="<?php echo esc_attr( $from_date ); ?>">
+				<input type="hidden" name="journey_to" value="<?php echo esc_attr( $to_date ); ?>">
+			<?php endif; ?>
+			<?php wp_nonce_field( self::BULK_DELETE_ACTION ); ?>
+
+			<p class="description">
+				<?php echo esc_html__( 'Deleting a selected customer or visitor permanently deletes all journeys for that selection, including journeys outside the displayed date range. This action cannot be undone.', 'shurloc-site-tools' ); ?>
+			</p>
+			<div class="tablenav top">
+				<div class="alignleft actions bulkactions">
+					<label for="shurloc-journey-bulk-action" class="screen-reader-text"><?php echo esc_html__( 'Select bulk action', 'shurloc-site-tools' ); ?></label>
+					<select name="journey_bulk_action" id="shurloc-journey-bulk-action">
+						<option value=""><?php echo esc_html__( 'Bulk actions', 'shurloc-site-tools' ); ?></option>
+						<option value="<?php echo esc_attr( self::BULK_ACTION_DELETE ); ?>"><?php echo esc_html__( 'Delete all journeys', 'shurloc-site-tools' ); ?></option>
+					</select>
+					<button type="submit" class="button action"><?php echo esc_html__( 'Apply', 'shurloc-site-tools' ); ?></button>
+				</div>
+				<br class="clear">
+			</div>
+
+			<table class="wp-list-table widefat fixed striped table-view-list shurloc-journey-subjects">
+				<thead>
+					<tr>
+						<td id="cb" class="manage-column column-cb check-column">
+							<input id="cb-select-all-1" type="checkbox">
+							<label for="cb-select-all-1"><span class="screen-reader-text"><?php echo esc_html__( 'Select all journeys', 'shurloc-site-tools' ); ?></span></label>
+						</td>
+						<th scope="col"><?php echo esc_html__( 'Customer or visitor', 'shurloc-site-tools' ); ?></th>
+						<th scope="col"><?php echo esc_html__( 'Type', 'shurloc-site-tools' ); ?></th>
+						<th scope="col"><?php echo esc_html__( 'Latest activity', 'shurloc-site-tools' ); ?></th>
+						<th scope="col"><?php echo esc_html__( 'Total time spent', 'shurloc-site-tools' ); ?></th>
+						<th scope="col"><?php echo esc_html__( 'Page views / events', 'shurloc-site-tools' ); ?></th>
+					</tr>
+				</thead>
+				<tbody>
+					<?php foreach ( $subjects as $recent_subject ) : ?>
+						<?php $this->render_recent_subject_row( subject: $recent_subject, from_date: $from_date, to_date: $to_date ); ?>
+					<?php endforeach; ?>
+				</tbody>
+			</table>
+		</form>
 		<?php
 	}
 
@@ -598,8 +640,30 @@ final class Journey_Report_Controller {
 		$type_label  = 'customer' === $subject['subject_type']
 			? __( 'Authenticated customer', 'shurloc-site-tools' )
 			: __( 'Anonymous visitor', 'shurloc-site-tools' );
+		$checkbox_id = 'shurloc-journey-subject-' . $subject['subject_type'] . '-' . $subject['subject_id'];
 		?>
 		<tr>
+			<th scope="row" class="check-column">
+				<input
+					id="<?php echo esc_attr( $checkbox_id ); ?>"
+					type="checkbox"
+					name="journey_subjects[]"
+					value="<?php echo esc_attr( $subject['subject_type'] . ':' . $subject['subject_id'] ); ?>"
+				>
+				<label for="<?php echo esc_attr( $checkbox_id ); ?>">
+					<span class="screen-reader-text">
+						<?php
+						echo esc_html(
+							sprintf(
+								/* translators: %s: customer or anonymous visitor label. */
+								__( 'Select %s', 'shurloc-site-tools' ),
+								$label
+							)
+						);
+						?>
+					</span>
+				</label>
+			</th>
 			<td>
 				<?php if ( 'visitor' === $subject['subject_type'] || $is_customer ) : ?>
 					<a href="<?php echo esc_url( $this->recent_subject_url( subject: $subject, from_date: $from_date, to_date: $to_date ) ); ?>"><?php echo esc_html( $label ); ?></a>

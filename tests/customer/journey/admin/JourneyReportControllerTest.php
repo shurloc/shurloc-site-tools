@@ -57,6 +57,7 @@ final class JourneyReportControllerTest extends TestCase {
 		$GLOBALS['shurloc_test_wp_die_messages']   = array();
 		$GLOBALS['shurloc_test_styles']            = array();
 		$GLOBALS['shurloc_test_enqueued_scripts']  = array();
+		$GLOBALS['shurloc_test_nonce_fields']      = array();
 		$_GET                                      = array();
 
 		$this->database = new Shurloc_Test_WPDB();
@@ -88,6 +89,7 @@ final class JourneyReportControllerTest extends TestCase {
 		$GLOBALS['shurloc_test_wp_die_messages']   = array();
 		$GLOBALS['shurloc_test_styles']            = array();
 		$GLOBALS['shurloc_test_enqueued_scripts']  = array();
+		$GLOBALS['shurloc_test_nonce_fields']      = array();
 		$_GET                                      = array();
 
 		// phpcs:ignore WordPress.WP.GlobalVariablesOverride.Prohibited -- Test-only database replacement.
@@ -135,6 +137,7 @@ final class JourneyReportControllerTest extends TestCase {
 		);
 
 		$output = $this->render();
+		$bulk   = $this->bulk_form( output: $output );
 
 		self::assertStringContainsString( 'class="wc-customer-search"', $output );
 		self::assertStringContainsString( 'data-action="woocommerce_json_search_customers"', $output );
@@ -152,6 +155,23 @@ final class JourneyReportControllerTest extends TestCase {
 		self::assertStringContainsString( '<td>4 / 7</td>', $output );
 		self::assertStringContainsString( '<td>&lt;1s</td>', $output );
 		self::assertStringContainsString( '<td>1 / 2</td>', $output );
+		self::assertStringContainsString( 'method="post" action="https://example.com/wp-admin/admin-post.php"', $bulk );
+		self::assertStringContainsString( 'name="action" value="shurloc_bulk_delete_journey_subjects"', $bulk );
+		self::assertStringContainsString( 'name="journey_bulk_action"', $bulk );
+		self::assertStringContainsString( '<option value="delete">Delete all journeys</option>', $bulk );
+		self::assertStringContainsString( '>Apply</button>', $bulk );
+		self::assertStringContainsString( 'id="cb-select-all-1" type="checkbox"', $bulk );
+		self::assertStringContainsString( 'name="journey_subjects[]"', $bulk );
+		self::assertStringContainsString( 'value="customer:7"', $bulk );
+		self::assertStringContainsString( 'value="visitor:12"', $bulk );
+		self::assertStringContainsString( 'including journeys outside the displayed date range', $bulk );
+		self::assertSame(
+			array(
+				'action' => Journey_Report_Controller::BULK_DELETE_ACTION,
+				'name'   => '_wpnonce',
+			),
+			$GLOBALS['shurloc_test_nonce_fields'][0]
+		);
 		self::assertStringContainsString( 'journey_from=2026-09-12&amp;journey_to=2026-09-18&amp;journey_subject=customer&amp;journey_user_id=7', $output );
 		self::assertStringContainsString( 'journey_from=2026-09-12&amp;journey_to=2026-09-18&amp;journey_subject=visitor&amp;journey_visitor_id=12', $output );
 		self::assertStringNotContainsString( 'visitor_uuid', $output );
@@ -203,6 +223,7 @@ final class JourneyReportControllerTest extends TestCase {
 		self::assertStringNotContainsString( '>Previous journeys</a>', $output );
 		self::assertStringContainsString( '>Anonymous Visitor #50</a>', $output );
 		self::assertStringNotContainsString( '>Anonymous Visitor #51</a>', $output );
+		self::assertSame( 50, substr_count( $output, 'name="journey_subjects[]"' ) );
 		self::assertSame( 51, $this->database->prepared_queries[1]['args'][9] );
 		self::assertSame( 0, $this->database->prepared_queries[1]['args'][10] );
 	}
@@ -256,6 +277,7 @@ final class JourneyReportControllerTest extends TestCase {
 
 		self::assertStringContainsString( 'Unavailable customer (#9)', $output );
 		self::assertStringNotContainsString( 'journey_user_id=9', $output );
+		self::assertStringContainsString( 'value="customer:9"', $output );
 		self::assertStringContainsString( '<td>0s</td>', $output );
 		self::assertStringContainsString( '<td>0 / 1</td>', $output );
 	}
@@ -293,6 +315,7 @@ final class JourneyReportControllerTest extends TestCase {
 		);
 
 		$output = $this->render();
+		$bulk   = $this->bulk_form( output: $output );
 
 		self::assertStringContainsString( 'Customer (optional)', $output );
 		self::assertStringContainsString( 'data-placeholder="All journeys"', $output );
@@ -302,6 +325,9 @@ final class JourneyReportControllerTest extends TestCase {
 		self::assertStringContainsString( '>Anonymous Visitor #12</a>', $output );
 		self::assertStringContainsString( '<td>1h 2m 3s</td>', $output );
 		self::assertStringContainsString( '<td>5 / 9</td>', $output );
+		self::assertStringContainsString( 'name="journey_subject" value="customer"', $bulk );
+		self::assertStringContainsString( 'name="journey_from" value="2026-09-01"', $bulk );
+		self::assertStringContainsString( 'name="journey_to" value="2026-09-18"', $bulk );
 		self::assertStringNotContainsString( 'Select a valid WordPress customer.', $output );
 		self::assertStringContainsString( 'journey_from=2026-09-01&amp;journey_to=2026-09-18&amp;journey_subject=customer&amp;journey_user_id=7', $output );
 		self::assertStringContainsString( 'journey_from=2026-09-01&amp;journey_to=2026-09-18&amp;journey_subject=visitor&amp;journey_visitor_id=12', $output );
@@ -339,6 +365,8 @@ final class JourneyReportControllerTest extends TestCase {
 		$output = $this->render();
 
 		self::assertStringContainsString( 'No journeys were found in this date range.', $output );
+		self::assertStringNotContainsString( 'class="shurloc-journey-bulk-delete"', $output );
+		self::assertSame( array(), $GLOBALS['shurloc_test_nonce_fields'] );
 		self::assertCount( 1, $this->database->prepared_queries );
 	}
 
@@ -625,6 +653,19 @@ final class JourneyReportControllerTest extends TestCase {
 		ob_start();
 		$this->controller->render();
 		return (string) ob_get_clean();
+	}
+
+	/**
+	 * Extract the bulk-deletion form from rendered report markup.
+	 *
+	 * @param string $output Rendered report markup.
+	 * @return string Bulk-deletion form markup.
+	 */
+	private function bulk_form( string $output ): string {
+		$matched = preg_match( '/<form[^>]*class="shurloc-journey-bulk-delete"[^>]*>.*?<\/form>/s', $output, $matches );
+		self::assertSame( 1, $matched );
+
+		return $matches[0];
 	}
 
 	/**
