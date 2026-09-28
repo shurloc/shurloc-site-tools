@@ -477,6 +477,8 @@ final class Journey_Report_Controller {
 					<th scope="col"><?php echo esc_html__( 'Customer or visitor', 'shurloc-site-tools' ); ?></th>
 					<th scope="col"><?php echo esc_html__( 'Type', 'shurloc-site-tools' ); ?></th>
 					<th scope="col"><?php echo esc_html__( 'Latest activity', 'shurloc-site-tools' ); ?></th>
+					<th scope="col"><?php echo esc_html__( 'Total time spent', 'shurloc-site-tools' ); ?></th>
+					<th scope="col"><?php echo esc_html__( 'Page views / events', 'shurloc-site-tools' ); ?></th>
 				</tr>
 			</thead>
 			<tbody>
@@ -525,8 +527,41 @@ final class Journey_Report_Controller {
 			</td>
 			<td><?php echo esc_html( $type_label ); ?></td>
 			<td><?php echo esc_html( $this->local_datetime( utc: $subject['last_activity_at'] ) ); ?></td>
+			<td><?php echo esc_html( $this->format_duration( milliseconds: $subject['total_active_ms'] ) ); ?></td>
+			<td><?php echo esc_html( $subject['total_page_view_count'] . ' / ' . $subject['total_event_count'] ); ?></td>
 		</tr>
 		<?php
+	}
+
+	/**
+	 * Format estimated active milliseconds without overstating partial seconds.
+	 *
+	 * @param int $milliseconds Estimated visible time.
+	 * @return string Compact duration.
+	 */
+	private function format_duration( int $milliseconds ): string {
+		if ( 0 === $milliseconds ) {
+			return '0s';
+		}
+
+		if ( 1000 > $milliseconds ) {
+			return '<1s';
+		}
+
+		$seconds = intdiv( $milliseconds, 1000 );
+		$hours   = intdiv( $seconds, 3600 );
+		$minutes = intdiv( $seconds % 3600, 60 );
+		$seconds = $seconds % 60;
+
+		if ( 0 < $hours ) {
+			return $hours . 'h ' . $minutes . 'm ' . $seconds . 's';
+		}
+
+		if ( 0 < $minutes ) {
+			return $minutes . 'm ' . $seconds . 's';
+		}
+
+		return $seconds . 's';
 	}
 
 	/**
