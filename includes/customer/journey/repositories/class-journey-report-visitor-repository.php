@@ -13,6 +13,7 @@ defined( 'ABSPATH' ) || exit;
 
 use DateTimeImmutable;
 use DateTimeZone;
+use Shurloc\SiteTools\Customer\Journey\Journey_Event_Type;
 use Shurloc\SiteTools\Customer\Journey\Migrations\Journey_Schema_Migrator;
 
 /**
@@ -22,7 +23,7 @@ use Shurloc\SiteTools\Customer\Journey\Migrations\Journey_Schema_Migrator;
  * repository. Visitors linked to any WordPress user belong in customer reports.
  *
  * @phpstan-type AnonymousVisitor array{id:int, created_at:string, last_seen_at:string, first_touch_at:string|null}
- * @phpstan-type RecentSubject array{subject_type:'customer'|'visitor', subject_id:int, last_activity_at:string}
+ * @phpstan-type RecentSubject array{subject_type:'customer'|'visitor', subject_id:int, last_activity_at:string, total_active_ms:int, total_page_view_count:int, total_event_count:int}
  */
 final class Journey_Report_Visitor_Repository {
 	/** Maximum visitors in one selector page. */
@@ -80,13 +81,18 @@ final class Journey_Report_Visitor_Repository {
 
 		$rows = $wpdb->get_results(
 			$wpdb->prepare(
-				'SELECT recent.subject_type, recent.subject_id, MAX(recent.occurred_at) AS last_activity_at
+				'SELECT recent.subject_type, recent.subject_id, MAX(recent.occurred_at) AS last_activity_at,
+					SUM(recent.active_ms) AS total_active_ms,
+					SUM(CASE WHEN recent.event_type IN (%s, %s) THEN 1 ELSE 0 END) AS total_page_view_count,
+					COUNT(*) AS total_event_count
 				FROM (
-					SELECT \'customer\' AS subject_type, e.user_id_at_event AS subject_id, e.occurred_at
+					SELECT \'customer\' AS subject_type, e.user_id_at_event AS subject_id,
+						e.occurred_at, e.event_type, e.active_ms
 					FROM %i e
 					WHERE e.user_id_at_event IS NOT NULL AND e.occurred_at >= %s AND e.occurred_at < %s
 					UNION ALL
-					SELECT \'visitor\' AS subject_type, e.visitor_id AS subject_id, e.occurred_at
+					SELECT \'visitor\' AS subject_type, e.visitor_id AS subject_id,
+						e.occurred_at, e.event_type, e.active_ms
 					FROM %i e
 					WHERE e.user_id_at_event IS NULL AND e.occurred_at >= %s AND e.occurred_at < %s
 					AND NOT EXISTS (
@@ -96,6 +102,8 @@ final class Journey_Report_Visitor_Repository {
 				GROUP BY recent.subject_type, recent.subject_id
 				ORDER BY last_activity_at DESC, recent.subject_type ASC, recent.subject_id DESC
 				LIMIT %d',
+				Journey_Event_Type::PAGE_VIEW,
+				Journey_Event_Type::PRODUCT_VIEW,
 				$wpdb->prefix . 'shurloc_journey_events',
 				$from_utc,
 				$until_utc,
@@ -235,20 +243,29 @@ final class Journey_Report_Visitor_Repository {
 		$subject_type     = $row->subject_type ?? null;
 		$subject_id       = $this->positive_id( value: $row->subject_id ?? null );
 		$last_activity_at = $row->last_activity_at ?? null;
+		$total_active_ms  = $this->integer( value: $row->total_active_ms ?? null, minimum: 0 );
+		$total_page_views = $this->integer( value: $row->total_page_view_count ?? null, minimum: 0 );
+		$total_events     = $this->integer( value: $row->total_event_count ?? null, minimum: 1 );
 
 		if (
 			! in_array( $subject_type, array( 'customer', 'visitor' ), true ) ||
 			null === $subject_id ||
 			! is_string( $last_activity_at ) ||
-			! $this->valid_time( value: $last_activity_at )
+			! $this->valid_time( value: $last_activity_at ) ||
+			null === $total_active_ms ||
+			null === $total_page_views ||
+			null === $total_events
 		) {
 			return null;
 		}
 
 		return array(
-			'subject_type'     => $subject_type,
-			'subject_id'       => $subject_id,
-			'last_activity_at' => $last_activity_at,
+			'subject_type'          => $subject_type,
+			'subject_id'            => $subject_id,
+			'last_activity_at'      => $last_activity_at,
+			'total_active_ms'       => $total_active_ms,
+			'total_page_view_count' => $total_page_views,
+			'total_event_count'     => $total_events,
 		);
 	}
 
@@ -259,11 +276,22 @@ final class Journey_Report_Visitor_Repository {
 	 * @return int|null Valid ID or null.
 	 */
 	private function positive_id( mixed $value ): ?int {
+		return $this->integer( value: $value, minimum: 1 );
+	}
+
+	/**
+	 * Accept only a canonical decimal integer within the platform range.
+	 *
+	 * @param mixed $value   Stored integer.
+	 * @param int   $minimum Smallest accepted value.
+	 * @return int|null Valid integer or null.
+	 */
+	private function integer( mixed $value, int $minimum ): ?int {
 		if ( ! is_int( $value ) && ! is_string( $value ) ) {
 			return null;
 		}
 
-		$parsed = filter_var( $value, FILTER_VALIDATE_INT, array( 'options' => array( 'min_range' => 1 ) ) );
+		$parsed = filter_var( $value, FILTER_VALIDATE_INT, array( 'options' => array( 'min_range' => $minimum ) ) );
 		return false === $parsed ? null : $parsed;
 	}
 
