@@ -15,6 +15,8 @@ use Shurloc\SiteTools\Customer\Journey\Journey_Event_Type;
 use Shurloc\SiteTools\Customer\Journey\Journey_Report_Page_Builder;
 use Shurloc\SiteTools\Customer\Journey\Repositories\Journey_Report_Repository;
 use Shurloc\SiteTools\Customer\Journey\Repositories\Journey_Report_Session_Repository;
+use WC_Product;
+use WC_Product_Variation;
 
 /**
  * Verify safe, identity-aware Journey report markup.
@@ -30,13 +32,21 @@ final class JourneyReportRendererTest extends TestCase {
 		parent::setUp();
 
 		$GLOBALS['shurloc_test_nonce_fields'] = array();
-		$_GET                                 = array();
+		$GLOBALS['shurloc_test_permalinks']   = array();
+		$GLOBALS['shurloc_test_products']     = array();
+
+		unset( $GLOBALS['shurloc_test_home_url'] );
+		$_GET = array();
 	}
 
 	/** Restore shared request and nonce state. */
 	protected function tearDown(): void {
 		$GLOBALS['shurloc_test_nonce_fields'] = array();
-		$_GET                                 = array();
+		$GLOBALS['shurloc_test_permalinks']   = array();
+		$GLOBALS['shurloc_test_products']     = array();
+
+		unset( $GLOBALS['shurloc_test_home_url'] );
+		$_GET = array();
 
 		parent::tearDown();
 	}
@@ -101,6 +111,38 @@ final class JourneyReportRendererTest extends TestCase {
 		self::assertStringContainsString( 'Authenticated', $output );
 		self::assertSame( 1, substr_count( $output, 'name="journey_session_id"' ) );
 		self::assertLessThan( strpos( $output, 'Order record created' ), strpos( $output, 'Viewed — &lt;1s active' ) );
+	}
+
+	/**
+	 * Page paths and current product names link to their frontend records.
+	 *
+	 * @return void
+	 */
+	public function test_links_pages_and_named_products_to_frontend_records(): void {
+		$GLOBALS['shurloc_test_home_url']        = 'https://shop.example';
+		$GLOBALS['shurloc_test_permalinks'][77]  = 'https://shop.example/about-us/';
+		$GLOBALS['shurloc_test_permalinks'][123] = 'https://shop.example/product/mesh-screen/';
+
+		$product = new WC_Product( 123 );
+		$product->set_name( 'Mesh Screen' );
+		$variation = new WC_Product_Variation( 456 );
+		$variation->set_name( 'Mesh Screen - Black' );
+
+		$events             = array(
+			$this->event( id: 1, event_type: Journey_Event_Type::PAGE_VIEW, occurred_at: '2026-09-18 12:00:00', page_path: '/about/', post_id: 77 ),
+			$this->event( id: 2, event_type: Journey_Event_Type::CHECKOUT_STARTED, occurred_at: '2026-09-18 12:01:00', page_path: '/checkout/' ),
+			$this->event( id: 3, event_type: Journey_Event_Type::PRODUCT_VIEW, occurred_at: '2026-09-18 12:02:00', product_id: 123 ),
+			$this->event( id: 4, event_type: Journey_Event_Type::ADD_TO_CART, occurred_at: '2026-09-18 12:03:00', product_id: 123, variation_id: 456, quantity: '1.0000' ),
+		);
+		$totals             = $this->empty_totals();
+		$totals['sessions'] = 1;
+
+		$output = $this->render( page: $this->page( events: $events, context: null, totals: $totals ), customer_report: false );
+
+		self::assertStringContainsString( '<a href="https://shop.example/about-us/">/about/</a>', $output );
+		self::assertStringContainsString( '<a href="https://shop.example/checkout/">/checkout/</a>', $output );
+		self::assertStringContainsString( '<a href="https://shop.example/product/mesh-screen/">Mesh Screen</a>', $output );
+		self::assertStringContainsString( '<a href="https://shop.example/product/mesh-screen/">Mesh Screen - Black — Variation #456</a>', $output );
 	}
 
 	/**
@@ -306,6 +348,7 @@ final class JourneyReportRendererTest extends TestCase {
 	 * @param string      $event_type   Event type.
 	 * @param string      $occurred_at  UTC event timestamp.
 	 * @param string|null $page_path    Stored page path.
+	 * @param int|null    $post_id      WordPress post ID.
 	 * @param int|null    $product_id   WooCommerce product ID.
 	 * @param int|null    $variation_id WooCommerce variation ID.
 	 * @param string|null $quantity     Product quantity.
@@ -320,6 +363,7 @@ final class JourneyReportRendererTest extends TestCase {
 		string $event_type,
 		string $occurred_at,
 		?string $page_path = null,
+		?int $post_id = null,
 		?int $product_id = null,
 		?int $variation_id = null,
 		?string $quantity = null,
@@ -335,7 +379,7 @@ final class JourneyReportRendererTest extends TestCase {
 			'event_type'        => $event_type,
 			'occurred_at'       => $occurred_at,
 			'page_path'         => $page_path,
-			'post_id'           => null,
+			'post_id'           => $post_id,
 			'product_id'        => $product_id,
 			'variation_id'      => $variation_id,
 			'quantity'          => $quantity,

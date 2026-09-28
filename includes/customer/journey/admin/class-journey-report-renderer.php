@@ -15,6 +15,7 @@ use DateTimeImmutable;
 use DateTimeZone;
 use Shurloc\SiteTools\Customer\Journey\Journey_Event_Type;
 use Shurloc\SiteTools\Customer\Journey\Journey_Report_Page_Builder;
+use WC_Product;
 
 /**
  * Render one bounded Customer Journey page using WordPress admin markup.
@@ -28,6 +29,7 @@ use Shurloc\SiteTools\Customer\Journey\Journey_Report_Page_Builder;
  * @phpstan-import-type SessionGroup from Journey_Report_Page_Builder
  * @phpstan-import-type ReportEvent from \Shurloc\SiteTools\Customer\Journey\Repositories\Journey_Report_Repository
  * @phpstan-import-type SessionContext from \Shurloc\SiteTools\Customer\Journey\Repositories\Journey_Report_Session_Repository
+ * @phpstan-type EventItem array{label:string,url:string|null}
  */
 final class Journey_Report_Renderer {
 	/** Report filters retained after deleting a session. */
@@ -157,9 +159,16 @@ final class Journey_Report_Renderer {
 				</thead>
 				<tbody>
 					<?php foreach ( $session['events'] as $event ) : ?>
+						<?php $item = $this->event_item( event: $event ); ?>
 						<tr>
 							<td><?php echo esc_html( $this->format_time( utc: $event['occurred_at'], timezone: $timezone ) ); ?></td>
-							<td><?php echo esc_html( $this->event_item( event: $event ) ); ?></td>
+							<td>
+								<?php if ( null !== $item['url'] ) : ?>
+									<a href="<?php echo esc_url( $item['url'] ); ?>"><?php echo esc_html( $item['label'] ); ?></a>
+								<?php else : ?>
+									<?php echo esc_html( $item['label'] ); ?>
+								<?php endif; ?>
+							</td>
 							<td><?php echo esc_html( $this->event_activity( event: $event ) ); ?></td>
 							<td><?php echo esc_html( $this->identity_label( authenticated: null !== $event['user_id_at_event'], customer_report: $customer_report ) ); ?></td>
 						</tr>
@@ -269,36 +278,73 @@ final class Journey_Report_Renderer {
 	 * Describe the record affected by one event using stored IDs and paths.
 	 *
 	 * @param array $event Validated report event.
-	 * @return string Display item.
+	 * @return array Display item and optional frontend URL.
 	 * @phpstan-param ReportEvent $event
+	 * @phpstan-return EventItem
 	 */
-	private function event_item( array $event ): string {
+	private function event_item( array $event ): array {
 		if ( null !== $event['order_id'] ) {
-			/* translators: %d: WooCommerce order ID. */
-			return sprintf( __( 'Order #%d', 'shurloc-site-tools' ), $event['order_id'] );
+			return array(
+				'label' => sprintf(
+					/* translators: %d: WooCommerce order ID. */
+					__( 'Order #%d', 'shurloc-site-tools' ),
+					$event['order_id']
+				),
+				'url'   => null,
+			);
 		}
 
 		if ( null !== $event['product_id'] ) {
 			/* translators: %d: WooCommerce product ID. */
 			$item = sprintf( __( 'Product #%d', 'shurloc-site-tools' ), $event['product_id'] );
+			$url  = null;
+
+			$product = wc_get_product( $event['variation_id'] ?? $event['product_id'] );
+			if ( ! $product instanceof WC_Product && null !== $event['variation_id'] ) {
+				$product = wc_get_product( $event['product_id'] );
+			}
+			if ( $product instanceof WC_Product && '' !== $product->get_name() ) {
+				$item = $product->get_name();
+			}
+
+			$permalink = get_permalink( $event['product_id'] );
+			if ( is_string( $permalink ) && '' !== $permalink ) {
+				$url = $permalink;
+			}
+
 			if ( null !== $event['variation_id'] ) {
 				/* translators: %d: WooCommerce variation ID. */
 				$item .= ' — ' . sprintf( __( 'Variation #%d', 'shurloc-site-tools' ), $event['variation_id'] );
 			}
 
-			return $item;
+			return array(
+				'label' => $item,
+				'url'   => $url,
+			);
 		}
 
 		if ( null !== $event['page_path'] && '' !== $event['page_path'] ) {
-			return $event['page_path'];
+			$url = null !== $event['post_id'] ? get_permalink( $event['post_id'] ) : false;
+			return array(
+				'label' => $event['page_path'],
+				'url'   => is_string( $url ) && '' !== $url ? $url : home_url( $event['page_path'] ),
+			);
 		}
 
 		if ( null !== $event['post_id'] ) {
 			/* translators: %d: WordPress post ID. */
-			return sprintf( __( 'Page #%d', 'shurloc-site-tools' ), $event['post_id'] );
+			$label     = sprintf( __( 'Page #%d', 'shurloc-site-tools' ), $event['post_id'] );
+			$permalink = get_permalink( $event['post_id'] );
+			return array(
+				'label' => $label,
+				'url'   => is_string( $permalink ) && '' !== $permalink ? $permalink : null,
+			);
 		}
 
-		return '—';
+		return array(
+			'label' => '—',
+			'url'   => null,
+		);
 	}
 
 	/**
