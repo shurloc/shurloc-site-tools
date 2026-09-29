@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.10.3] - 2026-09-29
+
+### Added
+
+- Added Customer Journey maintenance migrations to remove all Journey data or delete zero-duration journeys containing a single event.
+
 ## [0.10.2] - 2026-09-28
 
 ### Added
