@@ -33,7 +33,9 @@ use Shurloc\SiteTools\Customer\Journey\Journey_Privacy_Exporter;
 use Shurloc\SiteTools\Customer\Journey\Journey_Report_Page_Builder;
 use Shurloc\SiteTools\Customer\Journey\Journey_Retention_Scheduler;
 use Shurloc\SiteTools\Customer\Journey\Frontend\Journey_Browser_Assets;
+use Shurloc\SiteTools\Customer\Journey\Migrations\Journey_Data_Truncation_Migration;
 use Shurloc\SiteTools\Customer\Journey\Migrations\Journey_Schema_Migrator;
+use Shurloc\SiteTools\Customer\Journey\Migrations\Journey_Single_Event_Cleanup_Migration;
 use Shurloc\SiteTools\Customer\Journey\Repositories\Journey_Report_Repository;
 use Shurloc\SiteTools\Customer\Journey\Repositories\Journey_Report_Session_Repository;
 use Shurloc\SiteTools\Customer\Journey\Repositories\Journey_Report_Visitor_Repository;
@@ -53,7 +55,7 @@ use Shurloc\SiteTools\Customer\Services\User_Purchase_Service;
  */
 final class Bootstrap {
 	/**
-	 * Migrator shared by the admin upgrade check and retry controller.
+	 * Migrator shared by schema administration and Journey maintenance.
 	 *
 	 * @var Journey_Schema_Migrator|null
 	 */
@@ -66,6 +68,7 @@ final class Bootstrap {
 	 */
 	public function register(): void {
 		$journey_report_controller = null;
+		$journey_schema_migrator   = new Journey_Schema_Migrator();
 
 		$journey_browser_ingestion = new Journey_Browser_Ingestion_Controller();
 		$journey_browser_ingestion->register();
@@ -94,7 +97,7 @@ final class Bootstrap {
 		);
 
 		if ( is_admin() ) {
-			$this->journey_schema_migrator = new Journey_Schema_Migrator();
+			$this->journey_schema_migrator = $journey_schema_migrator;
 
 			$journey_schema_admin = new Journey_Schema_Admin(
 				migrator: $this->journey_schema_migrator,
@@ -144,9 +147,23 @@ final class Bootstrap {
 			cart_service: $user_cart_service,
 		);
 
+		$journey_truncation_migration =
+			new Journey_Data_Truncation_Migration(
+				schema_migrator: $journey_schema_migrator,
+			);
+
+		$journey_single_event_migration =
+			new Journey_Single_Event_Cleanup_Migration(
+				schema_migrator: $journey_schema_migrator,
+			);
+
 		$migrations_controller = new Customer_Migrations_Controller(
 			purchase_migration: $user_purchase_migration,
 			cart_migration: $user_cart_migration,
+			journey_truncation_migration:
+				$journey_truncation_migration,
+			journey_single_event_migration:
+				$journey_single_event_migration,
 		);
 		$migrations_controller->register();
 

@@ -315,6 +315,16 @@ final class BootstrapTest extends TestCase {
 			'admin_post_shurloc_run_cart_migration',
 			$GLOBALS['shurloc_test_actions']
 		);
+
+		self::assertArrayHasKey(
+			'admin_post_shurloc_run_journey_data_truncation_migration',
+			$GLOBALS['shurloc_test_actions']
+		);
+
+		self::assertArrayHasKey(
+			'admin_post_shurloc_run_journey_single_event_cleanup_migration',
+			$GLOBALS['shurloc_test_actions']
+		);
 	}
 
 	/**
