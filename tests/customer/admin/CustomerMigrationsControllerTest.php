@@ -11,6 +11,9 @@ namespace Shurloc\SiteTools\Customer\Admin;
 
 use PHPUnit\Framework\TestCase;
 use RuntimeException;
+use Shurloc\SiteTools\Customer\Journey\Migrations\Journey_Data_Truncation_Migration;
+use Shurloc\SiteTools\Customer\Journey\Migrations\Journey_Schema_Migrator;
+use Shurloc\SiteTools\Customer\Journey\Migrations\Journey_Single_Event_Cleanup_Migration;
 use Shurloc\SiteTools\Customer\Migrations\User_Cart_Migration;
 use Shurloc\SiteTools\Customer\Migrations\User_Purchase_Migration;
 use Shurloc\SiteTools\Customer\Services\User_Cart_Service;
@@ -32,6 +35,13 @@ final class CustomerMigrationsControllerTest extends TestCase {
 	private Customer_Migrations_Controller $controller;
 
 	/**
+	 * Database double.
+	 *
+	 * @var Shurloc_Test_WPDB
+	 */
+	private Shurloc_Test_WPDB $database;
+
+	/**
 	 * Prepare each test.
 	 *
 	 * @return void
@@ -44,7 +54,10 @@ final class CustomerMigrationsControllerTest extends TestCase {
 		$GLOBALS['shurloc_test_action_metadata']      = array();
 		$GLOBALS['shurloc_test_enqueued_scripts']     = array();
 		$GLOBALS['shurloc_test_styles']               = array();
-		$GLOBALS['shurloc_test_options']              = array();
+		$GLOBALS['shurloc_test_options']              = array(
+			Journey_Schema_Migrator::VERSION_OPTION =>
+				Journey_Schema_Migrator::CURRENT_VERSION,
+		);
 		$GLOBALS['shurloc_test_nonce_fields']         = array();
 		$GLOBALS['shurloc_test_users']                = array();
 		$GLOBALS['shurloc_test_orders']               = array();
@@ -58,8 +71,10 @@ final class CustomerMigrationsControllerTest extends TestCase {
 		$GLOBALS['shurloc_test_products']             = array();
 		$GLOBALS['shurloc_test_time']                 = 1_000_000;
 
+		$this->database = new Shurloc_Test_WPDB();
+
 		// phpcs:ignore WordPress.WP.GlobalVariablesOverride.Prohibited -- Reset test-only wpdb replacement.
-		$GLOBALS['wpdb'] = new Shurloc_Test_WPDB();
+		$GLOBALS['wpdb'] = $this->database;
 
 		$_GET = array();
 
@@ -74,9 +89,19 @@ final class CustomerMigrationsControllerTest extends TestCase {
 			cart_service: $cart_service,
 		);
 
+		$journey_truncation_migration =
+			new Journey_Data_Truncation_Migration();
+
+		$journey_single_event_migration =
+			new Journey_Single_Event_Cleanup_Migration();
+
 		$this->controller = new Customer_Migrations_Controller(
 			purchase_migration: $purchase_migration,
 			cart_migration: $cart_migration,
+			journey_truncation_migration:
+				$journey_truncation_migration,
+			journey_single_event_migration:
+				$journey_single_event_migration,
 		);
 	}
 
@@ -157,6 +182,32 @@ final class CustomerMigrationsControllerTest extends TestCase {
 			),
 			$GLOBALS['shurloc_test_actions']
 				['admin_post_shurloc_run_cart_migration']
+		);
+	}
+
+	/**
+	 * Verify controller registration includes both Journey migration actions.
+	 *
+	 * @return void
+	 */
+	public function test_register_adds_journey_migration_actions(): void {
+		$this->controller->register();
+
+		self::assertContains(
+			array(
+				$this->controller,
+				'handle_journey_data_truncation_migration',
+			),
+			$GLOBALS['shurloc_test_actions']
+				['admin_post_shurloc_run_journey_data_truncation_migration']
+		);
+		self::assertContains(
+			array(
+				$this->controller,
+				'handle_journey_single_event_cleanup_migration',
+			),
+			$GLOBALS['shurloc_test_actions']
+				['admin_post_shurloc_run_journey_single_event_cleanup_migration']
 		);
 	}
 
@@ -250,13 +301,21 @@ final class CustomerMigrationsControllerTest extends TestCase {
 		);
 
 		self::assertCount(
-			2,
+			4,
 			$GLOBALS['shurloc_test_nonce_fields']
 		);
 
 		self::assertSame(
 			'shurloc_run_purchase_migration',
 			$GLOBALS['shurloc_test_nonce_fields'][0]['action']
+		);
+		self::assertSame(
+			'shurloc_run_journey_single_event_cleanup_migration',
+			$GLOBALS['shurloc_test_nonce_fields'][2]['action']
+		);
+		self::assertSame(
+			'shurloc_run_journey_data_truncation_migration',
+			$GLOBALS['shurloc_test_nonce_fields'][3]['action']
 		);
 	}
 
@@ -339,6 +398,44 @@ final class CustomerMigrationsControllerTest extends TestCase {
 
 		self::assertMatchesRegularExpression(
 			'/Cart Tracking Seeding.*?Last-run migration version<\/th>\s*<td>\s*1\s*<\/td>/s',
+			$output
+		);
+	}
+
+	/**
+	 * Verify the migrations page renders both Journey maintenance controls.
+	 *
+	 * @return void
+	 */
+	public function test_render_shows_journey_migration_controls(): void {
+		ob_start();
+
+		$this->controller->render();
+
+		$output = (string) ob_get_clean();
+
+		self::assertStringContainsString(
+			'Single-Event Journey Cleanup',
+			$output
+		);
+		self::assertStringContainsString(
+			'exactly one event and 0 seconds of active time',
+			$output
+		);
+		self::assertStringContainsString(
+			'Run Single-Event Journey Cleanup',
+			$output
+		);
+		self::assertStringContainsString(
+			'Journey Data Truncation',
+			$output
+		);
+		self::assertStringContainsString(
+			'All Customer Journey data will be permanently removed.',
+			$output
+		);
+		self::assertStringContainsString(
+			'Run Journey Data Truncation',
 			$output
 		);
 	}
@@ -957,6 +1054,204 @@ final class CustomerMigrationsControllerTest extends TestCase {
 
 		self::assertStringNotContainsString(
 			'Cart migration complete.',
+			$output
+		);
+	}
+
+	/**
+	 * Verify Journey data truncation returns its scoped result URL.
+	 *
+	 * @return void
+	 */
+	public function test_run_journey_data_truncation_returns_result_url(): void {
+		$this->database->query_result_queue = array_fill( 0, 5, 0 );
+
+		$redirect_url =
+			$this->controller->run_journey_data_truncation_migration();
+
+		self::assertStringContainsString(
+			'migration=journey-data-truncation',
+			$redirect_url
+		);
+		self::assertStringContainsString(
+			'truncated=5',
+			$redirect_url
+		);
+		self::assertStringContainsString( 'errors=0', $redirect_url );
+		self::assertStringContainsString(
+			'_wpnonce=test-nonce-shurloc_journey_data_truncation_migration_result',
+			$redirect_url
+		);
+		self::assertArrayNotHasKey(
+			Journey_Data_Truncation_Migration::LOCK_OPTION,
+			$GLOBALS['shurloc_test_options']
+		);
+	}
+
+	/**
+	 * Verify single-event Journey cleanup returns its scoped result URL.
+	 *
+	 * @return void
+	 */
+	public function test_run_journey_single_event_cleanup_returns_result_url(): void {
+		$this->database->result_queue       = array(
+			array(
+				(object) array( 'id' => '20' ),
+				(object) array( 'id' => '21' ),
+			),
+		);
+		$this->database->query_result_queue = array( 2, 2, 2 );
+
+		$redirect_url =
+			$this->controller->run_journey_single_event_cleanup_migration();
+
+		self::assertStringContainsString(
+			'migration=journey-single-event-cleanup',
+			$redirect_url
+		);
+		self::assertStringContainsString( 'deleted=2', $redirect_url );
+		self::assertStringContainsString( 'errors=0', $redirect_url );
+		self::assertStringContainsString(
+			'_wpnonce=test-nonce-shurloc_journey_single_event_cleanup_migration_result',
+			$redirect_url
+		);
+		self::assertArrayNotHasKey(
+			Journey_Single_Event_Cleanup_Migration::LOCK_OPTION,
+			$GLOBALS['shurloc_test_options']
+		);
+	}
+
+	/**
+	 * Verify the shared Journey lock prevents either migration from running.
+	 *
+	 * @return void
+	 */
+	public function test_run_journey_migrations_respect_shared_lock(): void {
+		$GLOBALS['shurloc_test_options']
+			[ Journey_Data_Truncation_Migration::LOCK_OPTION ] = \time();
+
+		$truncation_url =
+			$this->controller->run_journey_data_truncation_migration();
+		$cleanup_url    =
+			$this->controller->run_journey_single_event_cleanup_migration();
+
+		self::assertStringContainsString(
+			'migration=journey-data-truncation-locked',
+			$truncation_url
+		);
+		self::assertStringContainsString(
+			'migration=journey-single-event-cleanup-locked',
+			$cleanup_url
+		);
+		self::assertSame( array(), $this->database->queries );
+	}
+
+	/**
+	 * Verify a valid Journey truncation result displays its completion notice.
+	 *
+	 * @return void
+	 */
+	public function test_render_displays_journey_truncation_result(): void {
+		$_GET['migration'] = 'journey-data-truncation';
+		$_GET['truncated'] = '5';
+		$_GET['errors']    = '0';
+		$_GET['_wpnonce']  =
+			'test-nonce-shurloc_journey_data_truncation_migration_result';
+
+		ob_start();
+
+		$this->controller->render();
+
+		$output = (string) ob_get_clean();
+
+		self::assertStringContainsString(
+			'Journey data truncation complete.',
+			$output
+		);
+		self::assertStringContainsString(
+			'Tables truncated: 5',
+			$output
+		);
+		self::assertStringContainsString( 'Errors: 0', $output );
+		self::assertStringContainsString( 'notice-success', $output );
+	}
+
+	/**
+	 * Verify a Journey cleanup result with errors displays a warning notice.
+	 *
+	 * @return void
+	 */
+	public function test_render_displays_journey_single_event_result(): void {
+		$_GET['migration'] = 'journey-single-event-cleanup';
+		$_GET['deleted']   = '12';
+		$_GET['errors']    = '1';
+		$_GET['_wpnonce']  =
+			'test-nonce-shurloc_journey_single_event_cleanup_migration_result';
+
+		ob_start();
+
+		$this->controller->render();
+
+		$output = (string) ob_get_clean();
+
+		self::assertStringContainsString(
+			'Single-event Journey cleanup complete.',
+			$output
+		);
+		self::assertStringContainsString(
+			'Journeys deleted: 12',
+			$output
+		);
+		self::assertStringContainsString( 'Errors: 1', $output );
+		self::assertStringContainsString( 'notice-warning', $output );
+	}
+
+	/**
+	 * Verify a locked Journey cleanup displays its warning notice.
+	 *
+	 * @return void
+	 */
+	public function test_render_displays_journey_cleanup_locked_notice(): void {
+		$_GET['migration'] = 'journey-single-event-cleanup-locked';
+		$_GET['_wpnonce']  =
+			'test-nonce-shurloc_journey_single_event_cleanup_migration_result';
+
+		ob_start();
+
+		$this->controller->render();
+
+		$output = (string) ob_get_clean();
+
+		self::assertStringContainsString(
+			'Single-event Journey cleanup is already running.',
+			$output
+		);
+		self::assertStringContainsString(
+			'No second migration was started.',
+			$output
+		);
+	}
+
+	/**
+	 * Verify Journey migration result nonces cannot authorize each other.
+	 *
+	 * @return void
+	 */
+	public function test_render_rejects_journey_result_with_wrong_nonce(): void {
+		$_GET['migration'] = 'journey-single-event-cleanup';
+		$_GET['deleted']   = '12';
+		$_GET['errors']    = '0';
+		$_GET['_wpnonce']  =
+			'test-nonce-shurloc_journey_data_truncation_migration_result';
+
+		ob_start();
+
+		$this->controller->render();
+
+		$output = (string) ob_get_clean();
+
+		self::assertStringNotContainsString(
+			'Single-event Journey cleanup complete.',
 			$output
 		);
 	}
