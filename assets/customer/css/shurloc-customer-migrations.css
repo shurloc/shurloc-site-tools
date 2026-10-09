@@ -6,6 +6,21 @@
  * @package ShurlocSiteTools
  */
 
+.shurloc-migration-grid {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 20px;
+	align-items: flex-start;
+	margin-top: 20px;
+}
+
+.shurloc-migration-grid .card {
+	box-sizing: border-box;
+	flex: 0 1 520px;
+	width: 100%;
+	margin: 0;
+}
+
 .shurloc-migration-overlay {
 	position: fixed;
 	inset: 0;

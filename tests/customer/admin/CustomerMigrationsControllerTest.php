@@ -415,11 +415,28 @@ final class CustomerMigrationsControllerTest extends TestCase {
 		$output = (string) ob_get_clean();
 
 		self::assertStringContainsString(
+			'<div class="shurloc-migration-grid">',
+			$output
+		);
+		self::assertSame(
+			4,
+			substr_count( $output, '<div class="card">' )
+		);
+		self::assertMatchesRegularExpression(
+			'/<\/div>\s*<\/div>\s*<div\s+class="shurloc-migration-overlay"/s',
+			$output
+		);
+
+		self::assertStringContainsString(
 			'Single-Event Journey Cleanup',
 			$output
 		);
 		self::assertStringContainsString(
-			'exactly one event and 0 seconds of active time',
+			'exactly one event and either no referrer or a referrer of shurloc.com',
+			$output
+		);
+		self::assertStringContainsString(
+			'Journey sessions with exactly one event and either no referrer or a referrer of shurloc.com, together with their dependent events and cart links, will be permanently deleted.',
 			$output
 		);
 		self::assertStringContainsString(

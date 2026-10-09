@@ -245,6 +245,7 @@ final class Journey_Report_Renderer {
 		$classification_version = 0 === $context['classification_version']
 			? __( '0 (legacy/unclassified)', 'shurloc-site-tools' )
 			: (string) $context['classification_version'];
+		$user_agent             = $context['user_agent'] ?? __( 'Not recorded', 'shurloc-site-tools' );
 		$fields                 = array(
 			__( 'Landing page', 'shurloc-site-tools' ) => $context['landing_path'],
 			__( 'Referrer', 'shurloc-site-tools' )     => $context['referrer_host'],
@@ -257,7 +258,6 @@ final class Journey_Report_Renderer {
 			__( 'Client name', 'shurloc-site-tools' )  => $context['client_name'] ?? __( 'Not identified', 'shurloc-site-tools' ),
 			__( 'Device type', 'shurloc-site-tools' )  => $context['device_type'],
 			__( 'Classification version', 'shurloc-site-tools' ) => $classification_version,
-			__( 'User agent', 'shurloc-site-tools' )   => $context['user_agent'] ?? __( 'Not recorded', 'shurloc-site-tools' ),
 		);
 
 		$fields = array_filter( $fields, static fn ( ?string $value ): bool => null !== $value && '' !== $value );
@@ -265,12 +265,36 @@ final class Journey_Report_Renderer {
 			return;
 		}
 		?>
-		<dl class="shurloc-journey-attribution">
-			<?php foreach ( $fields as $label => $value ) : ?>
-				<dt><?php echo esc_html( $label ); ?></dt>
-				<dd><?php echo esc_html( $value ); ?></dd>
-			<?php endforeach; ?>
-		</dl>
+		<table class="widefat striped shurloc-journey-attribution">
+			<thead>
+				<tr>
+					<?php foreach ( $fields as $label => $value ) : ?>
+						<th scope="col"><?php echo esc_html( $label ); ?></th>
+					<?php endforeach; ?>
+				</tr>
+			</thead>
+			<tbody>
+				<tr>
+					<?php foreach ( $fields as $value ) : ?>
+						<td><?php echo esc_html( $value ); ?></td>
+					<?php endforeach; ?>
+				</tr>
+			</tbody>
+		</table>
+		<br>
+		<table class="widefat striped shurloc-journey-user-agent">
+			<thead>
+				<tr>
+					<th scope="col"><?php echo esc_html__( 'User agent', 'shurloc-site-tools' ); ?></th>
+				</tr>
+			</thead>
+			<tbody>
+				<tr>
+					<td><?php echo esc_html( $user_agent ); ?></td>
+				</tr>
+			</tbody>
+		</table>
+		<br>
 		<?php
 	}
 
