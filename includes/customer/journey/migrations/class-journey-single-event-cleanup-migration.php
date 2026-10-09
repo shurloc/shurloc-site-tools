@@ -15,15 +15,18 @@ use RuntimeException;
 use Throwable;
 
 /**
- * Deletes Journey sessions with one event and no referrer.
+ * Deletes Journey sessions with one event and no or first-party referrer.
  */
 final class Journey_Single_Event_Cleanup_Migration {
 
 	/** Current migration version. */
-	public const VERSION = 2;
+	public const VERSION = 3;
 
 	/** Maximum sessions deleted in one transaction. */
 	public const BATCH_SIZE = 1000;
+
+	/** First-party referrer included in the cleanup criteria. */
+	private const MATCHING_REFERRER_HOST = 'shurloc.com';
 
 	/** Option storing the timestamp of the most recent successful run. */
 	public const LAST_RUN_OPTION =
@@ -60,7 +63,7 @@ final class Journey_Single_Event_Cleanup_Migration {
 	}
 
 	/**
-	 * Delete all sessions containing one event and no referrer.
+	 * Delete sessions containing one event and no or first-party referrer.
 	 *
 	 * @return array{deleted:int,errors:int} Migration result.
 	 */
@@ -112,9 +115,10 @@ final class Journey_Single_Event_Cleanup_Migration {
 			$rows = $wpdb->get_results(
 				$wpdb->prepare(
 					'SELECT id FROM %i
-					WHERE event_count = 1 AND referrer_host IS NULL
+					WHERE event_count = 1 AND (referrer_host IS NULL OR referrer_host = %s)
 					ORDER BY id ASC LIMIT %d FOR UPDATE',
 					$this->sessions_table(),
+					self::MATCHING_REFERRER_HOST,
 					self::BATCH_SIZE
 				)
 			);

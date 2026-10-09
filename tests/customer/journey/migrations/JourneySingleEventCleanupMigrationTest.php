@@ -13,7 +13,7 @@ use PHPUnit\Framework\TestCase;
 use Shurloc_Test_WPDB;
 
 /**
- * Tests dependency-safe cleanup of no-referrer, single-event journeys.
+ * Tests dependency-safe cleanup of no- or first-party-referrer journeys.
  */
 final class JourneySingleEventCleanupMigrationTest extends TestCase {
 
@@ -101,7 +101,7 @@ final class JourneySingleEventCleanupMigrationTest extends TestCase {
 
 		$selection = $this->database->prepared_queries[0];
 		self::assertStringContainsString(
-			'WHERE event_count = 1 AND referrer_host IS NULL',
+			'WHERE event_count = 1 AND (referrer_host IS NULL OR referrer_host = %s)',
 			$selection['query']
 		);
 		self::assertStringContainsString(
@@ -111,6 +111,7 @@ final class JourneySingleEventCleanupMigrationTest extends TestCase {
 		self::assertSame(
 			array(
 				'shop_shurloc_journey_sessions',
+				'shurloc.com',
 				Journey_Single_Event_Cleanup_Migration::BATCH_SIZE,
 			),
 			$selection['args']
