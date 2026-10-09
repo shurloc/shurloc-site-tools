@@ -13,7 +13,7 @@ use PHPUnit\Framework\TestCase;
 use Shurloc_Test_WPDB;
 
 /**
- * Tests dependency-safe cleanup of zero-time, single-event journeys.
+ * Tests dependency-safe cleanup of no-referrer, single-event journeys.
  */
 final class JourneySingleEventCleanupMigrationTest extends TestCase {
 
@@ -101,7 +101,7 @@ final class JourneySingleEventCleanupMigrationTest extends TestCase {
 
 		$selection = $this->database->prepared_queries[0];
 		self::assertStringContainsString(
-			'WHERE event_count = 1 AND active_ms = 0',
+			'WHERE event_count = 1 AND referrer_host IS NULL',
 			$selection['query']
 		);
 		self::assertStringContainsString(

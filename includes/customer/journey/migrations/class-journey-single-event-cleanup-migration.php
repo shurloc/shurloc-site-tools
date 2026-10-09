@@ -15,12 +15,12 @@ use RuntimeException;
 use Throwable;
 
 /**
- * Deletes Journey sessions with one event and no recorded active time.
+ * Deletes Journey sessions with one event and no referrer.
  */
 final class Journey_Single_Event_Cleanup_Migration {
 
 	/** Current migration version. */
-	public const VERSION = 1;
+	public const VERSION = 2;
 
 	/** Maximum sessions deleted in one transaction. */
 	public const BATCH_SIZE = 1000;
@@ -60,7 +60,7 @@ final class Journey_Single_Event_Cleanup_Migration {
 	}
 
 	/**
-	 * Delete all sessions containing one event and zero active milliseconds.
+	 * Delete all sessions containing one event and no referrer.
 	 *
 	 * @return array{deleted:int,errors:int} Migration result.
 	 */
@@ -112,7 +112,7 @@ final class Journey_Single_Event_Cleanup_Migration {
 			$rows = $wpdb->get_results(
 				$wpdb->prepare(
 					'SELECT id FROM %i
-					WHERE event_count = 1 AND active_ms = 0
+					WHERE event_count = 1 AND referrer_host IS NULL
 					ORDER BY id ASC LIMIT %d FOR UPDATE',
 					$this->sessions_table(),
 					self::BATCH_SIZE
