@@ -419,7 +419,11 @@ final class CustomerMigrationsControllerTest extends TestCase {
 			$output
 		);
 		self::assertStringContainsString(
-			'exactly one event and 0 seconds of active time',
+			'exactly one event and no referrer',
+			$output
+		);
+		self::assertStringContainsString(
+			'Journey sessions with exactly one event and no referrer, together with their dependent events and cart links, will be permanently deleted.',
 			$output
 		);
 		self::assertStringContainsString(
