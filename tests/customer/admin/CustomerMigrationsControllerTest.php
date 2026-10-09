@@ -415,6 +415,19 @@ final class CustomerMigrationsControllerTest extends TestCase {
 		$output = (string) ob_get_clean();
 
 		self::assertStringContainsString(
+			'<div class="shurloc-migration-grid">',
+			$output
+		);
+		self::assertSame(
+			4,
+			substr_count( $output, '<div class="card">' )
+		);
+		self::assertMatchesRegularExpression(
+			'/<\/div>\s*<\/div>\s*<div\s+class="shurloc-migration-overlay"/s',
+			$output
+		);
+
+		self::assertStringContainsString(
 			'Single-Event Journey Cleanup',
 			$output
 		);

@@ -252,12 +252,19 @@ final class Customer_Migrations_Controller {
 			Controlled tools for seeding and rebuilding customer
 			tracking data.
 		</p>
+
+		<div class="shurloc-migration-grid">
 		<?php
 
 		$this->render_purchase_migration_card();
 		$this->render_cart_migration_card();
 		$this->render_journey_single_event_migration_card();
 		$this->render_journey_truncation_migration_card();
+
+		?>
+		</div>
+		<?php
+
 		$this->render_migration_overlay();
 	}
 
