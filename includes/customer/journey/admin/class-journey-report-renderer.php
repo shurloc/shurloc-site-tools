@@ -265,12 +265,22 @@ final class Journey_Report_Renderer {
 			return;
 		}
 		?>
-		<dl class="shurloc-journey-attribution">
-			<?php foreach ( $fields as $label => $value ) : ?>
-				<dt><?php echo esc_html( $label ); ?></dt>
-				<dd><?php echo esc_html( $value ); ?></dd>
-			<?php endforeach; ?>
-		</dl>
+		<table class="widefat striped shurloc-journey-attribution">
+			<thead>
+				<tr>
+					<?php foreach ( $fields as $label => $value ) : ?>
+						<th scope="col"><?php echo esc_html( $label ); ?></th>
+					<?php endforeach; ?>
+				</tr>
+			</thead>
+			<tbody>
+				<tr>
+					<?php foreach ( $fields as $value ) : ?>
+						<td><?php echo esc_html( $value ); ?></td>
+					<?php endforeach; ?>
+				</tr>
+			</tbody>
+		</table>
 		<?php
 	}
 

@@ -88,14 +88,15 @@ final class JourneyReportRendererTest extends TestCase {
 		self::assertStringContainsString( '<strong>Active time:</strong> 1m 2s', $output );
 		self::assertStringContainsString( 'Session 9 — 5:00 am–5:05 am — 1m 2s active', $output );
 		self::assertStringContainsString( '&lt;script&gt;campaign&lt;/script&gt;', $output );
-		self::assertStringContainsString( '<dt>Client type</dt>', $output );
-		self::assertStringContainsString( '<dd>browser</dd>', $output );
-		self::assertStringContainsString( '<dt>Client name</dt>', $output );
-		self::assertStringContainsString( '<dd>Example Browser</dd>', $output );
-		self::assertStringContainsString( '<dt>Device type</dt>', $output );
-		self::assertStringContainsString( '<dd>desktop</dd>', $output );
-		self::assertStringContainsString( '<dt>Classification version</dt>', $output );
-		self::assertStringContainsString( '<dd>1</dd>', $output );
+		self::assertMatchesRegularExpression(
+			'/<table class="widefat striped shurloc-journey-attribution">\s*<thead>\s*<tr>.*<th scope="col">Client type<\/th>.*<th scope="col">Client name<\/th>.*<\/tr>\s*<\/thead>\s*<tbody>\s*<tr>.*<td>browser<\/td>.*<td>Example Browser<\/td>.*<\/tr>\s*<\/tbody>\s*<\/table>/s',
+			$output
+		);
+		self::assertStringContainsString( '<th scope="col">Device type</th>', $output );
+		self::assertStringContainsString( '<td>desktop</td>', $output );
+		self::assertStringContainsString( '<th scope="col">Classification version</th>', $output );
+		self::assertStringContainsString( '<td>1</td>', $output );
+		self::assertStringNotContainsString( '<dl class="shurloc-journey-attribution">', $output );
 		self::assertStringContainsString( 'Mozilla/5.0 &lt;script&gt;raw&lt;/script&gt;', $output );
 		self::assertStringContainsString( '/welcome/&lt;script&gt;alert(1)&lt;/script&gt;', $output );
 		self::assertStringNotContainsString( '<script>', $output );
@@ -163,11 +164,11 @@ final class JourneyReportRendererTest extends TestCase {
 
 		$output = $this->render( page: $this->page( events: array( $event ), context: $context, totals: $totals ), customer_report: false );
 
-		self::assertStringContainsString( '<dt>Client type</dt>', $output );
-		self::assertSame( 2, substr_count( $output, '<dd>unknown</dd>' ) );
-		self::assertStringContainsString( '<dd>Not identified</dd>', $output );
-		self::assertStringContainsString( '<dd>0 (legacy/unclassified)</dd>', $output );
-		self::assertStringContainsString( '<dd>Not recorded</dd>', $output );
+		self::assertStringContainsString( '<th scope="col">Client type</th>', $output );
+		self::assertSame( 2, substr_count( $output, '<td>unknown</td>' ) );
+		self::assertStringContainsString( '<td>Not identified</td>', $output );
+		self::assertStringContainsString( '<td>0 (legacy/unclassified)</td>', $output );
+		self::assertStringContainsString( '<td>Not recorded</td>', $output );
 	}
 
 	/**
