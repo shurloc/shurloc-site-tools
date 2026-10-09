@@ -89,7 +89,11 @@ final class JourneyReportRendererTest extends TestCase {
 		self::assertStringContainsString( 'Session 9 — 5:00 am–5:05 am — 1m 2s active', $output );
 		self::assertStringContainsString( '&lt;script&gt;campaign&lt;/script&gt;', $output );
 		self::assertMatchesRegularExpression(
-			'/<table class="widefat striped shurloc-journey-attribution">\s*<thead>\s*<tr>.*<th scope="col">Client type<\/th>.*<th scope="col">Client name<\/th>.*<\/tr>\s*<\/thead>\s*<tbody>\s*<tr>.*<td>browser<\/td>.*<td>Example Browser<\/td>.*<\/tr>\s*<\/tbody>\s*<\/table>/s',
+			'/<table class="widefat striped shurloc-journey-attribution">\s*<thead>\s*<tr>.*?<th scope="col">Client type<\/th>.*?<th scope="col">Client name<\/th>.*?<\/tr>\s*<\/thead>\s*<tbody>\s*<tr>.*?<td>browser<\/td>.*?<td>Example Browser<\/td>.*?<\/tr>\s*<\/tbody>\s*<\/table>/s',
+			$output
+		);
+		self::assertMatchesRegularExpression(
+			'/<\/table>\s*<br>\s*<table class="widefat striped shurloc-journey-user-agent">\s*<thead>\s*<tr>\s*<th scope="col">User agent<\/th>\s*<\/tr>\s*<\/thead>\s*<tbody>\s*<tr>\s*<td>Mozilla\/5\.0 &lt;script&gt;raw&lt;\/script&gt;<\/td>\s*<\/tr>\s*<\/tbody>\s*<\/table>\s*<br>\s*<table class="widefat striped shurloc-journey-events">/s',
 			$output
 		);
 		self::assertStringContainsString( '<th scope="col">Device type</th>', $output );
@@ -169,6 +173,7 @@ final class JourneyReportRendererTest extends TestCase {
 		self::assertStringContainsString( '<td>Not identified</td>', $output );
 		self::assertStringContainsString( '<td>0 (legacy/unclassified)</td>', $output );
 		self::assertStringContainsString( '<td>Not recorded</td>', $output );
+		self::assertStringContainsString( 'shurloc-journey-user-agent', $output );
 	}
 
 	/**
