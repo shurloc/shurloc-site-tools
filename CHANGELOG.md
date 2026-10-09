@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.10.4] - 2026-10-09
+
+### Changed
+
+- Updated the single-event Journey cleanup to target sessions with no referrer or a referrer of shurloc.com.
+- Added referrer visibility to Customer Journey reports and reorganized Journey detail metadata into horizontal tables.
+- Arranged Customer migration cards side by side when space permits.
+
 ## [0.10.3] - 2026-09-29
 
 ### Added
