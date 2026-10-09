@@ -120,6 +120,7 @@ final class JourneyReportControllerTest extends TestCase {
 				(object) array(
 					'subject_type'          => 'customer',
 					'subject_id'            => '7',
+					'referrer_host'         => 'search.example',
 					'last_activity_at'      => '2026-09-18 12:00:00',
 					'total_active_ms'       => '125000',
 					'total_page_view_count' => '4',
@@ -128,6 +129,7 @@ final class JourneyReportControllerTest extends TestCase {
 				(object) array(
 					'subject_type'          => 'visitor',
 					'subject_id'            => '12',
+					'referrer_host'         => null,
 					'last_activity_at'      => '2026-09-18 12:00:00',
 					'total_active_ms'       => '500',
 					'total_page_view_count' => '1',
@@ -149,6 +151,12 @@ final class JourneyReportControllerTest extends TestCase {
 		self::assertStringContainsString( '>Anonymous Visitor #12</a>', $output );
 		self::assertStringContainsString( '<td>Authenticated customer</td>', $output );
 		self::assertStringContainsString( '<td>Anonymous visitor</td>', $output );
+		self::assertMatchesRegularExpression(
+			'/<th scope="col">Type<\/th>\s*<th scope="col">Referrer<\/th>\s*<th scope="col">Latest activity<\/th>/',
+			$output
+		);
+		self::assertStringContainsString( '<td>search.example</td>', $output );
+		self::assertStringContainsString( '<td>—</td>', $output );
 		self::assertStringContainsString( '<th scope="col">Total time spent</th>', $output );
 		self::assertStringContainsString( '<th scope="col">Page views / events</th>', $output );
 		self::assertStringContainsString( '<td>2m 5s</td>', $output );
@@ -183,9 +191,11 @@ final class JourneyReportControllerTest extends TestCase {
 				Journey_Event_Type::PAGE_VIEW,
 				Journey_Event_Type::PRODUCT_VIEW,
 				'shop_shurloc_journey_events',
+				'shop_shurloc_journey_sessions',
 				'1000-01-01 00:00:00',
 				'9999-12-31 23:59:59',
 				'shop_shurloc_journey_events',
+				'shop_shurloc_journey_sessions',
 				'1000-01-01 00:00:00',
 				'9999-12-31 23:59:59',
 				'shop_shurloc_journey_identity_periods',
@@ -207,6 +217,7 @@ final class JourneyReportControllerTest extends TestCase {
 			$subjects[] = (object) array(
 				'subject_type'          => 'visitor',
 				'subject_id'            => (string) $id,
+				'referrer_host'         => null,
 				'last_activity_at'      => '2026-09-18 12:00:00',
 				'total_active_ms'       => '1000',
 				'total_page_view_count' => '1',
@@ -224,8 +235,8 @@ final class JourneyReportControllerTest extends TestCase {
 		self::assertStringContainsString( '>Anonymous Visitor #50</a>', $output );
 		self::assertStringNotContainsString( '>Anonymous Visitor #51</a>', $output );
 		self::assertSame( 50, substr_count( $output, 'name="journey_subjects[]"' ) );
-		self::assertSame( 51, $this->database->prepared_queries[1]['args'][9] );
-		self::assertSame( 0, $this->database->prepared_queries[1]['args'][10] );
+		self::assertSame( 51, $this->database->prepared_queries[1]['args'][11] );
+		self::assertSame( 0, $this->database->prepared_queries[1]['args'][12] );
 	}
 
 	/**
@@ -249,8 +260,8 @@ final class JourneyReportControllerTest extends TestCase {
 		self::assertStringContainsString( 'journey_from=2026-09-01&amp;journey_to=2026-09-18&amp;journey_subject=customer', $output );
 		self::assertStringNotContainsString( 'journey_page=', $output );
 		self::assertStringNotContainsString( '>Next journeys</a>', $output );
-		self::assertSame( 51, $this->database->prepared_queries[0]['args'][9] );
-		self::assertSame( 50, $this->database->prepared_queries[0]['args'][10] );
+		self::assertSame( 51, $this->database->prepared_queries[0]['args'][11] );
+		self::assertSame( 50, $this->database->prepared_queries[0]['args'][12] );
 	}
 
 	/**
@@ -265,6 +276,7 @@ final class JourneyReportControllerTest extends TestCase {
 				(object) array(
 					'subject_type'          => 'customer',
 					'subject_id'            => '9',
+					'referrer_host'         => 'archive.example',
 					'last_activity_at'      => '2026-09-18 12:00:00',
 					'total_active_ms'       => '0',
 					'total_page_view_count' => '0',
@@ -299,6 +311,7 @@ final class JourneyReportControllerTest extends TestCase {
 			(object) array(
 				'subject_type'          => 'customer',
 				'subject_id'            => '7',
+				'referrer_host'         => 'search.example',
 				'last_activity_at'      => '2026-09-18 12:00:00',
 				'total_active_ms'       => '3723000',
 				'total_page_view_count' => '5',
@@ -307,6 +320,7 @@ final class JourneyReportControllerTest extends TestCase {
 			(object) array(
 				'subject_type'          => 'visitor',
 				'subject_id'            => '12',
+				'referrer_host'         => null,
 				'last_activity_at'      => '2026-09-17 12:00:00',
 				'total_active_ms'       => '1000',
 				'total_page_view_count' => '1',
@@ -337,9 +351,11 @@ final class JourneyReportControllerTest extends TestCase {
 				Journey_Event_Type::PAGE_VIEW,
 				Journey_Event_Type::PRODUCT_VIEW,
 				'wp_shurloc_journey_events',
+				'wp_shurloc_journey_sessions',
 				'2026-09-01 07:00:00',
 				'2026-09-19 07:00:00',
 				'wp_shurloc_journey_events',
+				'wp_shurloc_journey_sessions',
 				'2026-09-01 07:00:00',
 				'2026-09-19 07:00:00',
 				'wp_shurloc_journey_identity_periods',
@@ -385,6 +401,7 @@ final class JourneyReportControllerTest extends TestCase {
 			(object) array(
 				'subject_type'          => 'visitor',
 				'subject_id'            => '12',
+				'referrer_host'         => 'partner.example',
 				'last_activity_at'      => '2026-09-17 12:00:00',
 				'total_active_ms'       => '1000',
 				'total_page_view_count' => '1',
@@ -401,8 +418,8 @@ final class JourneyReportControllerTest extends TestCase {
 		self::assertStringNotContainsString( 'Select a valid anonymous visitor.', $output );
 		self::assertStringContainsString( 'journey_from=2026-09-01&amp;journey_to=2026-09-18&amp;journey_subject=visitor&amp;journey_visitor_id=12', $output );
 		self::assertCount( 1, $this->database->prepared_queries );
-		self::assertSame( '2026-09-01 07:00:00', $this->database->prepared_queries[0]['args'][3] );
-		self::assertSame( '2026-09-19 07:00:00', $this->database->prepared_queries[0]['args'][4] );
+		self::assertSame( '2026-09-01 07:00:00', $this->database->prepared_queries[0]['args'][4] );
+		self::assertSame( '2026-09-19 07:00:00', $this->database->prepared_queries[0]['args'][5] );
 	}
 
 	/**

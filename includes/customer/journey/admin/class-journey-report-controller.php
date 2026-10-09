@@ -607,6 +607,7 @@ final class Journey_Report_Controller {
 						</td>
 						<th scope="col"><?php echo esc_html__( 'Customer or visitor', 'shurloc-site-tools' ); ?></th>
 						<th scope="col"><?php echo esc_html__( 'Type', 'shurloc-site-tools' ); ?></th>
+						<th scope="col"><?php echo esc_html__( 'Referrer', 'shurloc-site-tools' ); ?></th>
 						<th scope="col"><?php echo esc_html__( 'Latest activity', 'shurloc-site-tools' ); ?></th>
 						<th scope="col"><?php echo esc_html__( 'Total time spent', 'shurloc-site-tools' ); ?></th>
 						<th scope="col"><?php echo esc_html__( 'Page views / events', 'shurloc-site-tools' ); ?></th>
@@ -680,6 +681,7 @@ final class Journey_Report_Controller {
 				<?php endif; ?>
 			</td>
 			<td><?php echo esc_html( $type_label ); ?></td>
+			<td><?php echo esc_html( $subject['referrer_host'] ?? '—' ); ?></td>
 			<td><?php echo esc_html( $this->local_datetime( utc: $subject['last_activity_at'] ) ); ?></td>
 			<td><?php echo esc_html( $this->format_duration( milliseconds: $subject['total_active_ms'] ) ); ?></td>
 			<td><?php echo esc_html( $subject['total_page_view_count'] . ' / ' . $subject['total_event_count'] ); ?></td>
