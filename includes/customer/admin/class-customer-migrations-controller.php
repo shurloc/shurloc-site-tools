@@ -475,12 +475,12 @@ final class Customer_Migrations_Controller {
 	private function render_journey_single_event_migration_card(): void {
 		$this->render_journey_migration_card(
 			title: 'Single-Event Journey Cleanup',
-			description: 'Deletes Journey sessions with exactly one event and no referrer, together with their events and cart links.',
+			description: 'Deletes Journey sessions with exactly one event and either no referrer or a referrer of shurloc.com, together with their events and cart links.',
 			version: Journey_Single_Event_Cleanup_Migration::VERSION,
 			last_run: $this->journey_single_event_migration->get_last_run(),
 			last_run_version: $this->journey_single_event_migration->get_last_run_version(),
 			action: self::JOURNEY_SINGLE_EVENT_ACTION,
-			confirm_message: 'Run the Single-Event Journey Cleanup migration? Journey sessions with exactly one event and no referrer, together with their dependent events and cart links, will be permanently deleted.',
+			confirm_message: 'Run the Single-Event Journey Cleanup migration? Journey sessions with exactly one event and either no referrer or a referrer of shurloc.com, together with their dependent events and cart links, will be permanently deleted.',
 			button_label: 'Run Single-Event Journey Cleanup',
 		);
 	}
