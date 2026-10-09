@@ -68,6 +68,7 @@ final class JourneyReportVisitorRepositoryTest extends TestCase {
 			(object) array(
 				'subject_type'          => 'customer',
 				'subject_id'            => '7',
+				'referrer_host'         => 'search.example',
 				'last_activity_at'      => '2026-09-18 12:00:00',
 				'total_active_ms'       => '125000',
 				'total_page_view_count' => '4',
@@ -76,6 +77,7 @@ final class JourneyReportVisitorRepositoryTest extends TestCase {
 			(object) array(
 				'subject_type'          => 'visitor',
 				'subject_id'            => '12',
+				'referrer_host'         => null,
 				'last_activity_at'      => '2026-09-17 12:00:00',
 				'total_active_ms'       => '0',
 				'total_page_view_count' => '1',
@@ -90,6 +92,7 @@ final class JourneyReportVisitorRepositoryTest extends TestCase {
 				array(
 					'subject_type'          => 'customer',
 					'subject_id'            => 7,
+					'referrer_host'         => 'search.example',
 					'last_activity_at'      => '2026-09-18 12:00:00',
 					'total_active_ms'       => 125000,
 					'total_page_view_count' => 4,
@@ -98,6 +101,7 @@ final class JourneyReportVisitorRepositoryTest extends TestCase {
 				array(
 					'subject_type'          => 'visitor',
 					'subject_id'            => 12,
+					'referrer_host'         => null,
 					'last_activity_at'      => '2026-09-17 12:00:00',
 					'total_active_ms'       => 0,
 					'total_page_view_count' => 1,
@@ -113,9 +117,11 @@ final class JourneyReportVisitorRepositoryTest extends TestCase {
 				Journey_Event_Type::PAGE_VIEW,
 				Journey_Event_Type::PRODUCT_VIEW,
 				'shop_shurloc_journey_events',
+				'shop_shurloc_journey_sessions',
 				'1000-01-01 00:00:00',
 				'9999-12-31 23:59:59',
 				'shop_shurloc_journey_events',
+				'shop_shurloc_journey_sessions',
 				'1000-01-01 00:00:00',
 				'9999-12-31 23:59:59',
 				'shop_shurloc_journey_identity_periods',
@@ -132,6 +138,8 @@ final class JourneyReportVisitorRepositoryTest extends TestCase {
 		self::assertStringContainsString( 'SUM(recent.active_ms) AS total_active_ms', $query['query'] );
 		self::assertStringContainsString( 'SUM(CASE WHEN recent.event_type IN (%s, %s) THEN 1 ELSE 0 END) AS total_page_view_count', $query['query'] );
 		self::assertStringContainsString( 'COUNT(*) AS total_event_count', $query['query'] );
+		self::assertStringContainsString( "MAX(CONCAT(recent.occurred_at, '|', LPAD(recent.event_id, 20, '0'), '|', COALESCE(recent.referrer_host, '')))", $query['query'] );
+		self::assertSame( 2, substr_count( $query['query'], 'INNER JOIN %i s ON s.id = e.session_id' ) );
 		self::assertStringContainsString( 'LIMIT %d OFFSET %d', $query['query'] );
 		self::assertStringNotContainsString( 'visitor_uuid', $query['query'] );
 	}
@@ -151,8 +159,8 @@ final class JourneyReportVisitorRepositoryTest extends TestCase {
 
 		self::assertSame( 7, $subjects[0]['subject_id'] ?? null );
 		$query = $this->database->prepared_queries[0];
-		self::assertSame( 25, $query['args'][9] );
-		self::assertSame( 50, $query['args'][10] );
+		self::assertSame( 25, $query['args'][11] );
+		self::assertSame( 50, $query['args'][12] );
 	}
 
 	/**
@@ -176,9 +184,11 @@ final class JourneyReportVisitorRepositoryTest extends TestCase {
 				Journey_Event_Type::PAGE_VIEW,
 				Journey_Event_Type::PRODUCT_VIEW,
 				'wp_shurloc_journey_events',
+				'wp_shurloc_journey_sessions',
 				'2026-09-01 07:00:00',
 				'2026-10-01 07:00:00',
 				'wp_shurloc_journey_events',
+				'wp_shurloc_journey_sessions',
 				'2026-09-01 07:00:00',
 				'2026-10-01 07:00:00',
 				'wp_shurloc_journey_identity_periods',
@@ -352,6 +362,14 @@ final class JourneyReportVisitorRepositoryTest extends TestCase {
 		$row->total_event_count     = '0';
 		self::assertNull( $repository->recent_subjects() );
 
+		$row                     = $this->recent_subject_row();
+		$row->referrer_host      = 'not a valid host';
+		$this->database->results = array( $row );
+		self::assertNull( $repository->recent_subjects() );
+
+		unset( $row->referrer_host );
+		self::assertNull( $repository->recent_subjects() );
+
 		$this->database->results = array_fill(
 			0,
 			2,
@@ -370,6 +388,7 @@ final class JourneyReportVisitorRepositoryTest extends TestCase {
 		$row                        = new stdClass();
 		$row->subject_type          = $subject_type;
 		$row->subject_id            = '7';
+		$row->referrer_host         = 'search.example';
 		$row->last_activity_at      = '2026-09-18 12:00:00';
 		$row->total_active_ms       = '125000';
 		$row->total_page_view_count = '4';
